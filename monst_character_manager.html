@@ -54,7 +54,10 @@ main{max-width:760px;margin:auto;padding:10px 10px 24px}
 }
 .statusText{min-width:0}
 .currentTitle{font-size:17px;font-weight:900;overflow-wrap:anywhere}
-.currentSub{font-size:11px;color:#64748b}
+.subBtn{
+  margin-top:3px;border:1px solid #dbe1ea;background:#fff;border-radius:999px;
+  padding:3px 10px;font-size:11px;font-weight:700;color:#475569
+}
 .addBtn{
   flex:none;border:0;border-radius:999px;min-height:44px;padding:10px 16px;
   background:#2563eb;color:#fff;font-weight:900;white-space:nowrap;
@@ -67,7 +70,8 @@ main{max-width:760px;margin:auto;padding:10px 10px 24px}
   border:1px solid #e5e7eb;box-shadow:0 2px 8px #00000008
 }
 .deviceHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.deviceName{font-size:16px;font-weight:900}
+.deviceName{font-size:16px;font-weight:900;min-width:0;overflow-wrap:anywhere}
+.deviceId{font-size:12px;font-weight:700;color:#64748b}
 .count{
   font-size:12px;font-weight:800;color:#64748b;background:#f1f5f9;
   border-radius:999px;padding:2px 9px;white-space:nowrap
@@ -92,13 +96,13 @@ main{max-width:760px;margin:auto;padding:10px 10px 24px}
 }
 /* 未登録の端末は「端末名・登録なし・0体」の1行にまとめる */
 .device.empty{
-  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
+  display:grid;grid-template-columns:minmax(0,max-content) 1fr auto;align-items:center;gap:10px;
   padding:7px 12px;background:#fbfcfd;box-shadow:none
 }
 .device.empty .deviceHead{display:contents}
 .device.empty .deviceName{font-size:15px;color:#475569}
 .device.empty .count{order:2}
-.device.empty .noChar{padding:0;font-size:12px;text-align:left}
+.device.empty .noChar{padding:0;font-size:12px;text-align:left;white-space:nowrap}
 
 .modalBack{
   display:none;position:fixed;inset:0;z-index:50;background:#0008;
@@ -164,7 +168,7 @@ textarea{min-height:72px;resize:vertical}
   <div class="statusLine">
     <div class="statusText">
       <div class="currentTitle" id="currentTitle">—</div>
-      <div class="currentSub">端末ごとの適正キャラ</div>
+      <button class="subBtn" id="nameBtn">端末名設定</button>
     </div>
     <button class="addBtn" id="addBtn">＋ キャラ登録</button>
   </div>
@@ -216,12 +220,29 @@ textarea{min-height:72px;resize:vertical}
   </div>
 </div>
 
+<div class="modalBack" id="nameModalBack">
+  <div class="modal">
+    <h2>端末名設定</h2>
+    <div class="grid" id="nameInputs"></div>
+    <div class="help">空欄にすると未設定（「メイン」「サブ1」などの表示）に戻ります。最大20文字。</div>
+    <div class="formBtns">
+      <button class="cancel" id="nameCancelBtn">キャンセル</button>
+      <button class="save" id="nameSaveBtn">保存する</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const KEY='monst-character-manager-v2';
 const OLD_KEY='monst-character-manager-v1';
 
 const QUESTS=['禁忌の獄','破界の星墓','天魔の孤城'];
 const DEVICES=['メイン','サブ1','サブ2','サブ3','サブ4'];
+
+// 端末の表示名（キャラデータとは別キー。内部IDはDEVICESのまま）
+const NAME_KEY='monst-character-manager-device-names-v1';
+const NAME_MAX=20;
+const DEFAULT_NAMES={'メイン':'マフティー'};
 
 let state={
   quest:QUESTS[0],
@@ -244,6 +265,23 @@ function esc(s=''){
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
 }
+
+function cleanName(s){return String(s??'').trim().slice(0,NAME_MAX).trim()}
+function loadNames(){
+  let raw=DEFAULT_NAMES;
+  try{
+    const stored=localStorage.getItem(NAME_KEY);
+    if(stored!==null) raw=JSON.parse(stored)||{};
+  }catch{}
+  const names={};
+  DEVICES.forEach(d=>{
+    const n=typeof raw[d]==='string'?cleanName(raw[d]):'';
+    if(n) names[d]=n;
+  });
+  return names;
+}
+function saveNames(names){localStorage.setItem(NAME_KEY,JSON.stringify(names))}
+function deviceLabel(d,names=loadNames()){return names[d]?`${names[d]}（${d}）`:d}
 
 function migrateOld(){
   if(localStorage.getItem(KEY)) return;
@@ -301,12 +339,13 @@ function filtered(device){
 
 function renderDevices(){
   $('currentTitle').textContent=state.stage ? `${state.quest}・${state.stage}` : state.quest;
+  const names=loadNames();
   $('devices').innerHTML=DEVICES.map(device=>{
     const chars=filtered(device);
     return `
       <article class="device${chars.length?'':' empty'}">
         <div class="deviceHead">
-          <div class="deviceName">${device}</div>
+          <div class="deviceName">${names[device]?`${esc(names[device])}<span class="deviceId">（${device}）</span>`:device}</div>
           <div class="count${chars.length?' has':''}">${chars.length}体</div>
         </div>
         <div class="charList">
@@ -331,6 +370,7 @@ function renderDevices(){
 function renderAllList(){
   const box=$('allList');
   if(box.style.display==='none') return;
+  const names=loadNames();
   const data=load().slice().sort((a,b)=>
     naturalSort(a.quest,b.quest)||naturalSort(a.stage,b.stage)||naturalSort(a.device,b.device)
   );
@@ -338,7 +378,7 @@ function renderAllList(){
     <div class="charRow" style="margin-bottom:6px">
       <div>
         <div class="charName">${esc(x.character)}</div>
-        <div class="charMeta">${esc(x.device)} / ${esc(x.quest)} / ${esc(x.stage)}${x.memo?' / '+esc(x.memo):''}</div>
+        <div class="charMeta">${esc(deviceLabel(x.device,names))} / ${esc(x.quest)} / ${esc(x.stage)}${x.memo?' / '+esc(x.memo):''}</div>
       </div>
       <button class="mini" onclick="editItem('${x.id}')">編集</button>
     </div>
@@ -353,7 +393,10 @@ function render(){
 }
 
 function fillSelects(){
-  $('deviceInput').innerHTML=DEVICES.map(x=>`<option>${x}</option>`).join('');
+  const names=loadNames();
+  const current=$('deviceInput').value;
+  $('deviceInput').innerHTML=DEVICES.map(x=>`<option value="${x}">${esc(deviceLabel(x,names))}</option>`).join('');
+  if(current) $('deviceInput').value=current;
   $('questInput').innerHTML=QUESTS.map(x=>`<option>${x}</option>`).join('');
 }
 
@@ -418,6 +461,34 @@ window.deleteItem=id=>{
   if(!stages.includes(state.stage)) state.stage=stages[0]||null;
   render();
 };
+
+function openNameModal(){
+  const names=loadNames();
+  $('nameInputs').innerHTML=DEVICES.map((d,i)=>`
+    <div>
+      <label for="nameInput${i}">${d}</label>
+      <input id="nameInput${i}" maxlength="${NAME_MAX}" placeholder="未設定">
+    </div>
+  `).join('');
+  DEVICES.forEach((d,i)=>{$('nameInput'+i).value=names[d]||''});
+  $('nameModalBack').classList.add('open');
+}
+function closeNameModal(){$('nameModalBack').classList.remove('open')}
+
+$('nameBtn').addEventListener('click',openNameModal);
+$('nameCancelBtn').addEventListener('click',closeNameModal);
+$('nameModalBack').addEventListener('click',e=>{if(e.target===$('nameModalBack'))closeNameModal()});
+$('nameSaveBtn').addEventListener('click',()=>{
+  const names={};
+  DEVICES.forEach((d,i)=>{
+    const n=cleanName($('nameInput'+i).value);
+    if(n) names[d]=n;
+  });
+  saveNames(names);
+  fillSelects();
+  closeNameModal();
+  render();
+});
 
 $('showAllBtn').addEventListener('click',()=>{
   const box=$('allList');
