@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>モンスト 高難易度 編成管理</title>
+<style>
+:root{
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:#111827;background:#f3f5f9;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f5f9}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+header{
+  position:sticky;top:0;z-index:20;
+  background:#111827;color:#fff;
+  padding:14px 16px 12px;
+  box-shadow:0 2px 12px #0003
+}
+header h1{font-size:19px;margin:0 0 3px}
+header p{margin:0;font-size:12px;color:#cbd5e1}
+main{max-width:760px;margin:auto;padding:14px 12px 110px}
+
+.panel{
+  background:#fff;border-radius:18px;padding:14px;
+  margin-bottom:14px;box-shadow:0 2px 12px #0000000c
+}
+.sectionTitle{font-size:15px;font-weight:800;margin:0 0 10px}
+
+.questTabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.questBtn{
+  border:1px solid #dbe1ea;background:#fff;border-radius:13px;
+  min-height:58px;padding:8px 5px;font-size:13px;font-weight:800;color:#374151
+}
+.questBtn.active{background:#111827;color:#fff;border-color:#111827}
+
+.stageBar{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
+.stageBtn{
+  border:1px solid #dbe1ea;background:#fff;border-radius:999px;
+  padding:9px 14px;white-space:nowrap;font-weight:700;color:#374151
+}
+.stageBtn.active{background:#2563eb;border-color:#2563eb;color:#fff}
+.emptyStage{
+  color:#64748b;font-size:13px;background:#f8fafc;
+  border:1px dashed #cbd5e1;border-radius:12px;padding:14px
+}
+
+.statusLine{
+  display:flex;justify-content:space-between;gap:8px;align-items:center;
+  margin:2px 2px 10px
+}
+.currentTitle{font-size:18px;font-weight:900}
+.currentSub{font-size:12px;color:#64748b;text-align:right}
+
+.devices{display:grid;grid-template-columns:1fr;gap:10px}
+.device{
+  background:#fff;border-radius:16px;padding:13px 14px;
+  border:1px solid #e5e7eb;box-shadow:0 2px 8px #00000008
+}
+.deviceHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.deviceName{font-size:17px;font-weight:900}
+.count{font-size:12px;color:#64748b}
+.charList{display:flex;flex-direction:column;gap:7px}
+.charRow{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  background:#f8fafc;border-radius:11px;padding:9px 10px
+}
+.charName{font-weight:800}
+.charMeta{font-size:11px;color:#64748b;margin-top:2px}
+.rowActions{display:flex;gap:5px}
+.mini{
+  width:auto;border:0;border-radius:8px;padding:6px 8px;
+  background:#e5e7eb;color:#334155;font-size:12px;font-weight:700
+}
+.mini.delete{background:#fee2e2;color:#991b1b}
+.noChar{
+  font-size:13px;color:#94a3b8;padding:9px 4px;
+  text-align:center
+}
+
+.fab{
+  position:fixed;right:16px;bottom:20px;z-index:30;
+  border:0;border-radius:999px;padding:14px 18px;
+  background:#2563eb;color:#fff;font-weight:900;
+  box-shadow:0 8px 22px #2563eb55
+}
+
+.modalBack{
+  display:none;position:fixed;inset:0;z-index:50;background:#0008;
+  padding:18px;align-items:flex-end;justify-content:center
+}
+.modalBack.open{display:flex}
+.modal{
+  width:min(720px,100%);max-height:88vh;overflow:auto;
+  background:#fff;border-radius:20px 20px 14px 14px;padding:16px
+}
+.modal h2{font-size:18px;margin:0 0 13px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+label{display:block;font-size:12px;font-weight:800;color:#475569;margin-bottom:4px}
+input,select,textarea{
+  width:100%;border:1px solid #cbd5e1;border-radius:10px;
+  padding:11px;background:#fff;color:#111827
+}
+textarea{min-height:72px;resize:vertical}
+.formBtns{display:flex;gap:8px;margin-top:14px}
+.formBtns button{border:0;border-radius:11px;padding:12px;font-weight:900}
+.save{flex:1;background:#2563eb;color:#fff}
+.cancel{background:#e5e7eb;color:#111827}
+.help{font-size:11px;color:#64748b;margin-top:4px}
+
+.topTools{display:flex;gap:8px;margin-top:10px}
+.toolBtn{
+  border:1px solid #dbe1ea;background:#fff;border-radius:10px;
+  padding:8px 10px;font-size:12px;font-weight:700;color:#475569
+}
+
+@media(min-width:640px){
+  .devices{grid-template-columns:1fr 1fr}
+  .device:first-child{grid-column:1/-1}
+}
+@media(max-width:560px){
+  .grid{grid-template-columns:1fr}
+  .full{grid-column:auto}
+  .questBtn{font-size:12px;padding:7px 3px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>モンスト 高難易度 編成管理</h1>
+  <p>メイン1台＋サブ4台の適正キャラをステージ別に確認</p>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="sectionTitle">① クエストを選ぶ</div>
+    <div class="questTabs" id="questTabs"></div>
+  </section>
+
+  <section class="panel">
+    <div class="sectionTitle">② ステージを選ぶ</div>
+    <div class="stageBar" id="stageBar"></div>
+    <div class="emptyStage" id="emptyStage" style="display:none">
+      このクエストにはまだステージ登録がありません。右下の「＋ キャラ登録」から最初のキャラを登録してください。
+    </div>
+  </section>
+
+  <div class="statusLine">
+    <div class="currentTitle" id="currentTitle">—</div>
+    <div class="currentSub">端末ごとの<br>適正キャラ</div>
+  </div>
+
+  <section class="devices" id="devices"></section>
+
+  <section class="panel" style="margin-top:14px">
+    <div class="sectionTitle">管理</div>
+    <div style="font-size:12px;color:#64748b">
+      登録データはこの端末のChrome内に保存されます。
+    </div>
+    <div class="topTools">
+      <button class="toolBtn" id="showAllBtn">登録一覧を見る</button>
+    </div>
+    <div id="allList" style="display:none;margin-top:10px"></div>
+  </section>
+</main>
+
+<button class="fab" id="addBtn">＋ キャラ登録</button>
+
+<div class="modalBack" id="modalBack">
+  <div class="modal">
+    <h2 id="modalTitle">キャラを登録</h2>
+    <div class="grid">
+      <div>
+        <label>端末</label>
+        <select id="deviceInput"></select>
+      </div>
+      <div>
+        <label>キャラ名</label>
+        <input id="charInput" placeholder="例：ルシファー">
+      </div>
+      <div>
+        <label>クエスト</label>
+        <select id="questInput"></select>
+      </div>
+      <div>
+        <label>ステージ</label>
+        <input id="stageInput" placeholder="例：1、2、EX、最終">
+        <div class="help">数字でも「EX」などの名前でもOK</div>
+      </div>
+      <div class="full">
+        <label>役割・メモ</label>
+        <input id="memoInput" placeholder="例：最適正、加速枠、2体所持">
+      </div>
+    </div>
+    <div class="formBtns">
+      <button class="cancel" id="cancelBtn">キャンセル</button>
+      <button class="save" id="saveBtn">保存する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY='monst-character-manager-v2';
+const OLD_KEY='monst-character-manager-v1';
+
+const QUESTS=['禁忌の獄','破界の星墓','天魔の孤城'];
+const DEVICES=['メイン','サブ1','サブ2','サブ3','サブ4'];
+
+let state={
+  quest:QUESTS[0],
+  stage:null,
+  editingId:null
+};
+
+const $=id=>document.getElementById(id);
+
+function load(){
+  try{
+    const v=JSON.parse(localStorage.getItem(KEY)||'[]');
+    if(Array.isArray(v)) return v;
+  }catch{}
+  return [];
+}
+function save(data){localStorage.setItem(KEY,JSON.stringify(data))}
+function esc(s=''){
+  return String(s).replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+function migrateOld(){
+  if(localStorage.getItem(KEY)) return;
+  try{
+    const old=JSON.parse(localStorage.getItem(OLD_KEY)||'[]');
+    if(!Array.isArray(old) || !old.length) return;
+    const migrated=old.map((x,i)=>({
+      id:x.id||String(Date.now()+i),
+      device:DEVICES.includes(x.phone)?x.phone:'メイン',
+      character:x.character||'',
+      quest:QUESTS.includes(x.stage)?x.stage:QUESTS[0],
+      stage:'1',
+      memo:[x.role,x.memo].filter(Boolean).join(' / ')
+    }));
+    save(migrated);
+  }catch{}
+}
+
+function naturalSort(a,b){
+  return String(a).localeCompare(String(b),'ja',{numeric:true,sensitivity:'base'});
+}
+
+function stagesForQuest(q){
+  const s=[...new Set(load().filter(x=>x.quest===q).map(x=>x.stage).filter(Boolean))];
+  return s.sort(naturalSort);
+}
+
+function renderQuestTabs(){
+  $('questTabs').innerHTML=QUESTS.map(q=>
+    `<button class="questBtn ${q===state.quest?'active':''}" onclick="chooseQuest('${q}')">${q}</button>`
+  ).join('');
+}
+
+window.chooseQuest=q=>{
+  state.quest=q;
+  const stages=stagesForQuest(q);
+  if(!stages.includes(state.stage)) state.stage=stages[0]||null;
+  render();
+};
+
+function renderStages(){
+  const stages=stagesForQuest(state.quest);
+  $('emptyStage').style.display=stages.length?'none':'block';
+  $('stageBar').innerHTML=stages.map(s=>
+    `<button class="stageBtn ${s===state.stage?'active':''}" onclick="chooseStage('${esc(s)}')">${esc(s)}</button>`
+  ).join('');
+}
+window.chooseStage=s=>{state.stage=s;render()};
+
+function filtered(device){
+  return load().filter(x=>
+    x.device===device && x.quest===state.quest && x.stage===state.stage
+  ).sort((a,b)=>naturalSort(a.character,b.character));
+}
+
+function renderDevices(){
+  $('currentTitle').textContent=state.stage ? `${state.quest}・${state.stage}` : state.quest;
+  $('devices').innerHTML=DEVICES.map(device=>{
+    const chars=filtered(device);
+    return `
+      <article class="device">
+        <div class="deviceHead">
+          <div class="deviceName">${device}</div>
+          <div class="count">${chars.length}体</div>
+        </div>
+        <div class="charList">
+          ${chars.length?chars.map(x=>`
+            <div class="charRow">
+              <div>
+                <div class="charName">${esc(x.character)}</div>
+                ${x.memo?`<div class="charMeta">${esc(x.memo)}</div>`:''}
+              </div>
+              <div class="rowActions">
+                <button class="mini" onclick="editItem('${x.id}')">編集</button>
+                <button class="mini delete" onclick="deleteItem('${x.id}')">削除</button>
+              </div>
+            </div>
+          `).join(''):`<div class="noChar">登録なし</div>`}
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderAllList(){
+  const box=$('allList');
+  if(box.style.display==='none') return;
+  const data=load().slice().sort((a,b)=>
+    naturalSort(a.quest,b.quest)||naturalSort(a.stage,b.stage)||naturalSort(a.device,b.device)
+  );
+  box.innerHTML=data.length?data.map(x=>`
+    <div class="charRow" style="margin-bottom:6px">
+      <div>
+        <div class="charName">${esc(x.character)}</div>
+        <div class="charMeta">${esc(x.device)} / ${esc(x.quest)} / ${esc(x.stage)}${x.memo?' / '+esc(x.memo):''}</div>
+      </div>
+      <button class="mini" onclick="editItem('${x.id}')">編集</button>
+    </div>
+  `).join(''):`<div class="noChar">まだ登録がありません</div>`;
+}
+
+function render(){
+  renderQuestTabs();
+  renderStages();
+  renderDevices();
+  renderAllList();
+}
+
+function fillSelects(){
+  $('deviceInput').innerHTML=DEVICES.map(x=>`<option>${x}</option>`).join('');
+  $('questInput').innerHTML=QUESTS.map(x=>`<option>${x}</option>`).join('');
+}
+
+function openModal(item=null){
+  state.editingId=item?.id||null;
+  $('modalTitle').textContent=item?'登録内容を編集':'キャラを登録';
+  $('deviceInput').value=item?.device||'メイン';
+  $('charInput').value=item?.character||'';
+  $('questInput').value=item?.quest||state.quest;
+  $('stageInput').value=item?.stage||state.stage||'';
+  $('memoInput').value=item?.memo||'';
+  $('modalBack').classList.add('open');
+  setTimeout(()=>$('charInput').focus(),100);
+}
+
+function closeModal(){
+  $('modalBack').classList.remove('open');
+  state.editingId=null;
+}
+
+$('addBtn').addEventListener('click',()=>openModal());
+$('cancelBtn').addEventListener('click',closeModal);
+$('modalBack').addEventListener('click',e=>{if(e.target===$('modalBack'))closeModal()});
+
+$('saveBtn').addEventListener('click',()=>{
+  const device=$('deviceInput').value;
+  const character=$('charInput').value.trim();
+  const quest=$('questInput').value;
+  const stage=$('stageInput').value.trim();
+  const memo=$('memoInput').value.trim();
+
+  if(!character){alert('キャラ名を入力してください');return}
+  if(!stage){alert('ステージを入力してください');return}
+
+  const item={
+    id:state.editingId||String(Date.now()),
+    device,character,quest,stage,memo
+  };
+
+  let data=load();
+  if(state.editingId){
+    data=data.map(x=>x.id===state.editingId?item:x);
+  }else{
+    data.unshift(item);
+  }
+  save(data);
+  state.quest=quest;
+  state.stage=stage;
+  closeModal();
+  render();
+});
+
+window.editItem=id=>{
+  const item=load().find(x=>x.id===id);
+  if(item)openModal(item);
+};
+
+window.deleteItem=id=>{
+  if(!confirm('この登録を削除しますか？'))return;
+  save(load().filter(x=>x.id!==id));
+  const stages=stagesForQuest(state.quest);
+  if(!stages.includes(state.stage)) state.stage=stages[0]||null;
+  render();
+};
+
+$('showAllBtn').addEventListener('click',()=>{
+  const box=$('allList');
+  const open=box.style.display==='none';
+  box.style.display=open?'block':'none';
+  $('showAllBtn').textContent=open?'登録一覧を閉じる':'登録一覧を見る';
+  renderAllList();
+});
+
+migrateOld();
+fillSelects();
+const initialStages=stagesForQuest(state.quest);
+state.stage=initialStages[0]||null;
+render();
+</script>
+</body>
+</html>
