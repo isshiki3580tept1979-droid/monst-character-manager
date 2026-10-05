@@ -113,6 +113,44 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .pick{display:flex;flex-wrap:wrap;gap:5px}
 .pk{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;color:#334155;min-height:34px}
 .pk.on{background:#2563eb;color:#fff;border-color:#2563eb}
+/* 適正TOP20・所持状況 */
+.top20{background:#fff;border-radius:16px;padding:12px;margin:10px 0;box-shadow:0 2px 10px #0f172a0d}
+.tHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px}
+.tTitle{font-size:15px;font-weight:900}
+.tDevs{display:flex;gap:6px;overflow-x:auto;padding:6px 0;scrollbar-width:thin}
+.tDev{flex:none;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:800;color:#334155;min-height:36px;white-space:nowrap}
+.tDev.active{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+.tDev .n{font-size:10px;margin-left:4px;opacity:.75}
+.tModes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:4px 0 6px}
+.tMode{border:1px solid #cbd5e1;background:#fff;border-radius:10px;min-height:40px;font-size:12px;font-weight:800;color:#334155;padding:4px 2px;min-width:0}
+.tMode.active{color:#fff}
+.tMode.active.m-detail{background:#334155;border-color:#334155}
+.tMode.active.m-owned{background:#16a34a;border-color:#16a34a}
+.tMode.active.m-alt-form{background:#d97706;border-color:#d97706}
+.tMode.active.m-not-owned{background:#64748b;border-color:#64748b}
+.tHint{font-size:11px;color:#64748b;margin-bottom:6px;min-height:1.4em}
+.tHint.paint{color:#92400e;font-weight:700}
+.tGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.tile{position:relative;border:1px solid #cbd5e1;border-radius:10px;background:#fff;min-height:66px;padding:5px 3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#0f172a;min-width:0}
+.tile .r{font-size:15px;font-weight:900;line-height:1}
+.tile .nm{font-size:10px;font-weight:700;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .st{font-size:10px;font-weight:800}
+.tile .bang{position:absolute;top:2px;right:5px;font-size:13px;font-weight:900;color:#b45309}
+.tile.unset{border-style:dashed;color:#94a3b8}
+.tile.owned{background:#f0fdf4;border:2px solid #22c55e}
+.tile.owned .st{color:#15803d}
+.tile.alt{background:#cbd5e1;border:2px solid #f59e0b}
+.tile.alt .st{color:#92400e}
+.tile.not{background:#94a3b8;border-color:#64748b;color:#1e293b}
+.tile.not .st{color:#1e293b}
+.sum.four{grid-template-columns:repeat(4,1fr)}
+.tMsg{font-size:12px;color:#065f46;min-height:1.2em;margin-top:6px}
+.seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-bottom:10px}
+.seg.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.segBtn{border:1px solid #cbd5e1;background:#fff;border-radius:10px;min-height:44px;font-size:12px;font-weight:800;color:#334155;padding:4px 2px;min-width:0}
+.segBtn.on{background:#2563eb;border-color:#2563eb;color:#fff}
+.segBtn:disabled{opacity:.4}
+@media(max-width:350px){.tGrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:360px){.two{grid-template-columns:1fr}}
 </style>
 </head>
@@ -142,6 +180,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <button class="primary" data-act="add">＋ キャラ登録</button>
     </div>
     <div id="stageDevices"></div>
+    <div class="top20" id="top20"></div>
   </section>
 
   <!-- キャラ検索 -->
@@ -234,6 +273,37 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
   </div>
 </div>
 
+<!-- 適正TOP20：順位の編集 -->
+<div class="modalBack" id="rankModal">
+  <div class="modal">
+    <h2 id="rankTitle">順位の編集</h2>
+    <div class="field">
+      <label for="rName">キャラ名（全端末共通・空欄のままでも可）</label>
+      <input id="rName" maxlength="40" placeholder="未設定">
+    </div>
+    <label id="rDevLabel">所持状況</label>
+    <div class="seg" id="rStatus">
+      <button type="button" class="segBtn" data-act="rStatus" data-v="owned">所持</button>
+      <button type="button" class="segBtn" data-act="rStatus" data-v="alt-form">別形態</button>
+      <button type="button" class="segBtn" data-act="rStatus" data-v="not-owned">未所持</button>
+      <button type="button" class="segBtn" data-act="rStatus" data-v="">未入力</button>
+    </div>
+    <label>所持数</label>
+    <div class="seg five" id="rCount">
+      <button type="button" class="segBtn" data-act="rCount" data-v="">未確認</button>
+      <button type="button" class="segBtn" data-act="rCount" data-v="1">1体</button>
+      <button type="button" class="segBtn" data-act="rCount" data-v="2">2体</button>
+      <button type="button" class="segBtn" data-act="rCount" data-v="3">3体</button>
+      <button type="button" class="segBtn" data-act="rCount" data-v="4">4体以上</button>
+    </div>
+    <div class="small">所持数は「所持」「別形態」のときだけ設定できます。</div>
+    <div class="btns">
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="saveRank">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 貸出 -->
 <div class="modalBack" id="lendModal">
   <div class="modal">
@@ -300,10 +370,26 @@ function clean(s,max){return String(s??'').trim().slice(0,max).trim()}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function sortJa(a,b){return String(a).localeCompare(String(b),'ja',{numeric:true,sensitivity:'base'})}
 
+/* 適正TOP20・所持状況
+   rankings[ステージキー] = {updatedAt, entries:[{rank:1..20, name}]}      … ランキングはステージ共通
+   ownership[ステージキー][端末] = {updatedAt, ranks:{"順位":{status,count}}} … 所持状況は端末ごと
+   status: owned（所持）/ alt-form（別形態で所持）/ not-owned（未所持）。記録なし＝未入力
+   count : null（未確認）/ 1 / 2 / 3 / 4（4体以上）。所持・別形態のときだけ持つ。自動で1体にはしない */
+const RANKS=20;
+const OWN={'owned':'所持','alt-form':'別形態','not-owned':'未所持'};
+const OWN_CLASS={'owned':'owned','alt-form':'alt','not-owned':'not'};
+function countText(n){return n==null?'未確認':n>=4?'4体以上':`${n}体`}
+function isStageKey(k){const p=String(k).split(SEP);return p.length===2&&!!QMAP[p[0]]&&!!p[1]}
+function normCount(status,c){
+  const n=parseInt(c,10);
+  return status!=='not-owned'&&n>=1?Math.min(4,n):null;
+}
+
 function blank(){
   return {app:APP,version:1,deviceNames:{},characters:[],
     extraStages:Object.fromEntries(QUESTS.filter(q=>q.canAdd).map(q=>[q.id,[]])),
-    ui:{view:'stage',quest:QUESTS[0].id,stage:{}}};
+    rankings:{},ownership:{},
+    ui:{view:'stage',quest:QUESTS[0].id,stage:{},rankDevice:DEVICES[0]}};
 }
 function normalize(raw){
   const d=blank();
@@ -335,8 +421,39 @@ function normalize(raw){
       };
     }).filter(c=>c.name);
   }
+  if(raw.rankings&&typeof raw.rankings==='object'){
+    Object.entries(raw.rankings).forEach(([k,v])=>{
+      if(!isStageKey(k)||!v||typeof v!=='object') return;
+      const names={};
+      if(Array.isArray(v.entries)) v.entries.forEach(e=>{
+        const r=parseInt(e?.rank,10), n=clean(e?.name,40);
+        if(r>=1&&r<=RANKS&&n) names[r]=n;
+      });
+      d.rankings[k]={updatedAt:typeof v.updatedAt==='string'?v.updatedAt.slice(0,40):null,
+        entries:Array.from({length:RANKS},(_,i)=>({rank:i+1,name:names[i+1]||''}))};
+    });
+  }
+  if(raw.ownership&&typeof raw.ownership==='object'){
+    Object.entries(raw.ownership).forEach(([k,byDev])=>{
+      if(!isStageKey(k)||!byDev||typeof byDev!=='object') return;
+      DEVICES.forEach(dev=>{
+        const o=byDev[dev];
+        if(!o||typeof o!=='object'||!o.ranks||typeof o.ranks!=='object') return;
+        const ranks={};
+        Object.entries(o.ranks).forEach(([r,v])=>{
+          const n=parseInt(r,10);
+          if(n>=1&&n<=RANKS&&v&&OWN[v.status]) ranks[n]={status:v.status,count:normCount(v.status,v.count)};
+        });
+        if(Object.keys(ranks).length){
+          d.ownership[k]=d.ownership[k]||{};
+          d.ownership[k][dev]={updatedAt:typeof o.updatedAt==='string'?o.updatedAt.slice(0,40):null,ranks};
+        }
+      });
+    });
+  }
   if(raw.ui&&typeof raw.ui==='object'){
     if(VIEWS.includes(raw.ui.view)) d.ui.view=raw.ui.view;
+    if(DEVICES.includes(raw.ui.rankDevice)) d.ui.rankDevice=raw.ui.rankDevice;
     if(QMAP[raw.ui.quest]) d.ui.quest=raw.ui.quest;
     // クエスト単位（"天魔の孤城"）と系統単位（"天魔の孤城::試練の間"）の選択位置を保持
     if(raw.ui.stage&&typeof raw.ui.stage==='object'){
@@ -533,10 +650,97 @@ function renderAdmin(){
   $('dataCount').textContent=`登録 ${db.characters.length}件`;
 }
 
+/* ---- 適正TOP20・所持状況 ---- */
+// 入力モード：詳細（タップで編集画面）/ 所持・別形態・未所持（タップした順位にその状態を記録）。
+// 誤操作防止のため保存せず、再読み込みで「詳細」に戻る
+let rankMode='detail', rankEditing=null;
+const MODES=[['detail','詳細'],['owned','所持'],['alt-form','別形態'],['not-owned','未所持']];
+function rankName(k,r){return db.rankings[k]?.entries[r-1]?.name||''}
+function ownOf(k,dev,r){return db.ownership[k]?.[dev]?.ranks?.[r]||null}
+function setRankName(k,r,name){
+  if(!db.rankings[k]){
+    if(!name) return;
+    db.rankings[k]={updatedAt:null,entries:Array.from({length:RANKS},(_,i)=>({rank:i+1,name:''}))};
+  }
+  db.rankings[k].entries[r-1].name=name;
+  db.rankings[k].updatedAt=new Date().toISOString();
+}
+function setOwn(k,dev,r,status,count){
+  const byDev=db.ownership[k]||(db.ownership[k]={});
+  const o=byDev[dev]||(byDev[dev]={updatedAt:null,ranks:{}});
+  if(OWN[status]) o.ranks[r]={status,count:normCount(status,count)};
+  else delete o.ranks[r];
+  o.updatedAt=new Date().toISOString();
+  if(!Object.keys(o.ranks).length){delete byDev[dev];if(!Object.keys(byDev).length)delete db.ownership[k]}
+}
+function renderTop20(){
+  const q=db.ui.quest, s=curStage(), k=key(q,s), dev=db.ui.rankDevice;
+  const cnt={owned:0,'alt-form':0,'not-owned':0,unset:0};
+  const tiles=Array.from({length:RANKS},(_,i)=>{
+    const r=i+1, name=rankName(k,r), o=ownOf(k,dev,r), st=o?o.status:null;
+    cnt[st||'unset']++;
+    return `<button type="button" class="tile ${st?OWN_CLASS[st]:'unset'}" data-act="rankTile" data-rank="${r}"
+      aria-label="${r}位 ${esc(name||'キャラ名未設定')} ${st?OWN[st]:'未入力'}">
+      ${st==='alt-form'?'<span class="bang">！</span>':''}
+      <span class="r">${r}</span><span class="nm">${esc(name||'—')}</span>
+      <span class="st">${st?OWN[st]:'未入力'}${o&&o.count!=null?` ×${o.count>=4?'4+':o.count}`:''}</span></button>`;
+  }).join('');
+  const devChips=DEVICES.map(d=>{
+    const n=Object.keys(db.ownership[k]?.[d]?.ranks||{}).length;
+    return `<button class="tDev${d===dev?' active':''}" data-act="rankDev" data-dev="${esc(d)}">${esc(devLabel(d))}<span class="n">${n}/${RANKS}</span></button>`;
+  }).join('');
+  const hint=rankMode==='detail'
+    ?'順位をタップすると、キャラ名・所持状況・所持数を編集できます。'
+    :`入力モード：タップした順位を「${OWN[rankMode]}」にします（${devLabel(dev)}）。終わったら「詳細」に戻してください。`;
+  const upd=db.ownership[k]?.[dev]?.updatedAt;
+  $('top20').innerHTML=`
+    <div class="tHead"><div class="tTitle">適正TOP20・所持状況</div><span class="small">${esc(stageText(q,s))}</span></div>
+    <div class="small">ランキング（キャラ名）はステージ共通、所持状況は端末ごとに記録します。</div>
+    <div class="tDevs">${devChips}</div>
+    <div class="tModes">${MODES.map(([m,l])=>`<button class="tMode m-${m}${m===rankMode?' active':''}" data-act="rankMode" data-mode="${m}">${l}</button>`).join('')}</div>
+    <div class="tHint${rankMode==='detail'?'':' paint'}">${esc(hint)}</div>
+    <div class="tGrid">${tiles}</div>
+    <div class="sum four"><div><b>${cnt.owned}</b>所持</div><div><b>${cnt['alt-form']}</b>別形態</div><div><b>${cnt['not-owned']}</b>未所持</div><div><b>${cnt.unset}</b>未入力</div></div>
+    <div class="tMsg" id="tMsg">${upd?`最終更新：${esc(new Date(upd).toLocaleString('ja-JP'))}`:''}</div>`;
+}
+function openRank(r){
+  const q=db.ui.quest, s=curStage(), k=key(q,s), dev=db.ui.rankDevice, o=ownOf(k,dev,r);
+  rankEditing={k,dev,r,status:o?o.status:'',count:o?o.count:null};
+  $('rankTitle').textContent=`${stageText(q,s)}　${r}位`;
+  $('rName').value=rankName(k,r);
+  $('rDevLabel').textContent=`所持状況（${devLabel(dev)}）`;
+  syncRankModal();
+  $('rankModal').classList.add('open');
+}
+function syncRankModal(){
+  const e=rankEditing, countable=e.status==='owned'||e.status==='alt-form';
+  document.querySelectorAll('#rStatus .segBtn').forEach(b=>b.classList.toggle('on',b.dataset.v===e.status));
+  document.querySelectorAll('#rCount .segBtn').forEach(b=>{
+    b.disabled=!countable;
+    b.classList.toggle('on',countable&&String(e.count??'')===b.dataset.v);
+  });
+}
+function saveRank(){
+  const e=rankEditing;if(!e)return;
+  const name=clean($('rName').value,40);
+  if(name!==rankName(e.k,e.r)) setRankName(e.k,e.r,name);
+  const o=ownOf(e.k,e.dev,e.r);
+  if((o?o.status:'')!==e.status||(o?o.count:null)!==normCount(e.status,e.count)) setOwn(e.k,e.dev,e.r,e.status,e.count);
+  persist();closeModals();render();
+}
+function paintRank(r){
+  const q=db.ui.quest, k=key(q,curStage()), dev=db.ui.rankDevice, o=ownOf(k,dev,r);
+  if(o&&o.status===rankMode) return;
+  // 所持⇔別形態の切り替えでは記録済みの所持数を残す。未所持にすると所持数は消える
+  setOwn(k,dev,r,rankMode,o?o.count:null);
+  persist();render();
+  $('tMsg').textContent=`${r}位を「${OWN[rankMode]}」にしました（${devLabel(dev)}）`;
+}
+
 function render(){
   VIEWS.forEach(v=>$('view-'+v).classList.toggle('active',v===db.ui.view));
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===db.ui.view));
-  renderStage();renderSearch();renderDevices();renderAdmin();
+  renderStage();renderTop20();renderSearch();renderDevices();renderAdmin();
 }
 function scrollActiveChip(){
   const a=document.querySelector('#stageChips .chip.active');
@@ -603,7 +807,7 @@ function saveLend(){
 function returnChar(c){c.lentTo=null;persist();render()}
 function closeModals(){
   document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
-  editingId=null;lendingId=null;
+  editingId=null;lendingId=null;rankEditing=null;
 }
 
 /* ---- 管理操作 ---- */
@@ -633,7 +837,8 @@ function removeStage(s){
 }
 function backupJson(){
   return JSON.stringify({app:APP,version:1,exportedAt:new Date().toISOString(),
-    data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages}},null,1);
+    data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages,
+      rankings:db.rankings,ownership:db.ownership}},null,1);
 }
 function backup(){
   const text=backupJson();
@@ -703,6 +908,22 @@ document.addEventListener('click',e=>{
     case 'backup':backup();break;
     case 'copyBackup':copyBackup();break;
     case 'restore':restore();break;
+    case 'rankDev':if(DEVICES.includes(b.dataset.dev)){db.ui.rankDevice=b.dataset.dev;persist();render()}break;
+    case 'rankMode':rankMode=b.dataset.mode;render();break;
+    case 'rankTile':{
+      const r=parseInt(b.dataset.rank,10);
+      if(rankMode==='detail') openRank(r); else paintRank(r);
+      break;
+    }
+    case 'rStatus':
+      if(rankEditing){
+        rankEditing.status=b.dataset.v;
+        if(rankEditing.status==='not-owned'||!rankEditing.status) rankEditing.count=null;
+        syncRankModal();
+      }
+      break;
+    case 'rCount':if(rankEditing&&!b.disabled){rankEditing.count=b.dataset.v?parseInt(b.dataset.v,10):null;syncRankModal()}break;
+    case 'saveRank':saveRank();break;
   }
 });
 $('searchInput').addEventListener('input',renderSearch);
