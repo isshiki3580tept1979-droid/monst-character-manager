@@ -3,255 +3,625 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>【試作】モンスト キャラ管理（初期版再現）</title>
+<meta name="theme-color" content="#0f172a">
+<title>【復刻版・試作】モンスト キャラ管理</title>
 <!--
-  初期版（commit 6ae1d08「モンスト キャラ管理」）の画面構成・操作感を再現した試作版。
-  保存領域は本番と完全に分離（本番キー monst-character-manager-v2 / -v1 / -device-names-v1 は読み書きしない）。
+  Git登録前の初期版（monst_character_manager_v1.html）の復刻試作。
+  一次資料：ChatGPT過去会話の記録（スマホ1画面構成／端末登録・キャラ登録・高難易度ステージ別表示・
+  キャラ検索・貸出・返却・バックアップ）。確証のないステージ名は追加していない。
+  保存領域は本番と完全分離：本番キー monst-character-manager-v2 / -v1 / -device-names-v1 は読み書きしない。
 -->
 <style>
-:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1f2937;background:#f5f7fb}
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0f172a;background:#eef2f7}
 *{box-sizing:border-box}
-body{margin:0;background:#f5f7fb}
-header{position:sticky;top:0;z-index:10;background:#111827;color:white;padding:16px 16px 12px;box-shadow:0 2px 10px #0002}
-header h1{font-size:20px;margin:0 0 6px}
-header p{font-size:12px;margin:0;color:#d1d5db}
-.trialTag{display:inline-block;vertical-align:middle;margin-left:6px;background:#f59e0b;color:#111827;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800}
-main{max-width:760px;margin:auto;padding:14px}
-.card{background:white;border-radius:16px;padding:14px;margin-bottom:14px;box-shadow:0 2px 10px #0000000f}
-h2{font-size:16px;margin:0 0 12px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.full{grid-column:1/-1}
-label{font-size:12px;font-weight:700;display:block;margin-bottom:4px;color:#4b5563}
-input,select,textarea,button{width:100%;font:inherit}
-input,select,textarea{border:1px solid #d1d5db;border-radius:10px;padding:11px;background:white;color:#1f2937;min-width:0}
-textarea{min-height:72px;resize:vertical}
-button{border:0;border-radius:11px;padding:11px 12px;font-weight:700;cursor:pointer}
-.primary{background:#2563eb;color:white}
-.secondary{background:#e5e7eb;color:#111827}
-.danger{background:#fee2e2;color:#991b1b}
-.filters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.span2{grid-column:1/-1}
-.item{border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin-top:10px}
-.itemTop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-.name{font-weight:800;font-size:17px;overflow-wrap:anywhere}
-.badge{display:inline-block;background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-size:11px;margin:3px 4px 0 0;overflow-wrap:anywhere}
-.phone{background:#ecfdf5;color:#065f46}
-.memo{font-size:13px;color:#4b5563;margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}
-.actions{display:flex;gap:8px;margin-top:10px}
-.actions button{padding:8px}
-.empty{text-align:center;color:#6b7280;padding:20px 8px}
-.count{font-size:12px;color:#6b7280;margin-top:4px}
-.formBtns{display:flex;gap:8px}
-@media(max-width:560px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
+body{margin:0;background:#eef2f7}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+header{background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#fff;padding:12px 14px 10px}
+header h1{font-size:18px;margin:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tag{font-size:10px;font-weight:800;background:#f59e0b;color:#111827;border-radius:999px;padding:2px 8px}
+header p{margin:3px 0 0;font-size:11px;color:#cbd5e1}
+main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-inset-bottom))}
+.view{display:none}
+.view.active{display:block}
+.panel{background:#fff;border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 2px 10px #0f172a0d}
+.ptitle{font-size:13px;font-weight:800;color:#475569;margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.small{font-size:11px;color:#64748b;font-weight:600}
+
+.questTabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.questBtn{border:1px solid #cbd5e1;background:#fff;border-radius:12px;min-height:46px;padding:6px 4px;font-weight:800;font-size:13px;color:#334155}
+.questBtn.active{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:thin}
+.chip{flex:none;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 12px;font-weight:700;font-size:13px;color:#334155;white-space:nowrap;min-height:38px}
+.chip.active{background:#2563eb;border-color:#2563eb;color:#fff}
+.chip .n{font-size:10px;font-weight:800;margin-left:4px;opacity:.75}
+.chip.cand{border-style:dashed}
+.note{font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:7px 9px;margin-top:4px;line-height:1.5}
+
+.stageHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 2px 8px}
+.stageTitle{font-size:17px;font-weight:900;overflow-wrap:anywhere;min-width:0}
+.stageSub{font-size:11px;color:#64748b;font-weight:600}
+.primary{border:0;border-radius:999px;background:#2563eb;color:#fff;font-weight:900;padding:10px 14px;min-height:44px;white-space:nowrap;flex:none;box-shadow:0 4px 12px #2563eb40}
+
+.dev{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:8px 10px;margin-bottom:6px}
+.devHead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.devName{font-weight:900;font-size:15px;min-width:0;overflow-wrap:anywhere}
+.devId{font-size:11px;color:#64748b;font-weight:700}
+.cnt{font-size:12px;font-weight:800;border-radius:999px;padding:2px 9px;background:#f1f5f9;color:#64748b;white-space:nowrap;flex:none}
+.cnt.has{background:#dbeafe;color:#1d4ed8}
+.dev.empty{display:flex;align-items:center;gap:8px;background:#f8fafc;padding:7px 10px}
+.dev.empty .devName{font-size:14px;color:#475569}
+.dev.empty .none{font-size:12px;color:#94a3b8;margin-left:auto;white-space:nowrap}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#f8fafc;border-radius:10px;padding:7px 8px;margin-top:6px}
+.row.away{opacity:.75;background:#fffbeb}
+.rowMain{min-width:0}
+.cname{font-weight:800;overflow-wrap:anywhere}
+.cname .x{font-size:11px;color:#64748b;font-weight:700;margin-left:4px}
+.meta{font-size:11px;color:#64748b;margin-top:2px;overflow-wrap:anywhere}
+.badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.b{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#eef2ff;color:#3730a3;overflow-wrap:anywhere;max-width:100%}
+.b.loc{background:#e0f2fe;color:#075985}
+.b.ok{background:#ecfdf5;color:#065f46}
+.b.out{background:#fef3c7;color:#92400e}
+.b.in{background:#fce7f3;color:#9d174d}
+.acts{display:flex;gap:5px;flex:none}
+.mini{border:0;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;background:#e2e8f0;color:#334155;min-height:36px}
+.mini.lend{background:#fef3c7;color:#92400e}
+.mini.ret{background:#dcfce7;color:#166534}
+.card{background:#fff;border-radius:14px;padding:10px 12px;margin-bottom:8px;border:1px solid #e2e8f0}
+.cardTop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px}
+.sum div{background:#f8fafc;border-radius:8px;text-align:center;font-size:11px;color:#64748b;padding:4px}
+.sum b{display:block;font-size:15px;color:#0f172a}
+.empty{color:#94a3b8;text-align:center;font-size:13px;padding:14px}
+
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 14px #0f172a12}
+nav button{border:0;background:none;padding:7px 2px 8px;min-height:58px;font-size:11px;font-weight:800;color:#64748b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+nav button .ic{font-size:18px;line-height:1}
+nav button.active{color:#1d4ed8;background:#eff6ff}
+
+input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:10px 11px;background:#fff;color:#0f172a;min-width:0}
+textarea{min-height:90px;resize:vertical;font-size:12px}
+label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
+.field{margin-bottom:10px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tool{border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;color:#334155;min-height:42px}
+.tool.main{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+.stageList{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.sItem{display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;max-width:100%;overflow-wrap:anywhere}
+.sItem.cand{border:1px dashed #94a3b8;background:#fff}
+.sItem.added{background:#dbeafe;color:#1e3a8a;padding-right:4px}
+.sItem button{border:0;background:#fee2e2;color:#991b1b;border-radius:999px;width:26px;height:26px;font-weight:900;flex:none}
+.msg{font-size:12px;color:#065f46;margin-top:6px;min-height:1em}
+
+.modalBack{display:none;position:fixed;inset:0;z-index:50;background:#0f172a99;padding:12px;align-items:flex-end;justify-content:center}
+.modalBack.open{display:flex}
+.modal{width:min(640px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:14px}
+.modal h2{font-size:17px;margin:0 0 10px;overflow-wrap:anywhere}
+.btns{display:flex;gap:8px;margin-top:12px}
+.btns button{flex:1;border:0;border-radius:11px;padding:12px 8px;font-weight:900;min-height:46px}
+.btn-save{background:#2563eb;color:#fff}
+.btn-cancel{background:#e2e8f0;color:#0f172a}
+.btn-del{background:#fee2e2;color:#991b1b}
+.pgroup{font-size:12px;font-weight:800;color:#1e3a8a;margin:10px 0 5px}
+.pick{display:flex;flex-wrap:wrap;gap:5px}
+.pk{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;color:#334155;min-height:34px}
+.pk.on{background:#2563eb;color:#fff;border-color:#2563eb}
+@media(max-width:360px){.two{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header>
-  <h1>モンスト キャラ管理<span class="trialTag">初期版再現・試作</span></h1>
-  <p>どのスマホに、どのキャラがいるかを確認</p>
+  <h1>モンスト キャラ管理 <span class="tag">復刻版・試作</span></h1>
+  <p>高難易度のステージ別に、どの端末に適正キャラがいるかを確認（試作版専用データ）</p>
 </header>
 
 <main>
-  <section class="card">
-    <h2 id="formTitle">キャラを登録</h2>
-    <div class="grid">
-      <div>
-        <label for="phone">端末名</label>
-        <input id="phone" list="phoneList" maxlength="20" placeholder="例：メイン、サブ1、サブ2">
-        <datalist id="phoneList"></datalist>
-      </div>
-      <div>
-        <label for="character">キャラ名</label>
-        <input id="character" maxlength="40" placeholder="例：キャラクター名">
-      </div>
-      <div>
-        <label for="quest">対象クエスト</label>
-        <select id="quest"></select>
-      </div>
-      <div>
-        <label for="stage">ステージ</label>
-        <input id="stage" maxlength="20" placeholder="例：1、2、EX、最終">
-      </div>
-      <div class="full">
-        <label for="role">役割・用途</label>
-        <input id="role" maxlength="40" placeholder="例：適正、貸し出し用">
-      </div>
-      <div class="full">
-        <label for="memo">メモ</label>
-        <textarea id="memo" maxlength="300" placeholder="例：2体所持、わくわく厳選済み"></textarea>
-      </div>
-      <div class="full formBtns">
-        <button class="secondary" id="cancelBtn" style="display:none;width:40%">キャンセル</button>
-        <button class="primary" id="saveBtn">登録する</button>
-      </div>
+  <!-- ステージ別表示 -->
+  <section class="view active" id="view-stage">
+    <div class="panel">
+      <div class="questTabs" id="questTabs"></div>
     </div>
+    <div class="panel">
+      <div class="ptitle"><span>ステージを選ぶ</span><span class="small" id="stageCount"></span></div>
+      <div class="chips" id="stageChips"></div>
+      <div class="note" id="questNote"></div>
+    </div>
+    <div class="stageHead">
+      <div>
+        <div class="stageTitle" id="stageTitle"></div>
+        <div class="stageSub">このステージで使えるキャラ（端末別）</div>
+      </div>
+      <button class="primary" data-act="add">＋ キャラ登録</button>
+    </div>
+    <div id="stageDevices"></div>
   </section>
 
-  <section class="card">
-    <h2>絞り込み</h2>
-    <div class="filters">
-      <input id="search" class="span2" placeholder="キャラ名・端末名で検索">
-      <select id="filterQuest" aria-label="クエストで絞り込み"></select>
-      <select id="filterStage" aria-label="ステージで絞り込み"></select>
-      <select id="filterPhone" class="span2" aria-label="端末で絞り込み"></select>
+  <!-- キャラ検索 -->
+  <section class="view" id="view-search">
+    <div class="panel">
+      <div class="ptitle">キャラ検索</div>
+      <input id="searchInput" type="search" maxlength="40" placeholder="キャラ名・メモで検索">
+      <div class="small" id="searchCount" style="margin-top:6px"></div>
     </div>
-    <div class="count" id="count"></div>
+    <div id="searchResults"></div>
   </section>
 
-  <section class="card">
-    <h2>登録一覧</h2>
-    <div id="list"></div>
+  <!-- 端末別表示 -->
+  <section class="view" id="view-device">
+    <div id="deviceCards"></div>
+  </section>
+
+  <!-- 管理 -->
+  <section class="view" id="view-admin">
+    <div class="panel">
+      <div class="ptitle">端末登録</div>
+      <div class="small">表示名を付けられます（空欄なら「メイン」「サブ1」…のまま）。試作版専用で、本番の端末名とは別です。</div>
+      <div id="nameInputs" style="margin-top:8px"></div>
+      <div class="tools"><button class="tool main" data-act="saveNames">端末名を保存</button></div>
+      <div class="msg" id="nameMsg"></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">ステージ候補の確認・追加</div>
+      <select id="exQuest" aria-label="クエスト"></select>
+      <div class="note" id="exNote"></div>
+      <div class="stageList" id="exList"></div>
+      <div class="two" style="margin-top:8px">
+        <input id="exName" maxlength="30" placeholder="追加するステージ名">
+        <button class="tool main" data-act="addStage">追加</button>
+      </div>
+      <div class="msg" id="exMsg"></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><span>バックアップ</span><span class="small" id="dataCount"></span></div>
+      <div class="small">試作版のデータだけを書き出し・復元します（本番データは対象外）。</div>
+      <div class="tools">
+        <button class="tool main" data-act="backup">バックアップを作成</button>
+        <button class="tool" data-act="copyBackup">コピー</button>
+        <button class="tool" data-act="restore">復元する</button>
+      </div>
+      <textarea id="bkText" style="margin-top:8px" placeholder="バックアップの内容がここに表示されます。復元するときは、ここに貼り付けて「復元する」を押してください。"></textarea>
+      <label for="bkFile" style="margin-top:8px">ファイルから読み込む</label>
+      <input id="bkFile" type="file" accept="application/json,.json,.txt">
+      <div class="msg" id="bkMsg"></div>
+    </div>
   </section>
 </main>
 
-<script>
-// 試作版専用の保存キー（本番の monst-character-manager-v2 / -v1 / -device-names-v1 とは別。移行処理もしない）
-const KEY='monst-character-manager-trial-v1';
-const QUESTS=['禁忌の獄','破界の星墓','天魔の孤城','その他'];
-const PHONES=['メイン','サブ1','サブ2','サブ3','サブ4'];
-let editingId=null;
-const $=id=>document.getElementById(id);
+<nav id="nav">
+  <button data-act="view" data-view="stage" class="active"><span class="ic">🏯</span>ステージ</button>
+  <button data-act="view" data-view="search"><span class="ic">🔍</span>検索</button>
+  <button data-act="view" data-view="device"><span class="ic">📱</span>端末</button>
+  <button data-act="view" data-view="admin"><span class="ic">⚙️</span>管理</button>
+</nav>
 
-function load(){
-  try{
-    const v=JSON.parse(localStorage.getItem(KEY)||'[]');
-    if(Array.isArray(v)) return v.filter(x=>x&&typeof x==='object');
-  }catch{}
-  return [];
+<!-- キャラ登録・編集 -->
+<div class="modalBack" id="charModal">
+  <div class="modal">
+    <h2 id="charTitle">キャラ登録</h2>
+    <div class="field">
+      <label for="cName">キャラ名</label>
+      <input id="cName" maxlength="40" placeholder="例：ルシファー">
+    </div>
+    <div class="two field">
+      <div>
+        <label for="cDevice">所属端末</label>
+        <select id="cDevice"></select>
+      </div>
+      <div>
+        <label for="cCount">所持数</label>
+        <input id="cCount" type="number" min="1" max="99" inputmode="numeric">
+      </div>
+    </div>
+    <div class="field">
+      <label for="cMemo">メモ</label>
+      <input id="cMemo" maxlength="100" placeholder="例：最適正、わくわく厳選済み">
+    </div>
+    <label>適正ステージ（複数選択可）</label>
+    <div id="cStages"></div>
+    <div class="btns">
+      <button class="btn-del" id="cDelete" data-act="deleteChar" style="display:none">削除</button>
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="saveChar">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 貸出 -->
+<div class="modalBack" id="lendModal">
+  <div class="modal">
+    <h2 id="lendTitle">貸出</h2>
+    <div class="field">
+      <label for="lendTo">貸出先スマホ</label>
+      <select id="lendTo"></select>
+    </div>
+    <div class="small">返却すると元の端末へ戻ります。</div>
+    <div class="btns">
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="saveLend">貸し出す</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 試作版（復刻版）専用の保存キー。本番の monst-character-manager-v2 / -v1 / -device-names-v1 は読み書きしない。
+// 以前のtrial（6ae1d08再現版）のキー monst-character-manager-trial-v1 も読み書きしない。旧データの自動移行はしない。
+const KEY='monst-character-manager-trial-v2';
+const APP='monst-character-manager-trial-fukkoku';
+const DEVICES=['メイン','サブ1','サブ2','サブ3','サブ4'];
+const VIEWS=['stage','search','device','admin'];
+const SEP='::';
+
+function kanji(n){
+  const d='一二三四五六七八九';
+  if(n<10) return d[n-1];
+  const t=Math.floor(n/10),o=n%10;
+  return (t>1?d[t-1]:'')+'十'+(o?d[o-1]:'');
 }
-function save(data){localStorage.setItem(KEY,JSON.stringify(data))}
+// ステージ定義（過去会話で確認できたもののみ。未確定の名称は入れない）
+const QUESTS=[
+  {id:'禁忌の獄',short:'禁忌',candidate:false,canAdd:false,
+   stages:[...Array.from({length:30},(_,i)=>kanji(i+1)+'ノ獄'),'深淵'],
+   note:'一ノ獄〜三十ノ獄＋深淵（過去会話の初期仕様）'},
+  {id:'破界の星墓',short:'星墓',candidate:true,canAdd:true,
+   stages:['ティル・ナ・ノーグ','アアル','アヴァロン','シャンバラ','パラノヴィア','ニギミタマ','桃源郷','コキュートス','ラルガメンテ','メラン＆コリン'],
+   note:'点線のステージは過去会話で確認できた「候補」10件です。全体は15階層相当（深層の固定層＋候補からランダム）とのことですが、固定層の内訳と残りの名称は未確定です。確認できたら「管理」から追加してください。'},
+  {id:'天魔の孤城',short:'天魔',candidate:false,canAdd:true,
+   stages:['試練の間','空中庭園'],
+   note:'過去会話の初期仕様は「試練の間」「空中庭園」の2系統です。各階層の詳細は未確定のため、必要なら「管理」から追加してください。'}
+];
+const QMAP=Object.fromEntries(QUESTS.map(q=>[q.id,q]));
+
+const $=id=>document.getElementById(id);
 function esc(s=''){
   return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function naturalSort(a,b){
-  return String(a).localeCompare(String(b),'ja',{numeric:true,sensitivity:'base'});
+function clean(s,max){return String(s??'').trim().slice(0,max).trim()}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function sortJa(a,b){return String(a).localeCompare(String(b),'ja',{numeric:true,sensitivity:'base'})}
+
+function blank(){
+  return {app:APP,version:1,deviceNames:{},characters:[],
+    extraStages:Object.fromEntries(QUESTS.filter(q=>q.canAdd).map(q=>[q.id,[]])),
+    ui:{view:'stage',quest:QUESTS[0].id,stage:{}}};
 }
-function options(values,allLabel,current){
-  return `<option value="">${allLabel}</option>`+values.map(v=>
-    `<option value="${esc(v)}"${v===current?' selected':''}>${esc(v)}</option>`).join('');
+function normalize(raw){
+  const d=blank();
+  if(!raw||typeof raw!=='object') return d;
+  if(raw.deviceNames&&typeof raw.deviceNames==='object'){
+    DEVICES.forEach(x=>{const n=clean(raw.deviceNames[x],20);if(n)d.deviceNames[x]=n});
+  }
+  if(raw.extraStages&&typeof raw.extraStages==='object'){
+    for(const q of Object.keys(d.extraStages)){
+      const a=raw.extraStages[q];
+      if(Array.isArray(a)) d.extraStages[q]=[...new Set(a.map(x=>clean(x,30)))]
+        .filter(x=>x&&!x.includes(SEP)&&!QMAP[q].stages.includes(x));
+    }
+  }
+  if(Array.isArray(raw.characters)){
+    const ids=new Set();
+    d.characters=raw.characters.filter(c=>c&&typeof c==='object').map(c=>{
+      const device=DEVICES.includes(c.device)?c.device:DEVICES[0];
+      let id=clean(c.id,40)||uid();
+      while(ids.has(id)) id=uid();
+      ids.add(id);
+      return {
+        id,name:clean(c.name,40),device,
+        lentTo:DEVICES.includes(c.lentTo)&&c.lentTo!==device?c.lentTo:null,
+        count:Math.min(99,Math.max(1,parseInt(c.count,10)||1)),
+        memo:clean(c.memo,100),
+        stages:Array.isArray(c.stages)?[...new Set(c.stages.map(x=>clean(x,80)).filter(x=>QMAP[x.split(SEP)[0]]))]:[]
+      };
+    }).filter(c=>c.name);
+  }
+  if(raw.ui&&typeof raw.ui==='object'){
+    if(VIEWS.includes(raw.ui.view)) d.ui.view=raw.ui.view;
+    if(QMAP[raw.ui.quest]) d.ui.quest=raw.ui.quest;
+    if(raw.ui.stage&&typeof raw.ui.stage==='object'){
+      QUESTS.forEach(q=>{if(typeof raw.ui.stage[q.id]==='string')d.ui.stage[q.id]=raw.ui.stage[q.id]});
+    }
+  }
+  return d;
+}
+function load(){
+  try{return normalize(JSON.parse(localStorage.getItem(KEY)||'null'))}catch{return blank()}
+}
+function persist(){localStorage.setItem(KEY,JSON.stringify(db))}
+let db=load();
+let editingId=null, lendingId=null;
+
+function stagesOf(q){return [...QMAP[q].stages,...(db.extraStages[q]||[])]}
+function curStage(){
+  const s=db.ui.stage[db.ui.quest], all=stagesOf(db.ui.quest);
+  return all.includes(s)?s:all[0];
+}
+function key(q,s){return q+SEP+s}
+function stageLabel(k){const [q,s]=k.split(SEP);return `${QMAP[q]?.short||q} ${s}`}
+function devLabel(d){return db.deviceNames[d]?`${db.deviceNames[d]}（${d}）`:d}
+function devNameHtml(d){
+  return db.deviceNames[d]?`${esc(db.deviceNames[d])}<span class="devId">（${esc(d)}）</span>`:esc(d);
+}
+function locOf(c){return c.lentTo||c.device}
+function statusBadge(c,here){
+  if(!c.lentTo) return `<span class="b ok">在籍</span>`;
+  if(here===c.lentTo) return `<span class="b in">借用中・元 ${esc(devLabel(c.device))}</span>`;
+  return `<span class="b out">貸出中 → ${esc(devLabel(c.lentTo))}</span>`;
+}
+function lendBtn(c){
+  return c.lentTo
+    ?`<button class="mini ret" data-act="return" data-id="${esc(c.id)}">返却</button>`
+    :`<button class="mini lend" data-act="lend" data-id="${esc(c.id)}">貸出</button>`;
+}
+function charRow(c,here,extra=''){
+  return `
+    <div class="row${here&&c.lentTo&&here===c.device?' away':''}">
+      <div class="rowMain">
+        <div class="cname">${esc(c.name)}<span class="x">×${c.count}</span></div>
+        <div class="badges">${statusBadge(c,here)}${extra}</div>
+        ${c.memo?`<div class="meta">${esc(c.memo)}</div>`:''}
+      </div>
+      <div class="acts">
+        ${lendBtn(c)}
+        <button class="mini" data-act="edit" data-id="${esc(c.id)}">編集</button>
+      </div>
+    </div>`;
 }
 
-function resetForm(){
-  editingId=null;
-  $('phone').value='';
-  $('character').value='';
-  $('quest').value=$('filterQuest').value||'';
-  $('stage').value=$('filterStage').value||'';
-  $('role').value='';
-  $('memo').value='';
-  $('saveBtn').textContent='登録する';
-  $('formTitle').textContent='キャラを登録';
-  $('cancelBtn').style.display='none';
+/* ---- ステージ別表示 ---- */
+function renderStage(){
+  const q=db.ui.quest, s=curStage(), k=key(q,s), def=QMAP[q];
+  $('questTabs').innerHTML=QUESTS.map(x=>
+    `<button class="questBtn${x.id===q?' active':''}" data-act="quest" data-quest="${esc(x.id)}">${esc(x.id)}</button>`).join('');
+  const stages=stagesOf(q);
+  $('stageChips').innerHTML=stages.map(st=>{
+    const n=db.characters.filter(c=>c.stages.includes(key(q,st))).length;
+    const cand=def.candidate&&def.stages.includes(st);
+    return `<button class="chip${st===s?' active':''}${cand?' cand':''}" data-act="stage" data-stage="${esc(st)}">${esc(st)}${n?`<span class="n">${n}</span>`:''}</button>`;
+  }).join('');
+  const added=(db.extraStages[q]||[]).length;
+  $('stageCount').textContent=`${stages.length}ステージ`+(added?`（うち追加${added}）`:'');
+  $('questNote').textContent=def.note;
+  $('stageTitle').textContent=`${q}・${s}`;
+  const here=db.characters.filter(c=>c.stages.includes(k));
+  $('stageDevices').innerHTML=DEVICES.map(d=>{
+    const at=here.filter(c=>locOf(c)===d).sort((a,b)=>sortJa(a.name,b.name));
+    const away=here.filter(c=>c.device===d&&c.lentTo).sort((a,b)=>sortJa(a.name,b.name));
+    if(!at.length&&!away.length){
+      return `<div class="dev empty"><div class="devName">${devNameHtml(d)}</div><span class="none">登録なし</span><span class="cnt">0体</span></div>`;
+    }
+    return `
+      <div class="dev">
+        <div class="devHead"><div class="devName">${devNameHtml(d)}</div><span class="cnt${at.length?' has':''}">${at.length}体</span></div>
+        ${at.map(c=>charRow(c,d)).join('')}
+        ${away.map(c=>charRow(c,d)).join('')}
+      </div>`;
+  }).join('');
 }
 
-function renderFilters(data){
-  const fq=$('filterQuest').value, fs=$('filterStage').value, fp=$('filterPhone').value;
-  const stages=[...new Set(data.filter(x=>!fq||x.quest===fq).map(x=>x.stage).filter(Boolean))].sort(naturalSort);
-  const phones=[...new Set([...PHONES,...data.map(x=>x.phone).filter(Boolean)])];
-  $('filterQuest').innerHTML=options(QUESTS,'全クエスト',fq);
-  $('filterStage').innerHTML=options(stages,'全ステージ',stages.includes(fs)?fs:'');
-  $('filterPhone').innerHTML=options(phones,'全端末',fp);
-  $('phoneList').innerHTML=phones.map(p=>`<option value="${esc(p)}">`).join('');
+/* ---- キャラ検索 ---- */
+function renderSearch(){
+  const q=$('searchInput').value.trim().toLowerCase();
+  const hits=db.characters.filter(c=>!q||(c.name+' '+c.memo).toLowerCase().includes(q))
+    .sort((a,b)=>sortJa(a.name,b.name)||sortJa(a.device,b.device));
+  const places=[...new Set(hits.map(c=>devLabel(locOf(c))))];
+  $('searchCount').textContent=q
+    ?`${hits.length}件ヒット`+(hits.length?`（所在：${places.join('・')}）`:'')
+    :`全${db.characters.length}件`;
+  $('searchResults').innerHTML=hits.length?hits.map(c=>`
+    <div class="card">
+      <div class="cardTop">
+        <div class="rowMain">
+          <div class="cname">${esc(c.name)}<span class="x">所持数 ${c.count}</span></div>
+          <div class="badges">
+            <span class="b loc">所在：${esc(devLabel(locOf(c)))}</span>
+            ${statusBadge(c,null)}
+            ${c.lentTo?`<span class="b">元：${esc(devLabel(c.device))}</span>`:''}
+          </div>
+        </div>
+        <div class="acts">${lendBtn(c)}<button class="mini" data-act="edit" data-id="${esc(c.id)}">編集</button></div>
+      </div>
+      ${c.memo?`<div class="meta">${esc(c.memo)}</div>`:''}
+      <div class="badges">${c.stages.length?c.stages.map(k=>`<span class="b">${esc(stageLabel(k))}</span>`).join(''):'<span class="small">適正ステージ未設定</span>'}</div>
+    </div>`).join('')
+    :`<div class="empty">${db.characters.length?'該当するキャラがいません':'まだキャラが登録されていません'}</div>`;
+}
+
+/* ---- 端末別表示 ---- */
+function renderDevices(){
+  $('deviceCards').innerHTML=DEVICES.map(d=>{
+    const home=db.characters.filter(c=>c.device===d&&!c.lentTo);
+    const out=db.characters.filter(c=>c.device===d&&c.lentTo);
+    const inn=db.characters.filter(c=>c.lentTo===d);
+    const list=[...home,...inn,...out].sort((a,b)=>sortJa(a.name,b.name));
+    return `
+      <div class="card">
+        <div class="devHead"><div class="devName">${devNameHtml(d)}</div><span class="cnt${home.length+inn.length?' has':''}">${home.length+inn.length}体</span></div>
+        <div class="sum"><div><b>${home.length}</b>在籍</div><div><b>${out.length}</b>貸出中</div><div><b>${inn.length}</b>借用中</div></div>
+        ${list.length?list.map(c=>charRow(c,d,c.stages.slice(0,3).map(k=>`<span class="b">${esc(stageLabel(k))}</span>`).join('')+(c.stages.length>3?`<span class="b">他${c.stages.length-3}</span>`:''))).join(''):'<div class="empty" style="padding:8px">キャラなし</div>'}
+      </div>`;
+  }).join('');
+}
+
+/* ---- 管理 ---- */
+function renderAdmin(){
+  $('nameInputs').innerHTML=DEVICES.map((d,i)=>`
+    <div class="field"><label for="nameIn${i}">${esc(d)}</label>
+    <input id="nameIn${i}" maxlength="20" placeholder="未設定" value="${esc(db.deviceNames[d]||'')}"></div>`).join('');
+  const addable=QUESTS.filter(q=>q.canAdd);
+  const sel=$('exQuest').value&&QMAP[$('exQuest').value]?.canAdd?$('exQuest').value:addable[0].id;
+  $('exQuest').innerHTML=addable.map(q=>`<option value="${esc(q.id)}"${q.id===sel?' selected':''}>${esc(q.id)}</option>`).join('');
+  const def=QMAP[sel];
+  $('exNote').textContent=def.note;
+  $('exList').innerHTML=
+    def.stages.map(s=>`<span class="sItem${def.candidate?' cand':''}">${esc(s)}${def.candidate?' <span class="small">候補</span>':''}</span>`).join('')+
+    (db.extraStages[sel]||[]).map(s=>`<span class="sItem added"><span>${esc(s)}</span><button aria-label="削除" data-act="removeStage" data-stage="${esc(s)}">×</button></span>`).join('');
+  $('dataCount').textContent=`登録 ${db.characters.length}件`;
 }
 
 function render(){
-  const data=load();
-  renderFilters(data);
-  const q=$('search').value.trim().toLowerCase();
-  const fq=$('filterQuest').value, fs=$('filterStage').value, fp=$('filterPhone').value;
-  const shown=data.filter(x=>{
-    const hit=!q || [x.phone,x.character,x.role,x.memo].join(' ').toLowerCase().includes(q);
-    return hit && (!fq||x.quest===fq) && (!fs||x.stage===fs) && (!fp||x.phone===fp);
-  });
-  $('count').textContent=`${shown.length}件表示 / 全${data.length}件`;
-  const list=$('list');
-  if(!shown.length){
-    list.innerHTML=`<div class="empty">${data.length?'条件に合う登録がありません':'まだ登録がありません'}</div>`;
-    return;
-  }
-  list.innerHTML=shown.map(x=>`
-    <div class="item">
-      <div class="itemTop">
-        <div>
-          <div class="name">${esc(x.character)}</div>
-          <span class="badge phone">${esc(x.phone)}</span>
-          ${x.quest?`<span class="badge">${esc(x.quest)}${x.stage?' '+esc(x.stage):''}</span>`:''}
-          ${x.role?`<span class="badge">${esc(x.role)}</span>`:''}
-        </div>
-      </div>
-      ${x.memo?`<div class="memo">${esc(x.memo)}</div>`:''}
-      <div class="actions">
-        <button class="secondary" data-edit="${esc(x.id)}">編集</button>
-        <button class="danger" data-delete="${esc(x.id)}">削除</button>
-      </div>
-    </div>
-  `).join('');
+  VIEWS.forEach(v=>$('view-'+v).classList.toggle('active',v===db.ui.view));
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===db.ui.view));
+  renderStage();renderSearch();renderDevices();renderAdmin();
+}
+function scrollActiveChip(){
+  const a=document.querySelector('#stageChips .chip.active');
+  if(a) a.parentElement.scrollLeft=a.offsetLeft-a.parentElement.clientWidth/2+a.offsetWidth/2;
 }
 
-$('saveBtn').addEventListener('click',()=>{
-  const phone=$('phone').value.trim();
-  const character=$('character').value.trim();
-  if(!phone||!character){
-    alert('端末名とキャラ名を入力してください');
-    return;
-  }
-  const item={
-    id:editingId||String(Date.now()),
-    phone,
-    character,
-    quest:$('quest').value,
-    stage:$('stage').value.trim(),
-    role:$('role').value.trim(),
-    memo:$('memo').value.trim()
-  };
-  let data=load();
-  if(editingId){
-    data=data.map(x=>x.id===editingId?item:x);
-  }else{
-    data.unshift(item);
-  }
-  save(data);
-  resetForm();
-  render();
-});
-$('cancelBtn').addEventListener('click',resetForm);
-
-function editItem(id){
-  const x=load().find(v=>v.id===id);
-  if(!x)return;
-  editingId=id;
-  $('phone').value=x.phone||'';
-  $('character').value=x.character||'';
-  $('quest').value=x.quest||'';
-  $('stage').value=x.stage||'';
-  $('role').value=x.role||'';
-  $('memo').value=x.memo||'';
-  $('saveBtn').textContent='更新する';
-  $('formTitle').textContent='登録内容を編集';
-  $('cancelBtn').style.display='';
-  window.scrollTo({top:0,behavior:'smooth'});
+/* ---- キャラ登録・編集 ---- */
+function openChar(c=null){
+  editingId=c?c.id:null;
+  $('charTitle').textContent=c?'キャラ編集':'キャラ登録';
+  $('cName').value=c?c.name:'';
+  $('cDevice').innerHTML=DEVICES.map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}</option>`).join('');
+  $('cDevice').value=c?c.device:DEVICES[0];
+  $('cCount').value=c?c.count:1;
+  $('cMemo').value=c?c.memo:'';
+  const sel=new Set(c?c.stages:[key(db.ui.quest,curStage())]);
+  $('cStages').innerHTML=QUESTS.map(q=>`
+    <div class="pgroup">${esc(q.id)}</div>
+    <div class="pick">${stagesOf(q.id).map(s=>{const k=key(q.id,s);
+      return `<button type="button" class="pk${sel.has(k)?' on':''}" data-act="pick" data-key="${esc(k)}">${esc(s)}</button>`}).join('')}</div>`).join('');
+  $('cDelete').style.display=c?'':'none';
+  $('charModal').classList.add('open');
+}
+function saveChar(){
+  const name=clean($('cName').value,40);
+  if(!name){alert('キャラ名を入力してください');return}
+  const device=DEVICES.includes($('cDevice').value)?$('cDevice').value:DEVICES[0];
+  const count=Math.min(99,Math.max(1,parseInt($('cCount').value,10)||1));
+  const stages=[...document.querySelectorAll('#cStages .pk.on')].map(b=>b.dataset.key);
+  const old=db.characters.find(c=>c.id===editingId);
+  const item={id:old?old.id:uid(),name,device,count,memo:clean($('cMemo').value,100),stages,
+    lentTo:old&&old.lentTo&&old.lentTo!==device?old.lentTo:null};
+  db.characters=old?db.characters.map(c=>c.id===old.id?item:c):[item,...db.characters];
+  persist();closeModals();render();
+}
+function deleteChar(){
+  const c=db.characters.find(x=>x.id===editingId);
+  if(!c||!confirm(`「${c.name}」を削除しますか？`))return;
+  db.characters=db.characters.filter(x=>x.id!==c.id);
+  persist();closeModals();render();
 }
 
-function deleteItem(id){
-  if(!confirm('この登録を削除しますか？'))return;
-  save(load().filter(x=>x.id!==id));
-  if(editingId===id)resetForm();
-  render();
+/* ---- 貸出・返却 ---- */
+function openLend(c){
+  lendingId=c.id;
+  $('lendTitle').textContent=`「${c.name}」を貸し出す（元：${devLabel(c.device)}）`;
+  $('lendTo').innerHTML=DEVICES.filter(d=>d!==c.device).map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}</option>`).join('');
+  $('lendModal').classList.add('open');
+}
+function saveLend(){
+  const c=db.characters.find(x=>x.id===lendingId), to=$('lendTo').value;
+  if(!c||!DEVICES.includes(to)||to===c.device)return;
+  c.lentTo=to;
+  persist();closeModals();render();
+}
+function returnChar(c){c.lentTo=null;persist();render()}
+function closeModals(){
+  document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
+  editingId=null;lendingId=null;
 }
 
-$('list').addEventListener('click',e=>{
-  const b=e.target.closest('button');
+/* ---- 管理操作 ---- */
+function saveNames(){
+  const n={};
+  DEVICES.forEach((d,i)=>{const v=clean($('nameIn'+i).value,20);if(v)n[d]=v});
+  db.deviceNames=n;persist();render();
+  $('nameMsg').textContent='端末名を保存しました';
+}
+function addStage(){
+  const q=$('exQuest').value, name=clean($('exName').value,30);
+  if(!QMAP[q]?.canAdd||!name)return;
+  if(name.includes(SEP)){$('exMsg').textContent='「::」は使えません';return}
+  if(stagesOf(q).includes(name)){$('exMsg').textContent='すでにあるステージです';return}
+  db.extraStages[q].push(name);persist();
+  $('exName').value='';render();
+  $('exMsg').textContent=`「${name}」を${q}に追加しました`;
+}
+function removeStage(s){
+  const q=$('exQuest').value, k=key(q,s);
+  if(db.characters.some(c=>c.stages.includes(k))){
+    $('exMsg').textContent=`「${s}」を使っているキャラがいるため削除できません`;return;
+  }
+  if(!confirm(`追加ステージ「${s}」を削除しますか？`))return;
+  db.extraStages[q]=db.extraStages[q].filter(x=>x!==s);persist();render();
+  $('exMsg').textContent=`「${s}」を削除しました`;
+}
+function backupJson(){
+  return JSON.stringify({app:APP,version:1,exportedAt:new Date().toISOString(),
+    data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages}},null,1);
+}
+function backup(){
+  const text=backupJson();
+  $('bkText').value=text;
+  try{
+    const a=document.createElement('a');
+    const d=new Date(), p=n=>String(n).padStart(2,'0');
+    a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));
+    a.download=`monst_trial_backup_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}.json`;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    $('bkMsg').textContent='バックアップを作成しました（ファイル保存＋下の欄に表示）';
+  }catch{
+    $('bkMsg').textContent='下の欄の内容をコピーして保存してください';
+  }
+}
+async function copyBackup(){
+  if(!$('bkText').value) $('bkText').value=backupJson();
+  try{await navigator.clipboard.writeText($('bkText').value);$('bkMsg').textContent='コピーしました'}
+  catch{$('bkText').select();$('bkMsg').textContent='選択しました。長押しでコピーしてください'}
+}
+function restore(){
+  let obj;
+  try{obj=JSON.parse($('bkText').value)}catch{$('bkMsg').textContent='バックアップの形式が正しくありません';return}
+  if(!obj||obj.app!==APP||!obj.data||!Array.isArray(obj.data.characters)){
+    $('bkMsg').textContent='この試作版のバックアップではありません';return;
+  }
+  if(!confirm('現在の試作データを上書きして復元しますか？'))return;
+  db=normalize({...obj.data,ui:db.ui});persist();render();
+  $('bkMsg').textContent=`復元しました（${db.characters.length}件）`;
+}
+
+/* ---- イベント ---- */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');
+  if(e.target.classList.contains('modalBack')){closeModals();return}
   if(!b)return;
-  if(b.dataset.edit)editItem(b.dataset.edit);
-  if(b.dataset.delete)deleteItem(b.dataset.delete);
+  const c=b.dataset.id?db.characters.find(x=>x.id===b.dataset.id):null;
+  switch(b.dataset.act){
+    case 'view':db.ui.view=b.dataset.view;persist();render();window.scrollTo(0,0);break;
+    case 'quest':db.ui.quest=b.dataset.quest;persist();render();scrollActiveChip();break;
+    case 'stage':db.ui.stage[db.ui.quest]=b.dataset.stage;persist();render();scrollActiveChip();break;
+    case 'add':openChar();break;
+    case 'edit':if(c)openChar(c);break;
+    case 'lend':if(c)openLend(c);break;
+    case 'return':if(c)returnChar(c);break;
+    case 'pick':b.classList.toggle('on');break;
+    case 'saveChar':saveChar();break;
+    case 'deleteChar':deleteChar();break;
+    case 'saveLend':saveLend();break;
+    case 'close':closeModals();break;
+    case 'saveNames':saveNames();break;
+    case 'addStage':addStage();break;
+    case 'removeStage':removeStage(b.dataset.stage);break;
+    case 'backup':backup();break;
+    case 'copyBackup':copyBackup();break;
+    case 'restore':restore();break;
+  }
 });
-$('search').addEventListener('input',render);
-$('filterQuest').addEventListener('change',()=>{$('filterStage').value='';render()});
-$('filterStage').addEventListener('change',render);
-$('filterPhone').addEventListener('change',render);
+$('searchInput').addEventListener('input',renderSearch);
+$('exQuest').addEventListener('change',()=>{$('exMsg').textContent='';renderAdmin()});
+$('bkFile').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{$('bkText').value=String(r.result);$('bkMsg').textContent='読み込みました。「復元する」を押してください'};
+  r.readAsText(f);
+});
 
-$('quest').innerHTML=`<option value="">未設定</option>`+QUESTS.map(q=>`<option>${q}</option>`).join('');
 render();
+scrollActiveChip();
 </script>
 </body>
 </html>
