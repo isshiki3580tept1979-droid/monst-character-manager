@@ -103,6 +103,10 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .modalBack.open{display:flex}
 .modal{width:min(640px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:14px}
 .modal h2{font-size:17px;margin:0 0 10px;overflow-wrap:anywhere}
+.basicInfo{min-width:0;border:1px solid #e2e8f0;border-radius:12px;padding:10px;margin:0 0 12px}
+.basicInfo legend{font-size:13px;font-weight:800;color:#1e3a8a;padding:0 4px}
+.basicInfo .small{margin-bottom:8px}
+.basicInfo .field:last-child{margin-bottom:0}
 .btns{display:flex;gap:8px;margin-top:12px}
 .btns button{flex:1;border:0;border-radius:11px;padding:12px 8px;font-weight:900;min-height:46px}
 .btn-save{background:#2563eb;color:#fff}
@@ -289,6 +293,22 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <label for="rName">キャラ名（全端末共通・空欄のままでも可）</label>
       <input id="rName" maxlength="40" placeholder="未設定">
     </div>
+    <fieldset class="basicInfo">
+      <legend>キャラ基本情報</legend>
+      <div class="small">このステージの同じ順位で、全端末共通です。</div>
+      <div class="field">
+        <label for="rRace">種族</label>
+        <select id="rRace"></select>
+      </div>
+      <div class="field" id="rRaceCustomField" hidden>
+        <label for="rRaceCustom">種族名（その他・新規）</label>
+        <input id="rRaceCustom" maxlength="40" placeholder="新しい種族名を入力">
+      </div>
+      <div class="two field">
+        <div><label for="rBattleType">戦型</label><select id="rBattleType"></select></div>
+        <div><label for="rShotType">撃種</label><select id="rShotType"></select></div>
+      </div>
+    </fieldset>
     <label id="rDevLabel">所持状況</label>
     <div class="seg" id="rStatus">
       <button type="button" class="segBtn" data-act="rStatus" data-v="owned">所持</button>
@@ -397,13 +417,28 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function sortJa(a,b){return String(a).localeCompare(String(b),'ja',{numeric:true,sensitivity:'base'})}
 
 /* 適正TOP10・所持状況（保存は従来どおり1〜20位まで保持し、画面・入力・一括反映は1〜10位）
-   rankings[ステージキー] = {updatedAt, entries:[{rank:1..20, name}]}      … ランキングはステージ共通
+   rankings[ステージキー] = {updatedAt, entries:[{rank:1..20, name, race?, battleType?, shotType?}]} … 全端末共通
+   基本情報は順位レコードに保存。欠けた項目は未設定として読み、読み込み時に保存データを書き換えない。
    ownership[ステージキー][端末] = {updatedAt, ranks:{"順位":{status,count,wakuwaku?}}} … 端末ごと
    status  : owned（所持）/ alt-form（別形態で所持）/ not-owned（未所持）/ null（未入力・実だけ残っている）
    count   : null（未確認）/ 1 / 2 / 3 / 4（4体以上）。所持・別形態のときだけ持つ。自動で1体にはしない
    wakuwaku: [{name, grade}] 最大4。その端末にいる個体の実（キャラ名全体ではない）。
              将来、同じ端末の複数個体を分ける場合は units:[{id, wakuwaku}] のように順位レコードの下へ足せる形 */
 const RANKS=20, SHOW_RANKS=10, WAKU_MAX=4;
+const RACE_GROUPS=[
+  ['よく使う種族',['亜人','妖精','神','聖騎士','魔族','魔王','サムライ','ロボット','ドラゴン','幻獣','魔人','ユニバース','コスモ','獣','鉱物']],
+  ['通常・モンスト固有系',['鳥','ユニオン','アクシス','幻妖','闘神','神獣','聖域の狩人']],
+  ['コラボ・特殊系',['LINE','怪獣','ウルトラ兄弟','エヴァパイロット','使徒','ゴジエヴァ','ファイター','妖怪','青銅聖闘士','黄金聖闘士','マベツム','ホムンクルス','怪異','巨人','魔神','人形','キメラアント','ミッキー＆フレンズ','死神','バーニッシュ','ボーダー隊員','近界民','十刃','仮面の軍勢']]
+];
+const RACES=RACE_GROUPS.flatMap(([,names])=>names);
+const CUSTOM_RACE='__custom__';
+const BATTLE_TYPES=['バランス型','パワー型','スピード型','砲撃型'];
+const SHOT_TYPES=['反射','貫通'];
+function normBasic(e){
+  return {race:typeof e?.race==='string'?e.race:'',
+    battleType:BATTLE_TYPES.includes(e?.battleType)?e.battleType:'',
+    shotType:SHOT_TYPES.includes(e?.shotType)?e.shotType:''};
+}
 const GRADES=['特級','特級M','特級L','特級EL'];
 function normWaku(a){
   if(!Array.isArray(a)) return [];
@@ -459,13 +494,20 @@ function normalize(raw){
   if(raw.rankings&&typeof raw.rankings==='object'){
     Object.entries(raw.rankings).forEach(([k,v])=>{
       if(!isStageKey(k)||!v||typeof v!=='object') return;
-      const names={};
+      const entries={};
       if(Array.isArray(v.entries)) v.entries.forEach(e=>{
         const r=parseInt(e?.rank,10), n=clean(e?.name,40);
-        if(r>=1&&r<=RANKS&&n) names[r]=n;
+        if(r>=1&&r<=RANKS){
+          const entry=entries[r]||(entries[r]={rank:r,name:''}), basic=normBasic(e);
+          if(n) entry.name=n;
+          // 旧レコードへ空項目を一律追加しない。名前が空でも、保存された基本情報は保持する。
+          ['race','battleType','shotType'].forEach(f=>{
+            if(Object.hasOwn(e,f)) entry[f]=basic[f];
+          });
+        }
       });
       d.rankings[k]={updatedAt:typeof v.updatedAt==='string'?v.updatedAt.slice(0,40):null,
-        entries:Array.from({length:RANKS},(_,i)=>({rank:i+1,name:names[i+1]||''}))};
+        entries:Array.from({length:RANKS},(_,i)=>entries[i+1]||{rank:i+1,name:''})};
     });
   }
   if(raw.ownership&&typeof raw.ownership==='object'){
@@ -695,13 +737,19 @@ function renderAdmin(){
 let rankMode='detail', rankEditing=null;
 const MODES=[['detail','詳細'],['owned','所持'],['alt-form','別形態'],['not-owned','未所持']];
 function rankName(k,r){return db.rankings[k]?.entries[r-1]?.name||''}
+function rankBasic(k,r){return normBasic(db.rankings[k]?.entries[r-1])}
 function ownOf(k,dev,r){return db.ownership[k]?.[dev]?.ranks?.[r]||null}
+function rankEntry(k,r){
+  if(!db.rankings[k]) db.rankings[k]={updatedAt:null,entries:Array.from({length:RANKS},(_,i)=>({rank:i+1,name:''}))};
+  return db.rankings[k].entries[r-1];
+}
 function setRankName(k,r,name){
-  if(!db.rankings[k]){
-    if(!name) return;
-    db.rankings[k]={updatedAt:null,entries:Array.from({length:RANKS},(_,i)=>({rank:i+1,name:''}))};
-  }
-  db.rankings[k].entries[r-1].name=name;
+  if(!name&&!db.rankings[k]) return;
+  rankEntry(k,r).name=name;
+  db.rankings[k].updatedAt=new Date().toISOString();
+}
+function setRankBasic(k,r,basic){
+  Object.assign(rankEntry(k,r),normBasic(basic));
   db.rankings[k].updatedAt=new Date().toISOString();
 }
 // status / count / wakuwaku を記録する。wakuwaku を省略したときは既存の実をそのまま残す（状態変更で実を消さない）
@@ -739,12 +787,12 @@ function renderTop20(){
     `<button class="tDev${d===dev?' active':''}" data-act="rankDev" data-dev="${esc(d)}">${esc(devLabel(d))}<span class="n">${enteredCount(k,d)}/${SHOW_RANKS}</span></button>`
   ).join('');
   const hint=rankMode==='detail'
-    ?'順位をタップすると、キャラ名・所持状況・所持数・わくわくの実を編集できます。'
+    ?'順位をタップすると、キャラ名・基本情報・所持状況・所持数・わくわくの実を編集できます。'
     :`入力モード：タップした順位を「${OWN[rankMode]}」にします（${devLabel(dev)}）。終わったら「詳細」に戻してください。`;
   const upd=db.ownership[k]?.[dev]?.updatedAt;
   $('top20').innerHTML=`
     <div class="tHead"><div class="tTitle">適正TOP10・所持状況</div><span class="small">${esc(stageText(q,s))}</span></div>
-    <div class="small">ランキング（キャラ名）はステージ共通、所持状況は端末ごとに記録します。</div>
+    <div class="small">ランキング（キャラ名・基本情報）は全端末共通、所持状況は端末ごとに記録します。</div>
     <div class="tDevs">${devChips}</div>
     <div class="tModes">${MODES.map(([m,l])=>`<button class="tMode m-${m}${m===rankMode?' active':''}" data-act="rankMode" data-mode="${m}">${l}</button>`).join('')}</div>
     <div class="tHint${rankMode==='detail'?'':' paint'}">${esc(hint)}</div>
@@ -759,6 +807,17 @@ function openRank(r){
   rankEditing={k,dev,r,status:o?.status||'',count:o?o.count:null};
   $('rankTitle').textContent=`${stageText(q,s)}　${r}位`;
   $('rName').value=rankName(k,r);
+  const basic=rankBasic(k,r);
+  $('rRace').innerHTML='<option value="">未設定</option>'+RACE_GROUPS.map(([group,names])=>
+    `<optgroup label="${esc(group)}">${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</optgroup>`).join('')+
+    `<option value="${CUSTOM_RACE}">その他・新規</option>`;
+  $('rRace').value=basic.race?(RACES.includes(basic.race)?basic.race:CUSTOM_RACE):'';
+  $('rRaceCustom').value=basic.race&&!RACES.includes(basic.race)?basic.race:'';
+  syncRaceCustom();
+  $('rBattleType').innerHTML='<option value="">未設定</option>'+BATTLE_TYPES.map(n=>`<option>${n}</option>`).join('');
+  $('rBattleType').value=basic.battleType;
+  $('rShotType').innerHTML='<option value="">未設定</option>'+SHOT_TYPES.map(n=>`<option>${n}</option>`).join('');
+  $('rShotType').value=basic.shotType;
   $('rDevLabel').textContent=`所持状況（${devLabel(dev)}）`;
   $('rWakuLabel').textContent=`わくわくの実（${devLabel(dev)}の個体・最大${WAKU_MAX}つ）`;
   const w=o?.wakuwaku||[];
@@ -770,6 +829,10 @@ function openRank(r){
   w.forEach((x,i)=>{$('wkName'+i).value=x.name;$('wkGrade'+i).value=x.grade});
   syncRankModal();
   $('rankModal').classList.add('open');
+  $('rankModal').querySelector('.modal').scrollTop=0;
+}
+function syncRaceCustom(){
+  $('rRaceCustomField').hidden=$('rRace').value!==CUSTOM_RACE;
 }
 function syncRankModal(){
   const e=rankEditing, countable=e.status==='owned'||e.status==='alt-form';
@@ -782,7 +845,12 @@ function syncRankModal(){
 function saveRank(){
   const e=rankEditing;if(!e)return;
   const name=clean($('rName').value,40);
+  const oldBasic=rankBasic(e.k,e.r), custom=$('rRaceCustom').value;
+  const basic={race:$('rRace').value===CUSTOM_RACE
+    ?(custom===oldBasic.race?custom:clean(custom,40)):$('rRace').value,
+    battleType:$('rBattleType').value,shotType:$('rShotType').value};
   if(name!==rankName(e.k,e.r)) setRankName(e.k,e.r,name);
+  if(JSON.stringify(basic)!==JSON.stringify(oldBasic)) setRankBasic(e.k,e.r,basic);
   const o=ownOf(e.k,e.dev,e.r);
   const w=normWaku(Array.from({length:WAKU_MAX},(_,i)=>({name:$('wkName'+i).value,grade:$('wkGrade'+i).value})));
   const newCount=OWN[e.status]?normCount(e.status,e.count):null;
@@ -1066,6 +1134,7 @@ document.addEventListener('click',e=>{
   }
 });
 $('searchInput').addEventListener('input',renderSearch);
+$('rRace').addEventListener('change',syncRaceCustom);
 $('exQuest').addEventListener('change',()=>{$('exMsg').textContent='';renderAdmin()});
 $('bkFile').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
