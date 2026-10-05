@@ -304,6 +304,21 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
   </div>
 </div>
 
+<!-- TOP20 一括反映の確認 -->
+<div class="modalBack" id="importModal">
+  <div class="modal">
+    <h2>スクショデータを一括反映</h2>
+    <div class="field"><label>反映先</label><div id="importTarget" style="font-weight:900"></div></div>
+    <div class="field"><label>反映する内容</label><div id="importSummary" class="small" style="font-size:13px"></div></div>
+    <div class="note" id="importWarn"></div>
+    <div class="small" style="margin-top:6px">キャラ名が空欄の順位は、入力済みのキャラ名をそのまま残します。ほかの端末・ステージは変更しません。</div>
+    <div class="btns">
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="applyImport">反映する</button>
+    </div>
+  </div>
+</div>
+
 <!-- 貸出 -->
 <div class="modalBack" id="lendModal">
   <div class="modal">
@@ -701,7 +716,9 @@ function renderTop20(){
     <div class="tHint${rankMode==='detail'?'':' paint'}">${esc(hint)}</div>
     <div class="tGrid">${tiles}</div>
     <div class="sum four"><div><b>${cnt.owned}</b>所持</div><div><b>${cnt['alt-form']}</b>別形態</div><div><b>${cnt['not-owned']}</b>未所持</div><div><b>${cnt.unset}</b>未入力</div></div>
-    <div class="tMsg" id="tMsg">${upd?`最終更新：${esc(new Date(upd).toLocaleString('ja-JP'))}`:''}</div>`;
+    <div class="tMsg" id="tMsg">${upd?`最終更新：${esc(new Date(upd).toLocaleString('ja-JP'))}`:''}</div>
+    ${TOP20_PRESETS.filter(p=>key(p.data.quest,p.data.stage)===k).map(p=>
+      `<div class="tools"><button class="tool" data-act="importPreset" data-preset="${esc(p.id)}">スクショデータを一括反映（${esc(devLabel(p.data.device))}）</button></div>`).join('')}`;
 }
 function openRank(r){
   const q=db.ui.quest, s=curStage(), k=key(q,s), dev=db.ui.rankDevice, o=ownOf(k,dev,r);
@@ -728,6 +745,73 @@ function saveRank(){
   if((o?o.status:'')!==e.status||(o?o.count:null)!==normCount(e.status,e.count)) setOwn(e.k,e.dev,e.r,e.status,e.count);
   persist();closeModals();render();
 }
+/* ---- TOP20 一括反映 ----
+   取り込み形式（ChatGPT等でスクショを読み取って作る想定。今後の貼り付けインポートも同じ形式）:
+   {quest, stage, device, entries:[{rank:1..20, name:"確定時のみ／不明は空", status:"owned|alt-form|not-owned", count:null|1..4}]}
+   ・対象（ステージ×端末）の所持状況20件を置き換える
+   ・name が空の順位は、入力済みのキャラ名を消さずに残す（空＝不明の意味） */
+const TOP20_PRESETS=[
+  {id:'kinki1-main-shot1',
+   data:{quest:'禁忌の獄',stage:'一ノ獄',device:'メイン',
+     // キャラ名は画像・公開情報で順位との対応を確認できなかったため、すべて空欄
+     entries:['owned','owned','owned','not-owned','owned','not-owned','not-owned','not-owned','owned','owned',
+       'alt-form','owned','alt-form','not-owned','not-owned','not-owned','owned','alt-form','alt-form','alt-form']
+       .map((status,i)=>({rank:i+1,name:'',status,count:null}))}}
+];
+let pendingImport=null;
+function parseTop20(p){
+  const err=[];
+  if(!p||typeof p!=='object') return {errors:['データの形式が正しくありません']};
+  if(!QMAP[p.quest]) err.push('quest（クエスト名）が不明です');
+  else if(!QMAP[p.quest].stages.includes(p.stage)&&!(db.extraStages[p.quest]||[]).includes(p.stage)) err.push('stage（ステージ名）が不明です');
+  if(!DEVICES.includes(p.device)) err.push('device（端末名）が不明です');
+  if(!Array.isArray(p.entries)||p.entries.length!==RANKS) err.push(`entries は${RANKS}件必要です`);
+  else{
+    const seen=new Set();
+    p.entries.forEach((e,i)=>{
+      const r=e?.rank;
+      if(!Number.isInteger(r)||r<1||r>RANKS||seen.has(r)) err.push(`${i+1}件目の rank が不正です`);
+      seen.add(r);
+      if(!OWN[e?.status]) err.push(`${r}位の status が不正です`);
+      if(e?.count!=null&&!(Number.isInteger(e.count)&&e.count>=1)) err.push(`${r}位の count が不正です`);
+      if(e?.name!=null&&typeof e.name!=='string') err.push(`${r}位の name が不正です`);
+    });
+  }
+  if(err.length) return {errors:err};
+  return {errors:[],quest:p.quest,stage:p.stage,device:p.device,k:key(p.quest,p.stage),
+    entries:p.entries.map(e=>({rank:e.rank,name:clean(e.name,40),status:e.status,count:normCount(e.status,e.count)}))
+      .sort((a,b)=>a.rank-b.rank)};
+}
+function applyTop20(t){
+  const ranks={};
+  t.entries.forEach(e=>{ranks[e.rank]={status:e.status,count:e.count}});
+  db.ownership[t.k]=db.ownership[t.k]||{};
+  db.ownership[t.k][t.device]={updatedAt:new Date().toISOString(),ranks};
+  t.entries.filter(e=>e.name).forEach(e=>setRankName(t.k,e.rank,e.name));
+}
+function openImport(p){
+  const t=parseTop20(p);
+  if(t.errors.length){$('tMsg').textContent='一括反映できません：'+t.errors.join('／');return}
+  pendingImport=t;
+  const c={owned:0,'alt-form':0,'not-owned':0};
+  t.entries.forEach(e=>c[e.status]++);
+  const named=t.entries.filter(e=>e.name).length;
+  const existing=Object.keys(db.ownership[t.k]?.[t.device]?.ranks||{}).length;
+  $('importTarget').textContent=`${t.quest}・${stageText(t.quest,t.stage)}・${devLabel(t.device)}`;
+  $('importSummary').textContent=`所持${c.owned}／別形態${c['alt-form']}／未所持${c['not-owned']}（${RANKS}件）、所持数：${t.entries.every(e=>e.count==null)?'全件 未確認':'一部あり'}、キャラ名：${named}件`;
+  $('importWarn').textContent=existing
+    ?`現在入力済みの内容があります（${RANKS}件中${existing}件）。この端末の所持状況は上書きされます。`
+    :'この端末の所持状況はまだ入力されていません。';
+  $('importModal').classList.add('open');
+}
+function confirmImport(){
+  const t=pendingImport;if(!t)return;
+  applyTop20(t);
+  db.ui.quest=t.quest;db.ui.stage[t.quest]=t.stage;db.ui.rankDevice=t.device;rankMode='detail';
+  persist();closeModals();render();
+  $('tMsg').textContent=`${t.quest}・${stageText(t.quest,t.stage)}・${devLabel(t.device)} に${RANKS}件を反映しました`;
+}
+
 function paintRank(r){
   const q=db.ui.quest, k=key(q,curStage()), dev=db.ui.rankDevice, o=ownOf(k,dev,r);
   if(o&&o.status===rankMode) return;
@@ -807,7 +891,7 @@ function saveLend(){
 function returnChar(c){c.lentTo=null;persist();render()}
 function closeModals(){
   document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
-  editingId=null;lendingId=null;rankEditing=null;
+  editingId=null;lendingId=null;rankEditing=null;pendingImport=null;
 }
 
 /* ---- 管理操作 ---- */
@@ -924,6 +1008,8 @@ document.addEventListener('click',e=>{
       break;
     case 'rCount':if(rankEditing&&!b.disabled){rankEditing.count=b.dataset.v?parseInt(b.dataset.v,10):null;syncRankModal()}break;
     case 'saveRank':saveRank();break;
+    case 'importPreset':{const p=TOP20_PRESETS.find(x=>x.id===b.dataset.preset);if(p)openImport(p.data);break}
+    case 'applyImport':confirmImport();break;
   }
 });
 $('searchInput').addEventListener('input',renderSearch);
