@@ -130,13 +130,21 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .tMode.active.m-not-owned{background:#64748b;border-color:#64748b}
 .tHint{font-size:11px;color:#64748b;margin-bottom:6px;min-height:1.4em}
 .tHint.paint{color:#92400e;font-weight:700}
-.tGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
-.tile{position:relative;border:1px solid #cbd5e1;border-radius:10px;background:#fff;min-height:66px;padding:5px 3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#0f172a;min-width:0}
-.tile .r{font-size:15px;font-weight:900;line-height:1}
-.tile .nm{font-size:10px;font-weight:700;line-height:1.2;max-width:100%;overflow:hidden;overflow-wrap:anywhere;text-align:center;
-  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3}
-.tile .st{font-size:10px;font-weight:800}
-.tile .bang{position:absolute;top:2px;right:5px;font-size:13px;font-weight:900;color:#b45309}
+/* TOP10：2列×5段の横長カード（左に順位、右に名前・状態・実） */
+.tGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.tile{position:relative;border:1px solid #cbd5e1;border-radius:12px;background:#fff;min-height:64px;padding:8px 10px 8px 6px;display:flex;align-items:center;gap:6px;color:#0f172a;min-width:0;text-align:left}
+.tile .r{font-size:22px;font-weight:900;line-height:1;min-width:1.5em;text-align:center;flex:none}
+.tBody{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.tile .nm{font-size:13px;font-weight:800;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.tMeta{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.tile .st{font-size:11px;font-weight:800}
+.tile .waku{font-size:10px;font-weight:800;background:#ede9fe;color:#5b21b6;border-radius:999px;padding:1px 7px;white-space:nowrap}
+.tile.not .waku,.tile.unset .waku{background:#e2e8f0;color:#475569}
+.tile .bang{position:absolute;top:3px;right:6px;font-size:14px;font-weight:900;color:#b45309}
+.wkRow{display:grid;grid-template-columns:1.3em minmax(0,1fr) 6.6em;gap:6px;align-items:center;margin-bottom:6px}
+.wkRow .no{font-size:12px;font-weight:900;color:#5b21b6;text-align:center}
+.wkRow select{padding:10px 4px}
 .tile.unset{border-style:dashed;color:#94a3b8}
 .tile.owned{background:#f0fdf4;border:2px solid #22c55e}
 .tile.owned .st{color:#15803d}
@@ -151,7 +159,6 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .segBtn{border:1px solid #cbd5e1;background:#fff;border-radius:10px;min-height:44px;font-size:12px;font-weight:800;color:#334155;padding:4px 2px;min-width:0}
 .segBtn.on{background:#2563eb;border-color:#2563eb;color:#fff}
 .segBtn:disabled{opacity:.4}
-@media(max-width:350px){.tGrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:360px){.two{grid-template-columns:1fr}}
 </style>
 </head>
@@ -298,6 +305,9 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <button type="button" class="segBtn" data-act="rCount" data-v="4">4体以上</button>
     </div>
     <div class="small">所持数は「所持」「別形態」のときだけ設定できます。</div>
+    <label id="rWakuLabel" style="margin-top:12px">わくわくの実（最大4つ）</label>
+    <div id="rWaku"></div>
+    <div class="small">名前は自由入力です。空欄の枠は保存しません。未所持・未入力にしても、登録した実は削除されません（不要なら名前と等級を消してください）。</div>
     <div class="btns">
       <button class="btn-cancel" data-act="close">キャンセル</button>
       <button class="btn-save" data-act="saveRank">保存</button>
@@ -312,7 +322,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
     <div class="field"><label>反映先</label><div id="importTarget" style="font-weight:900"></div></div>
     <div class="field"><label>反映する内容</label><div id="importSummary" class="small" style="font-size:13px"></div></div>
     <div class="note" id="importWarn"></div>
-    <div class="small" style="margin-top:6px">キャラ名を入力済みの順位は、入力済みの名前を優先します（空欄の順位だけ名前を入れます）。ほかの端末・ステージは変更しません。</div>
+    <div class="small" style="margin-top:6px">キャラ名を入力済みの順位は、入力済みの名前を優先します（空欄の順位だけ名前を入れます）。登録済みのわくわくの実、11〜20位の保存データ、ほかの端末・ステージは変更しません。</div>
     <div class="btns">
       <button class="btn-cancel" data-act="close">キャンセル</button>
       <button class="btn-save" data-act="applyImport">反映する</button>
@@ -386,12 +396,21 @@ function clean(s,max){return String(s??'').trim().slice(0,max).trim()}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function sortJa(a,b){return String(a).localeCompare(String(b),'ja',{numeric:true,sensitivity:'base'})}
 
-/* 適正TOP20・所持状況
+/* 適正TOP10・所持状況（保存は従来どおり1〜20位まで保持し、画面・入力・一括反映は1〜10位）
    rankings[ステージキー] = {updatedAt, entries:[{rank:1..20, name}]}      … ランキングはステージ共通
-   ownership[ステージキー][端末] = {updatedAt, ranks:{"順位":{status,count}}} … 所持状況は端末ごと
-   status: owned（所持）/ alt-form（別形態で所持）/ not-owned（未所持）。記録なし＝未入力
-   count : null（未確認）/ 1 / 2 / 3 / 4（4体以上）。所持・別形態のときだけ持つ。自動で1体にはしない */
-const RANKS=20;
+   ownership[ステージキー][端末] = {updatedAt, ranks:{"順位":{status,count,wakuwaku?}}} … 端末ごと
+   status  : owned（所持）/ alt-form（別形態で所持）/ not-owned（未所持）/ null（未入力・実だけ残っている）
+   count   : null（未確認）/ 1 / 2 / 3 / 4（4体以上）。所持・別形態のときだけ持つ。自動で1体にはしない
+   wakuwaku: [{name, grade}] 最大4。その端末にいる個体の実（キャラ名全体ではない）。
+             将来、同じ端末の複数個体を分ける場合は units:[{id, wakuwaku}] のように順位レコードの下へ足せる形 */
+const RANKS=20, SHOW_RANKS=10, WAKU_MAX=4;
+const GRADES=['特級','特級M','特級L','特級EL'];
+function normWaku(a){
+  if(!Array.isArray(a)) return [];
+  return a.filter(x=>x&&typeof x==='object')
+    .map(x=>({name:clean(x.name,20),grade:GRADES.includes(x.grade)?x.grade:''}))
+    .filter(x=>x.name||x.grade).slice(0,WAKU_MAX);
+}
 const OWN={'owned':'所持','alt-form':'別形態','not-owned':'未所持'};
 const OWN_CLASS={'owned':'owned','alt-form':'alt','not-owned':'not'};
 function countText(n){return n==null?'未確認':n>=4?'4体以上':`${n}体`}
@@ -458,7 +477,11 @@ function normalize(raw){
         const ranks={};
         Object.entries(o.ranks).forEach(([r,v])=>{
           const n=parseInt(r,10);
-          if(n>=1&&n<=RANKS&&v&&OWN[v.status]) ranks[n]={status:v.status,count:normCount(v.status,v.count)};
+          if(!(n>=1&&n<=RANKS)||!v||typeof v!=='object') return;
+          const w=normWaku(v.wakuwaku), s=OWN[v.status]?v.status:null;
+          if(!s&&!w.length) return;
+          ranks[n]={status:s,count:s?normCount(s,v.count):null};
+          if(w.length) ranks[n].wakuwaku=w;
         });
         if(Object.keys(ranks).length){
           d.ownership[k]=d.ownership[k]||{};
@@ -681,36 +704,46 @@ function setRankName(k,r,name){
   db.rankings[k].entries[r-1].name=name;
   db.rankings[k].updatedAt=new Date().toISOString();
 }
-function setOwn(k,dev,r,status,count){
+// status / count / wakuwaku を記録する。wakuwaku を省略したときは既存の実をそのまま残す（状態変更で実を消さない）
+function setOwn(k,dev,r,status,count,wakuwaku){
   const byDev=db.ownership[k]||(db.ownership[k]={});
   const o=byDev[dev]||(byDev[dev]={updatedAt:null,ranks:{}});
-  if(OWN[status]) o.ranks[r]={status,count:normCount(status,count)};
-  else delete o.ranks[r];
+  const w=wakuwaku!==undefined?normWaku(wakuwaku):(o.ranks[r]?.wakuwaku||[]);
+  const s=OWN[status]?status:null;
+  if(s||w.length){
+    o.ranks[r]={status:s,count:s?normCount(s,count):null};
+    if(w.length) o.ranks[r].wakuwaku=w;
+  }else delete o.ranks[r];
   o.updatedAt=new Date().toISOString();
   if(!Object.keys(o.ranks).length){delete byDev[dev];if(!Object.keys(byDev).length)delete db.ownership[k]}
+}
+// 画面に出す1〜10位のうち、状態を入力済みの件数
+function enteredCount(k,dev){
+  const ranks=db.ownership[k]?.[dev]?.ranks||{};
+  return Object.entries(ranks).filter(([r,v])=>+r<=SHOW_RANKS&&v.status).length;
 }
 function renderTop20(){
   const q=db.ui.quest, s=curStage(), k=key(q,s), dev=db.ui.rankDevice;
   const cnt={owned:0,'alt-form':0,'not-owned':0,unset:0};
-  const tiles=Array.from({length:RANKS},(_,i)=>{
-    const r=i+1, name=rankName(k,r), o=ownOf(k,dev,r), st=o?o.status:null;
+  const tiles=Array.from({length:SHOW_RANKS},(_,i)=>{
+    const r=i+1, name=rankName(k,r), o=ownOf(k,dev,r), st=o?o.status:null, wn=o?.wakuwaku?.length||0;
     cnt[st||'unset']++;
     return `<button type="button" class="tile ${st?OWN_CLASS[st]:'unset'}" data-act="rankTile" data-rank="${r}"
-      aria-label="${r}位 ${esc(name||'キャラ名未設定')} ${st?OWN[st]:'未入力'}">
+      aria-label="${r}位 ${esc(name||'キャラ名未設定')} ${st?OWN[st]:'未入力'}${wn?` わくわくの実${wn}`:''}">
       ${st==='alt-form'?'<span class="bang">！</span>':''}
-      <span class="r">${r}</span><span class="nm"${name?` title="${esc(name)}"`:''}>${esc(name||'—')}</span>
-      <span class="st">${st?OWN[st]:'未入力'}${o&&o.count!=null?` ×${o.count>=4?'4+':o.count}`:''}</span></button>`;
+      <span class="r">${r}</span>
+      <span class="tBody"><span class="nm"${name?` title="${esc(name)}"`:''}>${esc(name||'—')}</span>
+      <span class="tMeta"><span class="st">${st?OWN[st]:'未入力'}${o&&o.count!=null?` ×${o.count>=4?'4+':o.count}`:''}</span>${wn?`<span class="waku">実${wn}</span>`:''}</span></span></button>`;
   }).join('');
-  const devChips=DEVICES.map(d=>{
-    const n=Object.keys(db.ownership[k]?.[d]?.ranks||{}).length;
-    return `<button class="tDev${d===dev?' active':''}" data-act="rankDev" data-dev="${esc(d)}">${esc(devLabel(d))}<span class="n">${n}/${RANKS}</span></button>`;
-  }).join('');
+  const devChips=DEVICES.map(d=>
+    `<button class="tDev${d===dev?' active':''}" data-act="rankDev" data-dev="${esc(d)}">${esc(devLabel(d))}<span class="n">${enteredCount(k,d)}/${SHOW_RANKS}</span></button>`
+  ).join('');
   const hint=rankMode==='detail'
-    ?'順位をタップすると、キャラ名・所持状況・所持数を編集できます。'
+    ?'順位をタップすると、キャラ名・所持状況・所持数・わくわくの実を編集できます。'
     :`入力モード：タップした順位を「${OWN[rankMode]}」にします（${devLabel(dev)}）。終わったら「詳細」に戻してください。`;
   const upd=db.ownership[k]?.[dev]?.updatedAt;
   $('top20').innerHTML=`
-    <div class="tHead"><div class="tTitle">適正TOP20・所持状況</div><span class="small">${esc(stageText(q,s))}</span></div>
+    <div class="tHead"><div class="tTitle">適正TOP10・所持状況</div><span class="small">${esc(stageText(q,s))}</span></div>
     <div class="small">ランキング（キャラ名）はステージ共通、所持状況は端末ごとに記録します。</div>
     <div class="tDevs">${devChips}</div>
     <div class="tModes">${MODES.map(([m,l])=>`<button class="tMode m-${m}${m===rankMode?' active':''}" data-act="rankMode" data-mode="${m}">${l}</button>`).join('')}</div>
@@ -723,10 +756,18 @@ function renderTop20(){
 }
 function openRank(r){
   const q=db.ui.quest, s=curStage(), k=key(q,s), dev=db.ui.rankDevice, o=ownOf(k,dev,r);
-  rankEditing={k,dev,r,status:o?o.status:'',count:o?o.count:null};
+  rankEditing={k,dev,r,status:o?.status||'',count:o?o.count:null};
   $('rankTitle').textContent=`${stageText(q,s)}　${r}位`;
   $('rName').value=rankName(k,r);
   $('rDevLabel').textContent=`所持状況（${devLabel(dev)}）`;
+  $('rWakuLabel').textContent=`わくわくの実（${devLabel(dev)}の個体・最大${WAKU_MAX}つ）`;
+  const w=o?.wakuwaku||[];
+  $('rWaku').innerHTML=Array.from({length:WAKU_MAX},(_,i)=>`
+    <div class="wkRow"><span class="no">${i+1}</span>
+      <input id="wkName${i}" maxlength="20" placeholder="例：速必殺の力" aria-label="わくわくの実${i+1}の名前">
+      <select id="wkGrade${i}" aria-label="わくわくの実${i+1}の等級"><option value="">未設定</option>${GRADES.map(g=>`<option>${g}</option>`).join('')}</select>
+    </div>`).join('');
+  w.forEach((x,i)=>{$('wkName'+i).value=x.name;$('wkGrade'+i).value=x.grade});
   syncRankModal();
   $('rankModal').classList.add('open');
 }
@@ -743,25 +784,24 @@ function saveRank(){
   const name=clean($('rName').value,40);
   if(name!==rankName(e.k,e.r)) setRankName(e.k,e.r,name);
   const o=ownOf(e.k,e.dev,e.r);
-  if((o?o.status:'')!==e.status||(o?o.count:null)!==normCount(e.status,e.count)) setOwn(e.k,e.dev,e.r,e.status,e.count);
+  const w=normWaku(Array.from({length:WAKU_MAX},(_,i)=>({name:$('wkName'+i).value,grade:$('wkGrade'+i).value})));
+  const newCount=OWN[e.status]?normCount(e.status,e.count):null;
+  if((o?.status||'')!==e.status||(o?o.count:null)!==newCount||JSON.stringify(o?.wakuwaku||[])!==JSON.stringify(w))
+    setOwn(e.k,e.dev,e.r,e.status,e.count,w);
   persist();closeModals();render();
 }
-/* ---- TOP20 一括反映 ----
+/* ---- TOP10 一括反映 ----
    取り込み形式（ChatGPT等でスクショを読み取って作る想定。今後の貼り付けインポートも同じ形式）:
-   {quest, stage, device, entries:[{rank:1..20, name:"確定時のみ／不明は空", status:"owned|alt-form|not-owned", count:null|1..4}]}
-   ・対象（ステージ×端末）の所持状況20件を置き換える
-   ・name が空の順位は、入力済みのキャラ名を消さずに残す（空＝不明の意味） */
+   {quest, stage, device, entries:[{rank:1..10, name:"確定時のみ／不明は空", status:"owned|alt-form|not-owned", count:null|1..4}]}
+   ・対象（ステージ×端末）の1〜10位の所持状況だけを置き換える。11〜20位の保存データと、わくわくの実は変更しない
+   ・入力済みのキャラ名がある順位は、入力済みの名前を優先（空欄の順位だけ名前を入れる） */
 const TOP20_PRESETS=[
   {id:'kinki1-main-shot1',
    data:{quest:'禁忌の獄',stage:'一ノ獄',device:'メイン',
-     // キャラ名：ユーザーがスクショで確認した順位と名前。
-     // 18位は公式キャラ図鑑の形態名「ネオ：ハローワールド・モード」（ネオの形態で「ハロー」を含むのはこれのみ）。
-     // 19位は未確定のため空欄。20位は形態を特定できないため仮表記「リンネ（別形態）」。
+     // キャラ名：ユーザーがスクショで確認した順位と名前（1〜10位）
      entries:[
        ['ルシファー','owned'],['ネオ','owned'],['リンネ','owned'],['エクスカリバー','not-owned'],['マサムネ','owned'],
-       ['エル','not-owned'],['アナスタシア','not-owned'],['アイ','not-owned'],['マギア','owned'],['エリス','owned'],
-       ['ソロモン','alt-form'],['ラミエル','owned'],['マナ','alt-form'],['リムル','not-owned'],['エボニー&アイボリー','not-owned'],
-       ['わだつみ','not-owned'],['ウリエル','owned'],['ネオ：ハローワールド・モード','alt-form'],['','alt-form'],['リンネ（別形態）','alt-form']
+       ['エル','not-owned'],['アナスタシア','not-owned'],['アイ','not-owned'],['マギア','owned'],['エリス','owned']
      ].map(([name,status],i)=>({rank:i+1,name,status,count:null}))}}
 ];
 let pendingImport=null;
@@ -771,12 +811,12 @@ function parseTop20(p){
   if(!QMAP[p.quest]) err.push('quest（クエスト名）が不明です');
   else if(!QMAP[p.quest].stages.includes(p.stage)&&!(db.extraStages[p.quest]||[]).includes(p.stage)) err.push('stage（ステージ名）が不明です');
   if(!DEVICES.includes(p.device)) err.push('device（端末名）が不明です');
-  if(!Array.isArray(p.entries)||p.entries.length!==RANKS) err.push(`entries は${RANKS}件必要です`);
+  if(!Array.isArray(p.entries)||p.entries.length!==SHOW_RANKS) err.push(`entries は${SHOW_RANKS}件（1〜${SHOW_RANKS}位）必要です`);
   else{
     const seen=new Set();
     p.entries.forEach((e,i)=>{
       const r=e?.rank;
-      if(!Number.isInteger(r)||r<1||r>RANKS||seen.has(r)) err.push(`${i+1}件目の rank が不正です`);
+      if(!Number.isInteger(r)||r<1||r>SHOW_RANKS||seen.has(r)) err.push(`${i+1}件目の rank が不正です`);
       seen.add(r);
       if(!OWN[e?.status]) err.push(`${r}位の status が不正です`);
       if(e?.count!=null&&!(Number.isInteger(e.count)&&e.count>=1)) err.push(`${r}位の count が不正です`);
@@ -789,10 +829,15 @@ function parseTop20(p){
       .sort((a,b)=>a.rank-b.rank)};
 }
 function applyTop20(t){
-  const ranks={};
-  t.entries.forEach(e=>{ranks[e.rank]={status:e.status,count:e.count}});
-  db.ownership[t.k]=db.ownership[t.k]||{};
-  db.ownership[t.k][t.device]={updatedAt:new Date().toISOString(),ranks};
+  // 取り込む順位（1〜10位）だけ状態・所持数を置き換え、ほかの順位（11〜20位）と既存のわくわくの実は残す
+  const byDev=db.ownership[t.k]||(db.ownership[t.k]={});
+  const o=byDev[t.device]||(byDev[t.device]={updatedAt:null,ranks:{}});
+  t.entries.forEach(e=>{
+    const w=o.ranks[e.rank]?.wakuwaku;
+    o.ranks[e.rank]={status:e.status,count:e.count};
+    if(w&&w.length) o.ranks[e.rank].wakuwaku=w;
+  });
+  o.updatedAt=new Date().toISOString();
   // 入力済みのキャラ名がある順位は、入力済みの名前を優先（取り込み側の名前で上書きしない）
   t.entries.filter(e=>e.name&&!rankName(t.k,e.rank)).forEach(e=>setRankName(t.k,e.rank,e.name));
 }
@@ -804,12 +849,12 @@ function openImport(p){
   t.entries.forEach(e=>c[e.status]++);
   const named=t.entries.filter(e=>e.name).length;
   const kept=t.entries.filter(e=>e.name&&rankName(t.k,e.rank)&&rankName(t.k,e.rank)!==e.name).length;
-  const existing=Object.keys(db.ownership[t.k]?.[t.device]?.ranks||{}).length;
-  $('importTarget').textContent=`${t.quest}・${stageText(t.quest,t.stage)}・${devLabel(t.device)}`;
-  $('importSummary').textContent=`所持${c.owned}／別形態${c['alt-form']}／未所持${c['not-owned']}（${RANKS}件）、所持数：${t.entries.every(e=>e.count==null)?'全件 未確認':'一部あり'}、キャラ名：${named}件`+(kept?`（うち${kept}件は入力済みの名前を優先）`:'');
+  const existing=enteredCount(t.k,t.device);
+  $('importTarget').textContent=`${t.quest}・${stageText(t.quest,t.stage)}・${devLabel(t.device)}（TOP${SHOW_RANKS}）`;
+  $('importSummary').textContent=`所持${c.owned}／別形態${c['alt-form']}／未所持${c['not-owned']}（${SHOW_RANKS}件）、所持数：${t.entries.every(e=>e.count==null)?'全件 未確認':'一部あり'}、キャラ名：${named}件`+(kept?`（うち${kept}件は入力済みの名前を優先）`:'');
   $('importWarn').textContent=existing
-    ?`現在入力済みの内容があります（${RANKS}件中${existing}件）。この端末の所持状況は上書きされます。`
-    :'この端末の所持状況はまだ入力されていません。';
+    ?`現在入力済みの内容があります（${SHOW_RANKS}件中${existing}件）。1〜${SHOW_RANKS}位の所持状況は上書きされます。`
+    :'この端末の1〜10位の所持状況はまだ入力されていません。';
   $('importModal').classList.add('open');
 }
 function confirmImport(){
@@ -817,7 +862,7 @@ function confirmImport(){
   applyTop20(t);
   db.ui.quest=t.quest;db.ui.stage[t.quest]=t.stage;db.ui.rankDevice=t.device;rankMode='detail';
   persist();closeModals();render();
-  $('tMsg').textContent=`${t.quest}・${stageText(t.quest,t.stage)}・${devLabel(t.device)} に${RANKS}件を反映しました`;
+  $('tMsg').textContent=`${t.quest}・${stageText(t.quest,t.stage)}・${devLabel(t.device)} に${SHOW_RANKS}件を反映しました`;
 }
 
 function paintRank(r){
