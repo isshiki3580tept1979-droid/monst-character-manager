@@ -133,7 +133,8 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .tGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
 .tile{position:relative;border:1px solid #cbd5e1;border-radius:10px;background:#fff;min-height:66px;padding:5px 3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#0f172a;min-width:0}
 .tile .r{font-size:15px;font-weight:900;line-height:1}
-.tile .nm{font-size:10px;font-weight:700;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .nm{font-size:10px;font-weight:700;line-height:1.2;max-width:100%;overflow:hidden;overflow-wrap:anywhere;text-align:center;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3}
 .tile .st{font-size:10px;font-weight:800}
 .tile .bang{position:absolute;top:2px;right:5px;font-size:13px;font-weight:900;color:#b45309}
 .tile.unset{border-style:dashed;color:#94a3b8}
@@ -311,7 +312,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
     <div class="field"><label>反映先</label><div id="importTarget" style="font-weight:900"></div></div>
     <div class="field"><label>反映する内容</label><div id="importSummary" class="small" style="font-size:13px"></div></div>
     <div class="note" id="importWarn"></div>
-    <div class="small" style="margin-top:6px">キャラ名が空欄の順位は、入力済みのキャラ名をそのまま残します。ほかの端末・ステージは変更しません。</div>
+    <div class="small" style="margin-top:6px">キャラ名を入力済みの順位は、入力済みの名前を優先します（空欄の順位だけ名前を入れます）。ほかの端末・ステージは変更しません。</div>
     <div class="btns">
       <button class="btn-cancel" data-act="close">キャンセル</button>
       <button class="btn-save" data-act="applyImport">反映する</button>
@@ -697,7 +698,7 @@ function renderTop20(){
     return `<button type="button" class="tile ${st?OWN_CLASS[st]:'unset'}" data-act="rankTile" data-rank="${r}"
       aria-label="${r}位 ${esc(name||'キャラ名未設定')} ${st?OWN[st]:'未入力'}">
       ${st==='alt-form'?'<span class="bang">！</span>':''}
-      <span class="r">${r}</span><span class="nm">${esc(name||'—')}</span>
+      <span class="r">${r}</span><span class="nm"${name?` title="${esc(name)}"`:''}>${esc(name||'—')}</span>
       <span class="st">${st?OWN[st]:'未入力'}${o&&o.count!=null?` ×${o.count>=4?'4+':o.count}`:''}</span></button>`;
   }).join('');
   const devChips=DEVICES.map(d=>{
@@ -753,10 +754,15 @@ function saveRank(){
 const TOP20_PRESETS=[
   {id:'kinki1-main-shot1',
    data:{quest:'禁忌の獄',stage:'一ノ獄',device:'メイン',
-     // キャラ名は画像・公開情報で順位との対応を確認できなかったため、すべて空欄
-     entries:['owned','owned','owned','not-owned','owned','not-owned','not-owned','not-owned','owned','owned',
-       'alt-form','owned','alt-form','not-owned','not-owned','not-owned','owned','alt-form','alt-form','alt-form']
-       .map((status,i)=>({rank:i+1,name:'',status,count:null}))}}
+     // キャラ名：ユーザーがスクショで確認した順位と名前。
+     // 18位は公式キャラ図鑑の形態名「ネオ：ハローワールド・モード」（ネオの形態で「ハロー」を含むのはこれのみ）。
+     // 19位は未確定のため空欄。20位は形態を特定できないため仮表記「リンネ（別形態）」。
+     entries:[
+       ['ルシファー','owned'],['ネオ','owned'],['リンネ','owned'],['エクスカリバー','not-owned'],['マサムネ','owned'],
+       ['エル','not-owned'],['アナスタシア','not-owned'],['アイ','not-owned'],['マギア','owned'],['エリス','owned'],
+       ['ソロモン','alt-form'],['ラミエル','owned'],['マナ','alt-form'],['リムル','not-owned'],['エボニー&アイボリー','not-owned'],
+       ['わだつみ','not-owned'],['ウリエル','owned'],['ネオ：ハローワールド・モード','alt-form'],['','alt-form'],['リンネ（別形態）','alt-form']
+     ].map(([name,status],i)=>({rank:i+1,name,status,count:null}))}}
 ];
 let pendingImport=null;
 function parseTop20(p){
@@ -787,7 +793,8 @@ function applyTop20(t){
   t.entries.forEach(e=>{ranks[e.rank]={status:e.status,count:e.count}});
   db.ownership[t.k]=db.ownership[t.k]||{};
   db.ownership[t.k][t.device]={updatedAt:new Date().toISOString(),ranks};
-  t.entries.filter(e=>e.name).forEach(e=>setRankName(t.k,e.rank,e.name));
+  // 入力済みのキャラ名がある順位は、入力済みの名前を優先（取り込み側の名前で上書きしない）
+  t.entries.filter(e=>e.name&&!rankName(t.k,e.rank)).forEach(e=>setRankName(t.k,e.rank,e.name));
 }
 function openImport(p){
   const t=parseTop20(p);
@@ -796,9 +803,10 @@ function openImport(p){
   const c={owned:0,'alt-form':0,'not-owned':0};
   t.entries.forEach(e=>c[e.status]++);
   const named=t.entries.filter(e=>e.name).length;
+  const kept=t.entries.filter(e=>e.name&&rankName(t.k,e.rank)&&rankName(t.k,e.rank)!==e.name).length;
   const existing=Object.keys(db.ownership[t.k]?.[t.device]?.ranks||{}).length;
   $('importTarget').textContent=`${t.quest}・${stageText(t.quest,t.stage)}・${devLabel(t.device)}`;
-  $('importSummary').textContent=`所持${c.owned}／別形態${c['alt-form']}／未所持${c['not-owned']}（${RANKS}件）、所持数：${t.entries.every(e=>e.count==null)?'全件 未確認':'一部あり'}、キャラ名：${named}件`;
+  $('importSummary').textContent=`所持${c.owned}／別形態${c['alt-form']}／未所持${c['not-owned']}（${RANKS}件）、所持数：${t.entries.every(e=>e.count==null)?'全件 未確認':'一部あり'}、キャラ名：${named}件`+(kept?`（うち${kept}件は入力済みの名前を優先）`:'');
   $('importWarn').textContent=existing
     ?`現在入力済みの内容があります（${RANKS}件中${existing}件）。この端末の所持状況は上書きされます。`
     :'この端末の所持状況はまだ入力されていません。';
