@@ -32,6 +32,10 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .questBtn{border:1px solid #cbd5e1;background:#fff;border-radius:12px;min-height:46px;padding:6px 4px;font-weight:800;font-size:13px;color:#334155}
 .questBtn.active{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
 .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:thin}
+.groupTabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:6px;margin-bottom:8px}
+.gBtn{border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;min-height:42px;padding:6px 4px;font-weight:800;font-size:13px;color:#334155;min-width:0}
+.gBtn.active{background:#0f766e;border-color:#0f766e;color:#fff}
+.gBtn .n{font-size:10px;font-weight:800;margin-left:4px;opacity:.8}
 .chip{flex:none;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 12px;font-weight:700;font-size:13px;color:#334155;white-space:nowrap;min-height:38px}
 .chip.active{background:#2563eb;border-color:#2563eb;color:#fff}
 .chip .n{font-size:10px;font-weight:800;margin-left:4px;opacity:.75}
@@ -105,6 +109,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .btn-cancel{background:#e2e8f0;color:#0f172a}
 .btn-del{background:#fee2e2;color:#991b1b}
 .pgroup{font-size:12px;font-weight:800;color:#1e3a8a;margin:10px 0 5px}
+.psub{font-size:11px;font-weight:800;color:#0f766e;margin:6px 0 4px}
 .pick{display:flex;flex-wrap:wrap;gap:5px}
 .pk{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;color:#334155;min-height:34px}
 .pk.on{background:#2563eb;color:#fff;border-color:#2563eb}
@@ -125,6 +130,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
     </div>
     <div class="panel">
       <div class="ptitle"><span>ステージを選ぶ</span><span class="small" id="stageCount"></span></div>
+      <div class="groupTabs" id="groupTabs" style="display:none"></div>
       <div class="chips" id="stageChips"></div>
       <div class="note" id="questNote"></div>
     </div>
@@ -272,10 +278,18 @@ const QUESTS=[
    stages:['パライソ','黄泉','ティル・ナ・ノーグ','アアル','アヴァロン','シャンバラ','アポカリプス','アラミタマ','ラブ','パラノヴィア',
      'ニギミタマ','桃源郷','コキュートス','ラルガメンテ','メラン＆コリン'],
    note:'全15クエスト（公式お知らせで確認）。ニギミタマ〜メラン＆コリンの5クエストは毎回出現（6〜10階層）、1〜5階層は旧10クエストから開催ごとに選ばれます。開催時の階層ではなくクエスト名で適正を登録します。'},
+  // 試練の間：第1の間〜第10の間（公式お知らせの表記）／空中庭園：全10クエスト（公式）、第1の園〜第10の園
+  // ステージIDは「系統・階層」（例：試練の間・第1の間）。groups から下で生成する
   {id:'天魔の孤城',short:'天魔',candidate:false,canAdd:true,
-   stages:['試練の間','空中庭園'],
-   note:'過去会話の初期仕様は「試練の間」「空中庭園」の2系統です。各階層の詳細は未確定のため、必要なら「管理」から追加してください。'}
+   groups:[{id:'試練の間',unit:'間'},{id:'空中庭園',unit:'園'}],
+   legacy:['試練の間','空中庭園'],
+   legacyLabel:{'試練の間':'試練の間（旧・階層未設定）','空中庭園':'空中庭園（旧・階層未設定）'},
+   note:'試練の間（第1〜第10の間）と空中庭園（第1〜第10の園）の全20ステージ。上のボタンで系統を切り替えます。EXクエスト（アーキレット・コルティーナ）は必要なら「管理」から追加できます。'}
 ];
+QUESTS.forEach(q=>{
+  if(q.groups) q.stages=q.groups.flatMap(g=>Array.from({length:10},(_,i)=>`${g.id}・第${i+1}の${g.unit}`));
+});
+const EXTRA_GROUP='追加';
 const QMAP=Object.fromEntries(QUESTS.map(q=>[q.id,q]));
 
 const $=id=>document.getElementById(id);
@@ -324,8 +338,12 @@ function normalize(raw){
   if(raw.ui&&typeof raw.ui==='object'){
     if(VIEWS.includes(raw.ui.view)) d.ui.view=raw.ui.view;
     if(QMAP[raw.ui.quest]) d.ui.quest=raw.ui.quest;
+    // クエスト単位（"天魔の孤城"）と系統単位（"天魔の孤城::試練の間"）の選択位置を保持
     if(raw.ui.stage&&typeof raw.ui.stage==='object'){
-      QUESTS.forEach(q=>{if(typeof raw.ui.stage[q.id]==='string')d.ui.stage[q.id]=raw.ui.stage[q.id]});
+      Object.entries(raw.ui.stage).forEach(([k,v])=>{
+        const p=k.split(SEP);
+        if(typeof v==='string'&&QMAP[p[0]]&&p.length<=2) d.ui.stage[k]=clean(v,80);
+      });
     }
   }
   return d;
@@ -364,6 +382,29 @@ function curStage(){
   const s=db.ui.stage[db.ui.quest], all=stagesOf(db.ui.quest);
   return all.includes(s)?s:all[0];
 }
+// 系統（天魔の「試練の間」「空中庭園」など）。系統のないクエストは null、どの系統にも属さない追加分は EXTRA_GROUP
+function groupOf(q,s){
+  const d=QMAP[q];
+  if(!d.groups) return null;
+  const g=d.groups.find(g=>s===g.id||s.startsWith(g.id+'・'));
+  return g?g.id:EXTRA_GROUP;
+}
+function groupsOf(q){
+  const d=QMAP[q];
+  if(!d.groups) return [];
+  const gs=d.groups.map(g=>g.id);
+  return stagesOf(q).some(s=>groupOf(q,s)===EXTRA_GROUP)?[...gs,EXTRA_GROUP]:gs;
+}
+// 系統の中で使う短い表示（例：第1の間）。系統のないクエストは通常の表示名
+function chipText(q,s){
+  const d=QMAP[q];
+  if(d.groups){
+    if(isLegacy(q,s)) return '階層未設定（旧）';
+    const g=groupOf(q,s);
+    if(g!==EXTRA_GROUP&&s.startsWith(g+'・')) return s.slice(g.length+1);
+  }
+  return stageText(q,s);
+}
 function stageLabel(k){const [q,s]=k.split(SEP);return `${QMAP[q]?.short||q} ${isLegacy(q,s)?stageText(q,s):s}`}
 function devLabel(d){return db.deviceNames[d]?`${db.deviceNames[d]}（${d}）`:d}
 function devNameHtml(d){
@@ -400,11 +441,17 @@ function renderStage(){
   const q=db.ui.quest, s=curStage(), k=key(q,s), def=QMAP[q];
   $('questTabs').innerHTML=QUESTS.map(x=>
     `<button class="questBtn${x.id===q?' active':''}" data-act="quest" data-quest="${esc(x.id)}">${esc(x.id)}</button>`).join('');
-  const stages=stagesOf(q);
-  $('stageChips').innerHTML=stages.map(st=>{
+  const stages=stagesOf(q), groups=groupsOf(q), g=groupOf(q,s);
+  $('groupTabs').style.display=groups.length?'':'none';
+  $('groupTabs').innerHTML=groups.map(x=>{
+    const n=db.characters.filter(c=>c.stages.some(k2=>{const [q2,s2]=k2.split(SEP);return q2===q&&groupOf(q,s2)===x})).length;
+    return `<button class="gBtn${x===g?' active':''}" data-act="group" data-group="${esc(x)}">${esc(x)}${n?`<span class="n">${n}</span>`:''}</button>`;
+  }).join('');
+  const shown=g?stages.filter(st=>groupOf(q,st)===g):stages;
+  $('stageChips').innerHTML=shown.map(st=>{
     const n=db.characters.filter(c=>c.stages.includes(key(q,st))).length;
     const cand=(def.candidate&&def.stages.includes(st))||isLegacy(q,st);
-    return `<button class="chip${st===s?' active':''}${cand?' cand':''}" data-act="stage" data-stage="${esc(st)}">${esc(stageText(q,st))}${n?`<span class="n">${n}</span>`:''}</button>`;
+    return `<button class="chip${st===s?' active':''}${cand?' cand':''}" data-act="stage" data-stage="${esc(st)}">${esc(chipText(q,st))}${n?`<span class="n">${n}</span>`:''}</button>`;
   }).join('');
   const added=(db.extraStages[q]||[]).length;
   $('stageCount').textContent=`${stages.length}ステージ`+(added?`（うち追加${added}）`:'');
@@ -507,10 +554,17 @@ function openChar(c=null){
   $('cMemo').value=c?c.memo:'';
   // 新規登録では旧互換ステージ（単独「深淵」など）を初期選択しない
   const sel=new Set(c?c.stages:isLegacy(db.ui.quest,curStage())?[]:[key(db.ui.quest,curStage())]);
-  $('cStages').innerHTML=QUESTS.map(q=>`
-    <div class="pgroup">${esc(q.id)}</div>
-    <div class="pick">${pickStagesOf(q.id,sel).map(s=>{const k=key(q.id,s);
-      return `<button type="button" class="pk${sel.has(k)?' on':''}" data-act="pick" data-key="${esc(k)}">${esc(stageText(q.id,s))}</button>`}).join('')}</div>`).join('');
+  const pk=(q,s)=>{const k=key(q,s);
+    return `<button type="button" class="pk${sel.has(k)?' on':''}" data-act="pick" data-key="${esc(k)}">${esc(chipText(q,s))}</button>`};
+  $('cStages').innerHTML=QUESTS.map(q=>{
+    const list=pickStagesOf(q.id,sel);
+    if(!q.groups) return `<div class="pgroup">${esc(q.id)}</div><div class="pick">${list.map(s=>pk(q.id,s)).join('')}</div>`;
+    // 系統ごとに見出しを分けて、試練と庭園が混ざらないようにする
+    return `<div class="pgroup">${esc(q.id)}</div>`+[...q.groups.map(g=>g.id),EXTRA_GROUP].map(g=>{
+      const l=list.filter(s=>groupOf(q.id,s)===g);
+      return l.length?`<div class="psub">${esc(g)}</div><div class="pick">${l.map(s=>pk(q.id,s)).join('')}</div>`:'';
+    }).join('');
+  }).join('');
   $('cDelete').style.display=c?'':'none';
   $('charModal').classList.add('open');
 }
@@ -621,7 +675,19 @@ document.addEventListener('click',e=>{
   switch(b.dataset.act){
     case 'view':db.ui.view=b.dataset.view;persist();render();window.scrollTo(0,0);break;
     case 'quest':db.ui.quest=b.dataset.quest;persist();render();scrollActiveChip();break;
-    case 'stage':db.ui.stage[db.ui.quest]=b.dataset.stage;persist();render();scrollActiveChip();break;
+    case 'stage':{
+      const q=db.ui.quest, g=groupOf(q,b.dataset.stage);
+      db.ui.stage[q]=b.dataset.stage;
+      if(g) db.ui.stage[key(q,g)]=b.dataset.stage;
+      persist();render();scrollActiveChip();break;
+    }
+    case 'group':{
+      // 系統ごとに最後に見ていた階層へ戻る（なければ先頭）
+      const q=db.ui.quest, g=b.dataset.group, list=stagesOf(q).filter(s=>groupOf(q,s)===g), last=db.ui.stage[key(q,g)];
+      if(!list.length) break;
+      db.ui.stage[q]=list.includes(last)?last:list[0];
+      persist();render();scrollActiveChip();break;
+    }
     case 'add':openChar();break;
     case 'edit':if(c)openChar(c);break;
     case 'lend':if(c)openLend(c);break;
