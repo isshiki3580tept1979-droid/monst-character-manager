@@ -259,14 +259,19 @@ function kanji(n){
   const t=Math.floor(n/10),o=n%10;
   return (t>1?d[t-1]:'')+'十'+(o?d[o-1]:'');
 }
-// ステージ定義（過去会話で確認できたもののみ。未確定の名称は入れない）
+// ステージ定義（確認できたもののみ。未確定の名称は入れない）
+// legacy：新規選択候補からは外すが、既存データにあれば互換表示するステージ（自動変換はしない）
+// suffix：表示時だけ付ける語。保存するステージIDは付けない（既存データとの互換のため）
 const QUESTS=[
   {id:'禁忌の獄',short:'禁忌',candidate:false,canAdd:false,
-   stages:[...Array.from({length:30},(_,i)=>kanji(i+1)+'ノ獄'),'深淵'],
-   note:'一ノ獄〜三十ノ獄＋深淵（過去会話の初期仕様）'},
-  {id:'破界の星墓',short:'星墓',candidate:true,canAdd:true,
-   stages:['ティル・ナ・ノーグ','アアル','アヴァロン','シャンバラ','パラノヴィア','ニギミタマ','桃源郷','コキュートス','ラルガメンテ','メラン＆コリン'],
-   note:'点線のステージは過去会話で確認できた「候補」10件です。全体は15階層相当（深層の固定層＋候補からランダム）とのことですが、固定層の内訳と残りの名称は未確定です。確認できたら「管理」から追加してください。'},
+   stages:[...Array.from({length:30},(_,i)=>kanji(i+1)+'ノ獄'),...['火','水','木','光','闇'].map(a=>'深淵・'+a)],
+   legacy:['深淵'],legacyLabel:{'深淵':'深淵（旧・属性未設定）'},
+   note:'一ノ獄〜三十ノ獄＋深淵（火・水・木・光・闇）の35ステージ'},
+  // 公式お知らせで確認した全15クエスト（旧10＋2026/3/27開催から追加の5）。開催時の階層位置ではなくクエスト名で登録する
+  {id:'破界の星墓',short:'星墓',candidate:false,canAdd:true,suffix:'の星墓',
+   stages:['パライソ','黄泉','ティル・ナ・ノーグ','アアル','アヴァロン','シャンバラ','アポカリプス','アラミタマ','ラブ','パラノヴィア',
+     'ニギミタマ','桃源郷','コキュートス','ラルガメンテ','メラン＆コリン'],
+   note:'全15クエスト（公式お知らせで確認）。ニギミタマ〜メラン＆コリンの5クエストは毎回出現（6〜10階層）、1〜5階層は旧10クエストから開催ごとに選ばれます。開催時の階層ではなくクエスト名で適正を登録します。'},
   {id:'天魔の孤城',short:'天魔',candidate:false,canAdd:true,
    stages:['試練の間','空中庭園'],
    note:'過去会話の初期仕様は「試練の間」「空中庭園」の2系統です。各階層の詳細は未確定のため、必要なら「管理」から追加してください。'}
@@ -296,7 +301,8 @@ function normalize(raw){
     for(const q of Object.keys(d.extraStages)){
       const a=raw.extraStages[q];
       if(Array.isArray(a)) d.extraStages[q]=[...new Set(a.map(x=>clean(x,30)))]
-        .filter(x=>x&&!x.includes(SEP)&&!QMAP[q].stages.includes(x));
+        // 定義済みIDと完全一致する追加分だけ外す（同じキーなのでキャラの紐づけは失われない）
+        .filter(x=>x&&!x.includes(SEP)&&!QMAP[q].stages.includes(x)&&!isLegacy(q,x));
     }
   }
   if(Array.isArray(raw.characters)){
@@ -331,13 +337,34 @@ function persist(){localStorage.setItem(KEY,JSON.stringify(db))}
 let db=load();
 let editingId=null, lendingId=null;
 
-function stagesOf(q){return [...QMAP[q].stages,...(db.extraStages[q]||[])]}
+function key(q,s){return q+SEP+s}
+function isLegacy(q,s){return !!QMAP[q]?.legacy?.includes(s)}
+// 定義済み（通常・旧互換・表示名）と重なる名前は追加ステージにできない
+function isReserved(q,s){
+  const d=QMAP[q];
+  return d.stages.includes(s)||isLegacy(q,s)||(!!d.suffix&&d.stages.some(x=>x+d.suffix===s));
+}
+// 表示用：通常＋追加＋（既存データで使われている旧互換ステージ）
+function stagesOf(q){
+  const d=QMAP[q];
+  return [...d.stages,...(db.extraStages[q]||[]),
+    ...(d.legacy||[]).filter(s=>db.characters.some(c=>c.stages.includes(key(q,s))))];
+}
+// 登録・編集の選択肢：旧互換ステージは、編集中のキャラが既に持っている場合だけ出す
+function pickStagesOf(q,sel){
+  const d=QMAP[q];
+  return [...d.stages,...(db.extraStages[q]||[]),...(d.legacy||[]).filter(s=>sel.has(key(q,s)))];
+}
+function stageText(q,s){
+  const d=QMAP[q];
+  if(isLegacy(q,s)) return d.legacyLabel?.[s]||s;
+  return d.suffix&&d.stages.includes(s)?s+d.suffix:s;
+}
 function curStage(){
   const s=db.ui.stage[db.ui.quest], all=stagesOf(db.ui.quest);
   return all.includes(s)?s:all[0];
 }
-function key(q,s){return q+SEP+s}
-function stageLabel(k){const [q,s]=k.split(SEP);return `${QMAP[q]?.short||q} ${s}`}
+function stageLabel(k){const [q,s]=k.split(SEP);return `${QMAP[q]?.short||q} ${isLegacy(q,s)?stageText(q,s):s}`}
 function devLabel(d){return db.deviceNames[d]?`${db.deviceNames[d]}（${d}）`:d}
 function devNameHtml(d){
   return db.deviceNames[d]?`${esc(db.deviceNames[d])}<span class="devId">（${esc(d)}）</span>`:esc(d);
@@ -376,13 +403,13 @@ function renderStage(){
   const stages=stagesOf(q);
   $('stageChips').innerHTML=stages.map(st=>{
     const n=db.characters.filter(c=>c.stages.includes(key(q,st))).length;
-    const cand=def.candidate&&def.stages.includes(st);
-    return `<button class="chip${st===s?' active':''}${cand?' cand':''}" data-act="stage" data-stage="${esc(st)}">${esc(st)}${n?`<span class="n">${n}</span>`:''}</button>`;
+    const cand=(def.candidate&&def.stages.includes(st))||isLegacy(q,st);
+    return `<button class="chip${st===s?' active':''}${cand?' cand':''}" data-act="stage" data-stage="${esc(st)}">${esc(stageText(q,st))}${n?`<span class="n">${n}</span>`:''}</button>`;
   }).join('');
   const added=(db.extraStages[q]||[]).length;
   $('stageCount').textContent=`${stages.length}ステージ`+(added?`（うち追加${added}）`:'');
   $('questNote').textContent=def.note;
-  $('stageTitle').textContent=`${q}・${s}`;
+  $('stageTitle').textContent=`${q}・${stageText(q,s)}`;
   const here=db.characters.filter(c=>c.stages.includes(k));
   $('stageDevices').innerHTML=DEVICES.map(d=>{
     const at=here.filter(c=>locOf(c)===d).sort((a,b)=>sortJa(a.name,b.name));
@@ -454,7 +481,7 @@ function renderAdmin(){
   const def=QMAP[sel];
   $('exNote').textContent=def.note;
   $('exList').innerHTML=
-    def.stages.map(s=>`<span class="sItem${def.candidate?' cand':''}">${esc(s)}${def.candidate?' <span class="small">候補</span>':''}</span>`).join('')+
+    def.stages.map(s=>`<span class="sItem${def.candidate?' cand':''}">${esc(stageText(sel,s))}${def.candidate?' <span class="small">候補</span>':''}</span>`).join('')+
     (db.extraStages[sel]||[]).map(s=>`<span class="sItem added"><span>${esc(s)}</span><button aria-label="削除" data-act="removeStage" data-stage="${esc(s)}">×</button></span>`).join('');
   $('dataCount').textContent=`登録 ${db.characters.length}件`;
 }
@@ -478,11 +505,12 @@ function openChar(c=null){
   $('cDevice').value=c?c.device:DEVICES[0];
   $('cCount').value=c?c.count:1;
   $('cMemo').value=c?c.memo:'';
-  const sel=new Set(c?c.stages:[key(db.ui.quest,curStage())]);
+  // 新規登録では旧互換ステージ（単独「深淵」など）を初期選択しない
+  const sel=new Set(c?c.stages:isLegacy(db.ui.quest,curStage())?[]:[key(db.ui.quest,curStage())]);
   $('cStages').innerHTML=QUESTS.map(q=>`
     <div class="pgroup">${esc(q.id)}</div>
-    <div class="pick">${stagesOf(q.id).map(s=>{const k=key(q.id,s);
-      return `<button type="button" class="pk${sel.has(k)?' on':''}" data-act="pick" data-key="${esc(k)}">${esc(s)}</button>`}).join('')}</div>`).join('');
+    <div class="pick">${pickStagesOf(q.id,sel).map(s=>{const k=key(q.id,s);
+      return `<button type="button" class="pk${sel.has(k)?' on':''}" data-act="pick" data-key="${esc(k)}">${esc(stageText(q.id,s))}</button>`}).join('')}</div>`).join('');
   $('cDelete').style.display=c?'':'none';
   $('charModal').classList.add('open');
 }
@@ -535,7 +563,7 @@ function addStage(){
   const q=$('exQuest').value, name=clean($('exName').value,30);
   if(!QMAP[q]?.canAdd||!name)return;
   if(name.includes(SEP)){$('exMsg').textContent='「::」は使えません';return}
-  if(stagesOf(q).includes(name)){$('exMsg').textContent='すでにあるステージです';return}
+  if(isReserved(q,name)||(db.extraStages[q]||[]).includes(name)){$('exMsg').textContent='すでにあるステージです';return}
   db.extraStages[q].push(name);persist();
   $('exName').value='';render();
   $('exMsg').textContent=`「${name}」を${q}に追加しました`;
