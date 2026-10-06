@@ -176,7 +176,9 @@ test('regression: ownership paint, counts, maximum 4 fruits, retained on status 
   assert.equal((await snapshot()).ownership[stage]['メイン'].ranks[3].status,null);
 });
 test('regression: registration/edit/search/lend/return/delete and device names',async()=>{
-  await click('[data-act="add"]');await page.fill('#cName','検証キャラ');await page.fill('#cMemo','検索メモ');await page.fill('#cCount','2');await click('[data-act="saveChar"]');
+  // The stage "＋ キャラ登録" now opens the new registration flow (trial-v6). Old characters[] records are
+  // still readable/editable/lendable, so this regression seeds one directly and keeps checking those features.
+  await seed({characters:[{id:'legacy-reg',name:'検証キャラ',device:'メイン',count:2,memo:'検索メモ',stages:[stage]}]});
   assert.equal((await snapshot()).characters.length,1);
   await click('[data-act="view"][data-view="search"]');await page.fill('#searchInput','検索メモ');assert.equal(await page.locator('#searchResults .card').count(),1);
   await click('#searchResults [data-act="edit"]');await page.fill('#cName','編集キャラ');await click('[data-act="saveChar"]');assert.equal((await snapshot()).characters[0].name,'編集キャラ');

@@ -174,6 +174,9 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .dpBox{flex:none;width:18px;height:18px;border:2px solid currentColor;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1}
 .dpMsg{font-size:12px;font-weight:800;color:#b45309;min-height:1em;margin-top:4px}
 .dpMsg:empty{display:none}
+.qrCheck{display:flex;align-items:center;gap:8px;font-size:13px;min-height:40px;margin-bottom:6px}
+.qrCheck input{width:22px;height:22px;flex:none}
+#qrStageNote{margin-bottom:8px;font-size:12px;color:#1e3a8a;font-weight:800}
 #stageDevices>.dev.empty{display:block;padding:10px 12px}
 #stageDevices>.dev.empty .none{display:block;margin:2px 0 0;white-space:normal}
 /* 編成カード（①〜④）：形態・種族・戦型・撃種・実を常時表示 */
@@ -256,7 +259,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
         <div class="stageTitle" id="stageTitle"></div>
         <div class="stageSub">端末ごとに、所持している適正個体から使うキャラを選ぶ</div>
       </div>
-      <button class="primary" data-act="add">＋ キャラ登録</button>
+      <button class="primary" data-act="quickReg">＋ キャラ登録</button>
     </div>
     <div class="devPick" id="devPick" role="group" aria-label="今回使う端末（最大4台）"></div>
     <div class="infoBar" id="infoBar" role="group" aria-label="選んだ個体の表示内容"></div>
@@ -454,6 +457,65 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
     <div class="btns">
       <button class="btn-cancel" data-act="close">キャンセル</button>
       <button class="btn-save" data-act="applyImport">反映する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ステージ画面からの新規登録：キャラ → 進化形態 → 所持端末 → わくわくの実 → このステージの適正 -->
+<div class="modalBack" id="qrModal">
+  <div class="modal">
+    <h2 id="qrTitle">キャラ登録</h2>
+    <div class="small" id="qrStageNote"></div>
+    <fieldset class="basicInfo">
+      <legend>1. キャラ</legend>
+      <div class="field"><label for="qrChar">キャラ</label><select id="qrChar"></select></div>
+      <div class="field" id="qrCharNameField"><label for="qrCharName">キャラ名（進化形態名は入れない）</label><input id="qrCharName" maxlength="40" placeholder="例：ネオ"></div>
+    </fieldset>
+    <fieldset class="basicInfo">
+      <legend>2. 進化形態</legend>
+      <div class="field"><label for="qrForm">進化形態</label><select id="qrForm"></select></div>
+      <div id="qrFormNew">
+        <div class="field"><label for="qrFormName">正式な進化形態名</label><input id="qrFormName" maxlength="60" placeholder="例：ハローワールド・モード"></div>
+        <div class="field"><label for="qrFormShort">短縮表示名（一覧用・空欄なら正式名）</label><input id="qrFormShort" maxlength="16" placeholder="例：ハロー"></div>
+        <div class="field"><label for="qrRace">種族</label><select id="qrRace"></select></div>
+        <div class="field" id="qrRaceCustomField" hidden><label for="qrRaceCustom">種族名（その他・新規）</label><input id="qrRaceCustom" maxlength="40"></div>
+        <div class="two field">
+          <div><label for="qrBattle">戦型</label><select id="qrBattle"></select></div>
+          <div><label for="qrShot">撃種</label><select id="qrShot"></select></div>
+        </div>
+      </div>
+      <div class="small" id="qrFormInfo"></div>
+    </fieldset>
+    <fieldset class="basicInfo">
+      <legend>3. 所持端末</legend>
+      <div class="two field">
+        <div><label for="qrDevice">端末</label><select id="qrDevice"></select></div>
+        <div><label for="qrNo">個体番号</label><input id="qrNo" type="number" min="1" max="99" inputmode="numeric"></div>
+      </div>
+    </fieldset>
+    <fieldset class="basicInfo">
+      <legend>4. わくわくの実（最大4つ）</legend>
+      <div id="qrFruits"></div>
+      <div class="small">名前は正式名で入力（例：同族の絆・加撃）。ステージ画面では「同族加撃L」のように短く表示します。空欄の枠は保存しません。</div>
+    </fieldset>
+    <fieldset class="basicInfo">
+      <legend>5. このステージの適正</legend>
+      <label class="qrCheck"><input type="checkbox" id="qrSuitOn" checked> <span id="qrSuitLabel">このステージの適正として登録する</span></label>
+      <div id="qrSuitFields">
+        <div class="two field">
+          <div><label for="qrSource">出典</label><select id="qrSource"></select></div>
+          <div><label for="qrEval">評価形式</label><select id="qrEval"></select></div>
+        </div>
+        <div class="field" id="qrSiteField" hidden><label for="qrSite">サイト名</label><input id="qrSite" maxlength="30"></div>
+        <div class="field" id="qrRankField" hidden><label for="qrRank">順位（1〜20）</label><input id="qrRank" type="number" min="1" max="20" inputmode="numeric"></div>
+        <div class="field" id="qrGradeField" hidden><label for="qrGrade">ランク（S/A/B など）</label><input id="qrGrade" maxlength="8"></div>
+        <div class="field"><label for="qrVerify">確認状態</label><select id="qrVerify"></select></div>
+      </div>
+    </fieldset>
+    <div class="msg" id="qrMsg" style="color:#991b1b"></div>
+    <div class="btns">
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="qrSave">登録する</button>
     </div>
   </div>
 </div>
@@ -670,7 +732,9 @@ function normCount(status,c){
    旧データ（characters / rankings / ownership）はそのまま残し、読み込み時に変換・書き込みはしない。 */
 const FRUIT_MAX=4, FRUIT_BASE=3;
 const FRUIT_KINDS=['同族','戦型','撃種','その他'];
-const SOURCES={GAME_CLEAR_MONSTERS:'みんなのクリアモンスター',GAMEWITH:'GameWith',ALTEMA:'アルテマ',OTHER_SITE:'その他サイト'};
+const SOURCES={GAME_CLEAR_MONSTERS:'みんなのクリアモンスター',GAMEWITH:'GameWith',ALTEMA:'アルテマ',OTHER_SITE:'その他サイト',MANUAL:'自分で登録'};
+// 外部データのJSON取り込みで受け付ける出典（MANUAL＝ユーザー自身の判断は外部データではないので対象外）
+const IMPORT_SOURCES=['GAME_CLEAR_MONSTERS','GAMEWITH','ALTEMA','OTHER_SITE'];
 const EVAL_TYPES={RANK:'順位',GRADE:'ランク',CANDIDATE:'候補'};
 const VERIFY={VERIFIED:'確認済み',UNVERIFIED:'未検証',NEEDS_REVIEW:'要確認'};
 const INFO_MODES=[['form','進化形態'],['type','種族・戦型・撃種'],['fruit','実'],['all','全部']];
@@ -1532,7 +1596,7 @@ function saveLend(){
 function returnChar(c){c.lentTo=null;persist();render()}
 function closeModals(){
   document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
-  editingId=null;lendingId=null;rankEditing=null;pendingImport=null;mEdit=null;
+  editingId=null;lendingId=null;rankEditing=null;pendingImport=null;mEdit=null;qrStage=null;
 }
 
 /* ---- 新構造の編集（キャラ・進化形態・所持個体・適正） ---- */
@@ -1640,6 +1704,139 @@ function deleteUnit(){
   db.units=db.units.filter(x=>x.id!==u.id);
   persist();closeModals();render();
 }
+/* ---- ステージ画面からの新規登録（新方式：master.characters → master.forms → units → suits） ----
+   開いたステージをコンテキストとして保持し、キャラ・進化形態・所持端末・わくわくの実・このステージの適正を
+   1画面で登録する。入力をすべて確認してから書き込む（途中で失敗したら何も保存しない）。
+   旧 characters[] には書き込まない（旧データは読み取り・編集のために残すだけ）。 */
+let qrStage=null;
+const NEW='__new__';
+function openQuickReg(){
+  qrStage=key(db.ui.quest,curStage());
+  const [q,st]=qrStage.split(SEP);
+  $('qrTitle').textContent='キャラ登録';
+  $('qrStageNote').textContent=`登録先のステージ：${q}・${stageText(q,st)}`;
+  $('qrSuitLabel').textContent=`${stageText(q,st)}の適正として登録する`;
+  const chars=[...db.master.characters].sort((a,b)=>sortJa(a.name,b.name));
+  $('qrChar').innerHTML=`<option value="${NEW}">＋ 新しいキャラ</option>`+chars.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  $('qrChar').value=NEW;$('qrCharName').value='';
+  ['qrFormName','qrFormShort','qrRaceCustom','qrSite','qrRank','qrGrade'].forEach(id=>{$(id).value=''});
+  raceOptions($('qrRace'),$('qrRaceCustom'),$('qrRaceCustomField'),'');
+  $('qrBattle').innerHTML='<option value="">未設定</option>'+BATTLE_TYPES.map(n=>`<option>${n}</option>`).join('');
+  $('qrShot').innerHTML='<option value="">未設定</option>'+SHOT_TYPES.map(n=>`<option>${n}</option>`).join('');
+  // 端末：今回使う端末のうち、まだ個体を選んでいない最初の端末（なければ①、未選択ならメイン）
+  const use=useDevsOf(qrStage);
+  $('qrDevice').innerHTML=DEVICES.map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}${use.includes(d)?`（${SLOT_MARKS[use.indexOf(d)]}）`:''}</option>`).join('');
+  $('qrDevice').value=use.find(d=>!db.picks[qrStage]?.[d])||use[0]||DEVICES[0];
+  $('qrFruits').innerHTML=Array.from({length:FRUIT_MAX},(_,i)=>`
+    <div class="frRow"><span class="no">${i+1}</span>
+      <input id="qrFrName${i}" maxlength="20" placeholder="${i===FRUIT_MAX-1?'4つ目（任意）':'例：同族の絆・加撃'}" aria-label="わくわくの実${i+1}の名前">
+      <select id="qrFrGrade${i}" aria-label="わくわくの実${i+1}の等級"><option value="">等級</option>${GRADES.map(g=>`<option>${g}</option>`).join('')}</select>
+      <select id="qrFrKind${i}" aria-label="わくわくの実${i+1}の系統"><option value="">系統</option>${FRUIT_KINDS.map(k=>`<option>${k}</option>`).join('')}</select>
+    </div>`).join('');
+  $('qrSource').innerHTML=Object.entries(SOURCES).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
+  $('qrSource').value='MANUAL';
+  $('qrEval').innerHTML=Object.entries(EVAL_TYPES).map(([v,l])=>`<option value="${v}">${esc(l)}（${v}）</option>`).join('');
+  $('qrEval').value='CANDIDATE';
+  $('qrVerify').innerHTML=Object.entries(VERIFY).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
+  $('qrVerify').value='VERIFIED';
+  $('qrSuitOn').checked=true;$('qrMsg').textContent='';
+  syncQrChar();syncQrSuit();
+  $('qrModal').classList.add('open');$('qrModal').querySelector('.modal').scrollTop=0;
+}
+function syncQrChar(){
+  const cid=$('qrChar').value, isNew=cid===NEW;
+  $('qrCharNameField').hidden=!isNew;
+  const forms=isNew?[]:formsOfChar(cid);
+  $('qrForm').innerHTML=`<option value="${NEW}">＋ 新しい進化形態</option>`+forms.map(f=>`<option value="${esc(f.id)}">${esc(formShort(f))}（${esc(f.name)}）</option>`).join('');
+  $('qrForm').value=forms[0]?.id||NEW;
+  syncQrForm();
+}
+function syncQrForm(){
+  const fid=$('qrForm').value, f=fid===NEW?null:formOf(fid);
+  $('qrFormNew').hidden=!!f;
+  $('qrFormInfo').textContent=f?`${[f.race,f.battleType,f.shotType].map(v=>v||'未設定').join('　')}`:'';
+  syncQrNo();
+}
+function syncQrNo(){
+  const fid=$('qrForm').value, dev=$('qrDevice').value;
+  // 既存キャラなら同じ端末の同キャラの次の番号、新しいキャラなら1
+  if(fid!==NEW) $('qrNo').value=nextUnitNo(fid,dev);
+  else if($('qrChar').value!==NEW){
+    const used=db.units.filter(u=>u.device===dev&&formOf(u.formId)?.characterId===$('qrChar').value).map(u=>u.no||0);
+    $('qrNo').value=used.length?Math.max(...used)+1:1;
+  }else $('qrNo').value=1;
+}
+function syncQrSuit(){
+  const on=$('qrSuitOn').checked, src=$('qrSource').value;
+  $('qrSuitFields').hidden=!on;
+  if(src==='GAME_CLEAR_MONSTERS') $('qrEval').value='RANK';
+  $('qrEval').disabled=src==='GAME_CLEAR_MONSTERS';
+  const ev=$('qrEval').value;
+  $('qrRankField').hidden=ev!=='RANK';$('qrGradeField').hidden=ev!=='GRADE';$('qrSiteField').hidden=src!=='OTHER_SITE';
+}
+function saveQuickReg(){
+  const k=qrStage;if(!k)return;
+  const err=m=>{$('qrMsg').textContent=m};
+  // --- 入力をすべて確認（ここでは db を変更しない） ---
+  let charId=$('qrChar').value, newChar=null;
+  if(charId===NEW){
+    const name=clean($('qrCharName').value,40);
+    if(!name) return err('キャラ名を入力してください');
+    if(db.master.characters.some(c=>c.name===name)) return err('同じ名前のキャラが既にあります（「キャラ」の一覧から選んでください）');
+    newChar={id:uid(),name};charId=newChar.id;
+  }else if(!charOf(charId)) return err('キャラを選んでください');
+  let formId=$('qrForm').value, newForm=null;
+  if(formId===NEW){
+    const name=clean($('qrFormName').value,60);
+    if(!name) return err('正式な進化形態名を入力してください');
+    if(!newChar&&formsOfChar(charId).some(f=>f.name===name)) return err('同じ名前の進化形態が既にあります（一覧から選んでください）');
+    const custom=$('qrRaceCustom').value, b=normBasic({battleType:$('qrBattle').value,shotType:$('qrShot').value});
+    newForm={id:uid(),characterId:charId,name,short:clean($('qrFormShort').value,16),
+      race:$('qrRace').value===CUSTOM_RACE?clean(custom,40):$('qrRace').value,battleType:b.battleType,shotType:b.shotType};
+    formId=newForm.id;
+  }else if(formOf(formId)?.characterId!==charId) return err('進化形態を選んでください');
+  const device=$('qrDevice').value;
+  if(!DEVICES.includes(device)) return err('端末を選んでください');
+  const noIn=parseInt($('qrNo').value,10);
+  const fruits=normFruits(Array.from({length:FRUIT_MAX},(_,i)=>({name:$('qrFrName'+i).value,grade:$('qrFrGrade'+i).value,kind:$('qrFrKind'+i).value})));
+  let suit=null;
+  if($('qrSuitOn').checked){
+    const source=$('qrSource').value, ev=source==='GAME_CLEAR_MONSTERS'?'RANK':$('qrEval').value;
+    if(!SOURCES[source]) return err('出典を選んでください');
+    if(!EVAL_TYPES[ev]) return err('評価形式を選んでください');
+    const rank=normRankNo($('qrRank').value), grade=clean($('qrGrade').value,8), site=source==='OTHER_SITE'?clean($('qrSite').value,30):'';
+    if(ev==='RANK'&&!rank) return err(source==='GAME_CLEAR_MONSTERS'?'みんなのクリアモンスターは順位を入力してください（1〜20）':'順位は1〜20の数字で入力してください');
+    if(ev==='GRADE'&&!grade) return err('ランク（S/A/B など）を入力してください');
+    if(source==='OTHER_SITE'&&!site) return err('サイト名を入力してください');
+    suit={id:uid(),stageKey:k,formId,source,site,sourceUrl:'',sourceUpdatedAt:'',evaluationType:ev,
+      rank:ev==='RANK'?rank:null,grade:ev==='GRADE'?grade:'',verificationStatus:VERIFY[$('qrVerify').value]?$('qrVerify').value:'UNVERIFIED',note:''};
+  }
+  // --- ここから書き込み（失敗したら元に戻す） ---
+  const backupState=JSON.stringify({master:db.master,units:db.units,suits:db.suits});
+  try{
+    if(newChar) db.master.characters.push(newChar);
+    if(newForm) db.master.forms.push(newForm);
+    const unit={id:uid(),formId,device,no:noIn>=1&&noIn<=99?noIn:nextUnitNo(formId,device),fruits,memo:''};
+    db.units.push(unit);
+    let suitNote='';
+    if(suit){
+      const dup=db.suits.find(x=>suitKey(x)===suitKey(suit));
+      if(dup) suitNote='（同じ出典の適正は登録済みのため、そのまま使います）'; else db.suits.push(suit);
+    }
+    persist();
+    const use=useDevsOf(k), cand=candidatesFor(k,device).some(u=>u.id===unit.id);
+    closeModals();render();
+    const label=unitLabel(unit);
+    $('devPickMsg').textContent=cand
+      ?(use.includes(device)?`${label}を登録しました。${SLOT_MARKS[use.indexOf(device)]} ${device}の候補に追加されました${suitNote}`
+        :`${label}を登録しました。${device}は今回使う端末に入っていません（上のチェックで選ぶと候補に出ます）${suitNote}`)
+      :`${label}を登録しました。このステージの適正が無いため、候補には出ません`;
+  }catch(e){
+    const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.suits=b.suits;
+    err('保存に失敗したため、登録前の状態に戻しました');
+  }
+}
+
 function openSuit(s=null){
   const k=s?s.stageKey:key(db.ui.quest,curStage());
   mEdit={type:'suit',id:s?s.id:null,stageKey:k};
@@ -1734,7 +1931,7 @@ function parseSuitImport(text){
     if(b.format!=null&&b.format!==IMPORT_FORMAT) errors.push(`${at}：format が不明です（${IMPORT_FORMAT}）`);
     const k=resolveStageKey(b);if(!k) errors.push(`${at}：ステージ（stageKey）が不明です`);
     const source=b.source, ev=b.evaluationType;
-    if(!SOURCES[source]) errors.push(`${at}：source が不明です（${Object.keys(SOURCES).join(' / ')}）`);
+    if(!IMPORT_SOURCES.includes(source)) errors.push(`${at}：source が不明です（${IMPORT_SOURCES.join(' / ')}）`);
     if(!EVAL_TYPES[ev]) errors.push(`${at}：evaluationType が不明です（RANK / GRADE / CANDIDATE）`);
     if(source==='GAME_CLEAR_MONSTERS'&&ev!=='RANK') errors.push(`${at}：みんなのクリアモンスターは evaluationType RANK（順位）だけです`);
     const site=source==='OTHER_SITE'?clean(b.site,30):'';
@@ -1971,7 +2168,8 @@ document.addEventListener('click',e=>{
       db.ui.stage[q]=list.includes(last)?last:list[0];
       persist();render();scrollActiveChip();break;
     }
-    case 'add':openChar();break;
+    case 'quickReg':openQuickReg();break;
+    case 'qrSave':saveQuickReg();break;
     case 'edit':if(c)openChar(c);break;
     case 'lend':if(c)openLend(c);break;
     case 'return':if(c)returnChar(c);break;
@@ -2055,6 +2253,11 @@ $('fmRace').addEventListener('change',()=>{$('fmRaceCustomField').hidden=$('fmRa
 $('unForm').addEventListener('change',()=>{if(!mEdit?.id)$('unNo').value=nextUnitNo($('unForm').value,$('unDevice').value)});
 $('unDevice').addEventListener('change',()=>{if(!mEdit?.id)$('unNo').value=nextUnitNo($('unForm').value,$('unDevice').value)});
 $('stSource').addEventListener('change',syncSuitModal);
+$('qrChar').addEventListener('change',syncQrChar);
+$('qrForm').addEventListener('change',syncQrForm);
+$('qrDevice').addEventListener('change',syncQrNo);
+$('qrRace').addEventListener('change',()=>{$('qrRaceCustomField').hidden=$('qrRace').value!==CUSTOM_RACE});
+['qrSuitOn','qrSource','qrEval'].forEach(id=>$(id).addEventListener('change',syncQrSuit));
 $('stEval').addEventListener('change',syncSuitModal);
 // 貼り付け内容を変えたら、確認済みの取り込み計画は無効にする
 $('imText').addEventListener('input',()=>{pendingSuitImport=null;$('imApply').disabled=true});
