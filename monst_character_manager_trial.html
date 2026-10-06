@@ -79,7 +79,7 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .sum b{display:block;font-size:15px;color:#0f172a}
 .empty{color:#94a3b8;text-align:center;font-size:13px;padding:14px}
 
-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 14px #0f172a12}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 14px #0f172a12}
 nav button{border:0;background:none;padding:7px 2px 8px;min-height:58px;font-size:11px;font-weight:800;color:#64748b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
 nav button .ic{font-size:18px;line-height:1}
 nav button.active{color:#1d4ed8;background:#eff6ff}
@@ -163,7 +163,74 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .segBtn{border:1px solid #cbd5e1;background:#fff;border-radius:10px;min-height:44px;font-size:12px;font-weight:800;color:#334155;padding:4px 2px;min-width:0}
 .segBtn.on{background:#2563eb;border-color:#2563eb;color:#fff}
 .segBtn:disabled{opacity:.4}
-@media(max-width:360px){.two{grid-template-columns:1fr}}
+/* 新構造：ステージ画面の端末別編成選択・情報切替 */
+.infoBar{display:grid;grid-template-columns:auto repeat(4,minmax(0,1fr));gap:4px;align-items:center;padding:2px 0 6px}
+/* 今回使う端末（6台から最大4台） */
+.devPick{background:#fff;border-radius:14px;padding:8px 10px;margin-bottom:8px;box-shadow:0 2px 10px #0f172a0d}
+.dpHead{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:900;color:#334155;margin-bottom:6px}
+.dpGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.dpBtn{display:flex;align-items:center;gap:6px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:10px;min-height:44px;padding:4px 8px;font-size:13px;font-weight:800;color:#334155;min-width:0;text-align:left;overflow-wrap:anywhere}
+.dpBtn.on{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+.dpBox{flex:none;width:18px;height:18px;border:2px solid currentColor;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1}
+.dpMsg{font-size:12px;font-weight:800;color:#b45309;min-height:1em;margin-top:4px}
+.dpMsg:empty{display:none}
+#stageDevices>.dev.empty{display:block;padding:10px 12px}
+#stageDevices>.dev.empty .none{display:block;margin:2px 0 0;white-space:normal}
+/* 編成カード（①〜④）：形態・種族・戦型・撃種・実を常時表示 */
+.slotNo{font-size:17px;font-weight:900;color:#1e3a8a;margin-right:6px}
+.uCard{margin-top:6px;background:#f8fafc;border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.uL1{font-size:15px;font-weight:800;line-height:1.3;overflow-wrap:anywhere}
+.uL1 b{font-weight:900}
+.uSep{color:#94a3b8;margin:0 2px}
+.uForm{color:#1e3a8a;font-weight:900}
+.uNo{font-size:12px;font-weight:800;color:#475569;margin-left:6px;white-space:nowrap}
+.uL2{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:14px;font-weight:800;color:#075985}
+.uL2 .unset{color:#94a3b8;font-weight:700}
+.uL3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.frS{font-size:12.5px;font-weight:800;background:#ede9fe;color:#4c1d95;border-radius:8px;padding:4px 6px;text-align:center;overflow-wrap:anywhere;min-width:0;line-height:1.25}
+.frNone{grid-column:1/-1;font-size:12px;color:#94a3b8;font-weight:700}
+.legacyStage{background:#fff;border-radius:14px;padding:8px 10px;margin-bottom:10px}
+.legacyStage summary{font-size:13px;font-weight:800;color:#475569;min-height:32px;display:flex;align-items:center}
+.infoBar .small{padding:0 2px}
+.iMode{border:1px solid #cbd5e1;background:#fff;border-radius:10px;min-height:40px;font-size:11px;font-weight:800;color:#334155;padding:3px 2px;min-width:0;line-height:1.2}
+.iMode.on{background:#0f766e;border-color:#0f766e;color:#fff}
+.cnts{display:flex;gap:4px;flex:none}
+.pickSel{margin-top:6px;padding:9px 10px;font-weight:800;font-size:14px;min-height:44px}
+.pickSel:disabled{background:#f1f5f9;color:#94a3b8;font-weight:700}
+.pInfo{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;min-width:0}
+.pForm{font-size:13px;font-weight:800;color:#1e3a8a;overflow-wrap:anywhere}
+.ty{font-size:12px;font-weight:800;border-radius:8px;padding:3px 8px;background:#e0f2fe;color:#075985}
+.ty.unset{background:#f1f5f9;color:#94a3b8}
+.fr{font-size:12px;font-weight:700;border-radius:8px;padding:3px 8px;background:#ede9fe;color:#4c1d95;overflow-wrap:anywhere;max-width:100%}
+.fr b{margin-right:4px;color:#7c3aed}
+.pAll{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;margin:6px 0 0;font-size:12px;background:#f8fafc;border-radius:10px;padding:6px 8px}
+.pAll dt{font-weight:800;color:#64748b}
+.pAll dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+.pWarn{font-size:11px;font-weight:800;color:#92400e;background:#fffbeb;border-radius:8px;padding:4px 8px;margin-top:6px}
+.pNone{font-size:11px;color:#94a3b8;margin-top:4px}
+.legacyRows{border-top:1px dashed #e2e8f0;margin-top:6px}
+.sSrc{font-size:12px;font-weight:900;color:#0f766e;margin:8px 0 2px}
+.sRow{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#f8fafc;border-radius:10px;padding:6px 8px;margin-top:4px}
+.sRow.bad{background:#fffbeb}
+.cHead{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;border:0;background:none;padding:2px 0;text-align:left;min-height:40px}
+.card.chara.open{border-color:#93c5fd}
+.frRow{display:grid;grid-template-columns:1.3em minmax(0,1fr) 5.6em 4.8em;gap:4px;align-items:center;margin-bottom:6px}
+.frRow .no{font-size:12px;font-weight:900;color:#5b21b6;text-align:center}
+.frRow[hidden]{display:none}
+#unFruit4Btn{margin:0 0 6px}
+.frRow select{padding:10px 2px}
+.row.mig{align-items:flex-start}
+.row>.mini,.sRow>.mini,.sRow .acts .mini{flex:none;white-space:nowrap}
+.sRow .acts{flex-direction:column;align-items:stretch}
+.vb{font-size:10px;font-weight:800;border-radius:999px;padding:1px 7px;margin-left:4px;white-space:nowrap;vertical-align:middle}
+.vb.v-VERIFIED{background:#dcfce7;color:#166534}
+.vb.v-UNVERIFIED{background:#fef3c7;color:#92400e}
+.vb.v-NEEDS_REVIEW{background:#fee2e2;color:#991b1b}
+.sSrc a{margin-left:6px}
+.fmt{font-size:10px;background:#f8fafc;border-radius:8px;padding:6px;white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0 0}
+@media(max-width:360px){.two{grid-template-columns:1fr}
+  .frRow{grid-template-columns:1.3em minmax(0,1fr) minmax(0,1fr)}.frRow input{grid-column:2/4}.frRow select:first-of-type{grid-column:2}
+  .infoBar{grid-template-columns:repeat(4,minmax(0,1fr))}.infoBar .small{display:none}}
 </style>
 </head>
 <body>
@@ -187,12 +254,27 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
     <div class="stageHead">
       <div>
         <div class="stageTitle" id="stageTitle"></div>
-        <div class="stageSub">このステージで使えるキャラ（端末別）</div>
+        <div class="stageSub">端末ごとに、所持している適正個体から使うキャラを選ぶ</div>
       </div>
       <button class="primary" data-act="add">＋ キャラ登録</button>
     </div>
+    <div class="devPick" id="devPick" role="group" aria-label="今回使う端末（最大4台）"></div>
+    <div class="infoBar" id="infoBar" role="group" aria-label="選んだ個体の表示内容"></div>
     <div id="stageDevices"></div>
+    <details class="legacyStage" id="legacyStage" hidden></details>
+    <div class="panel" id="suitPanel"></div>
     <div class="top20" id="top20"></div>
+  </section>
+
+  <!-- キャラ（共通マスター・進化形態・所持個体） -->
+  <section class="view" id="view-chara">
+    <div class="panel">
+      <div class="ptitle"><span>キャラ（共通）</span><button class="mini" data-act="mcharAdd">＋ キャラ追加</button></div>
+      <input id="charaSearch" type="search" maxlength="40" placeholder="キャラ名・進化形態で検索">
+      <div class="small" id="charaCount" style="margin-top:6px"></div>
+      <div class="note" id="charaWarn" hidden></div>
+    </div>
+    <div id="charaList"></div>
   </section>
 
   <!-- キャラ検索 -->
@@ -231,6 +313,31 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div class="msg" id="exMsg"></div>
     </div>
     <div class="panel">
+      <div class="ptitle">適正データの取り込み（JSON）</div>
+      <div class="small">攻略サイト等で確認した適正を、形式どおりのJSONで取り込みます。まず「内容を確認」で結果を見てから「取り込む」を押してください。形式に誤りがあれば何も変更しません。登録済みのキャラ・進化形態と完全一致した行だけを取り込み、未登録のキャラは作成しません。取り込んだ適正は、確認済み（VERIFIED）と指定した行以外は「未検証」として入ります。</div>
+      <details style="margin-top:6px"><summary class="small">形式</summary><pre class="fmt">{"format":"monst-suitability-import-v1",
+ "stageKey":"破界の星墓::パライソ",
+ "source":"GAMEWITH",  // GAMEWITH / ALTEMA / OTHER_SITE(+ "site") / GAME_CLEAR_MONSTERS
+ "sourceUrl":"https://…", "sourceUpdatedAt":"2026-09-28",
+ "evaluationType":"GRADE",  // RANK=rank / GRADE=grade / CANDIDATE=どちらも無し
+ "entries":[{"characterName":"…","formName":"…",
+   "grade":"S","verificationStatus":"UNVERIFIED"}]}</pre></details>
+      <textarea id="imText" style="margin-top:6px" placeholder="取り込むJSONを貼り付け"></textarea>
+      <div class="tools">
+        <button class="tool" data-act="imPreview">内容を確認</button>
+        <button class="tool main" id="imApply" data-act="imApply" disabled>取り込む</button>
+      </div>
+      <div id="imResult" style="margin-top:6px"></div>
+      <div class="msg" id="imMsg"></div>
+      <div id="imIssues"></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><span>旧TOP20データの取り込み</span><span class="small" id="migCount"></span></div>
+      <div class="small">旧形式（ステージ・順位ごとのキャラ名と端末別の所持状況）は削除せず残したまま、選んだ順位だけ新形式（適正＋所持個体）へ取り込みます。進化形態と出典はご自身で選んでください（自動では推測しません）。</div>
+      <div id="migList" style="margin-top:6px"></div>
+      <div class="msg" id="migMsg"></div>
+    </div>
+    <div class="panel">
       <div class="ptitle"><span>バックアップ</span><span class="small" id="dataCount"></span></div>
       <div class="small">試作版のデータだけを書き出し・復元します（本番データは対象外）。</div>
       <div class="tools">
@@ -248,6 +355,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 
 <nav id="nav">
   <button data-act="view" data-view="stage" class="active"><span class="ic">🏯</span>ステージ</button>
+  <button data-act="view" data-view="chara"><span class="ic">🧩</span>キャラ</button>
   <button data-act="view" data-view="search"><span class="ic">🔍</span>検索</button>
   <button data-act="view" data-view="device"><span class="ic">📱</span>端末</button>
   <button data-act="view" data-view="admin"><span class="ic">⚙️</span>管理</button>
@@ -350,6 +458,92 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
   </div>
 </div>
 
+<!-- キャラ（共通マスター） -->
+<div class="modalBack" id="mcharModal">
+  <div class="modal">
+    <h2 id="mcTitle">キャラ追加</h2>
+    <div class="field"><label for="mcName">キャラ名（進化形態名は入れない）</label><input id="mcName" maxlength="40" placeholder="例：ネオ"></div>
+    <div class="msg" id="mcNote" style="color:#991b1b"></div>
+    <div class="btns">
+      <button class="btn-del" id="mcDelete" data-act="deleteMChar" style="display:none">削除</button>
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="saveMChar">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 進化形態 -->
+<div class="modalBack" id="formModal">
+  <div class="modal">
+    <h2 id="fmTitle">進化形態</h2>
+    <div class="field"><label for="fmName">正式な進化形態名</label><input id="fmName" maxlength="60" placeholder="例：ハローワールド・モード"></div>
+    <div class="field"><label for="fmShort">短縮表示名（一覧用・空欄なら正式名）</label><input id="fmShort" maxlength="16" placeholder="例：ハロー"></div>
+    <div class="field"><label for="fmRace">種族</label><select id="fmRace"></select></div>
+    <div class="field" id="fmRaceCustomField" hidden><label for="fmRaceCustom">種族名（その他・新規）</label><input id="fmRaceCustom" maxlength="40"></div>
+    <div class="two field">
+      <div><label for="fmBattle">戦型</label><select id="fmBattle"></select></div>
+      <div><label for="fmShot">撃種</label><select id="fmShot"></select></div>
+    </div>
+    <div class="msg" id="fmNote" style="color:#991b1b"></div>
+    <div class="btns">
+      <button class="btn-del" id="fmDelete" data-act="deleteForm" style="display:none">削除</button>
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="saveForm">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 所持個体 -->
+<div class="modalBack" id="unitModal">
+  <div class="modal">
+    <h2 id="unTitle">所持個体</h2>
+    <div class="two field">
+      <div><label for="unDevice">端末</label><select id="unDevice"></select></div>
+      <div><label for="unNo">個体番号</label><input id="unNo" type="number" min="1" max="99" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label for="unForm">現在の進化形態</label><select id="unForm"></select></div>
+    <label>わくわくの実（基本3つ・最大4つ）</label>
+    <div id="unFruits"></div>
+    <button type="button" class="mini" id="unFruit4Btn" data-act="showFruit4">＋ 4枠目</button>
+    <div class="small">系統（同族・戦型・撃種・その他）は任意です。空欄の枠は保存しません。</div>
+    <div class="field" style="margin-top:10px"><label for="unMemo">メモ</label><input id="unMemo" maxlength="100"></div>
+    <div class="msg" id="unNote" style="color:#991b1b"></div>
+    <div class="btns">
+      <button class="btn-del" id="unDelete" data-act="deleteUnit" style="display:none">削除</button>
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="saveUnit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ステージ適正 -->
+<div class="modalBack" id="suitModal">
+  <div class="modal">
+    <h2 id="stTitle">適正</h2>
+    <div class="field"><label for="stForm">進化形態</label><select id="stForm"></select></div>
+    <div class="two field">
+      <div><label for="stSource">出典</label><select id="stSource"></select></div>
+      <div><label for="stEval">評価形式</label><select id="stEval"></select></div>
+    </div>
+    <div class="field" id="stSiteField" hidden><label for="stSite">サイト名</label><input id="stSite" maxlength="30"></div>
+    <div class="field" id="stRankField"><label for="stRank">順位（1〜20）</label><input id="stRank" type="number" min="1" max="20" inputmode="numeric"></div>
+    <div class="field" id="stGradeField" hidden><label for="stGrade">ランク（S/A/B など）</label><input id="stGrade" maxlength="8"></div>
+    <div id="stUrlFields" hidden>
+      <div class="field"><label for="stUrl">出典URL</label><input id="stUrl" type="url" maxlength="300" placeholder="https://…"></div>
+      <div class="field"><label for="stDate">出典の更新日</label><input id="stDate" type="date"></div>
+    </div>
+    <div class="field"><label for="stVerify">確認状態</label><select id="stVerify"></select></div>
+    <div class="field"><label for="stNote">メモ</label><input id="stNote" maxlength="60"></div>
+    <div class="small">順位とランクは変換せず、評価形式に合った欄だけ保存します。</div>
+    <div class="msg" id="stMsg" style="color:#991b1b"></div>
+    <div class="btns">
+      <button class="btn-del" id="stDelete" data-act="deleteSuit" style="display:none">削除</button>
+      <button class="btn-cancel" data-act="close">キャンセル</button>
+      <button class="btn-save" data-act="saveSuit">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 貸出 -->
 <div class="modalBack" id="lendModal">
   <div class="modal">
@@ -372,7 +566,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 const KEY='monst-character-manager-trial-v2';
 const APP='monst-character-manager-trial-fukkoku';
 const DEVICES=['メイン','サブ1','サブ2','サブ3','サブ4','サブ5'];
-const VIEWS=['stage','search','device','admin'];
+const VIEWS=['stage','chara','search','device','admin'];
 const SEP='::';
 
 function kanji(n){
@@ -455,11 +649,101 @@ function normCount(status,c){
   return status!=='not-owned'&&n>=1?Math.min(4,n):null;
 }
 
+/* ===== 新構造：キャラ共通マスター／進化形態／所持個体／ステージ適正／ステージ編成 =====
+   master.characters : [{id, name}]                                   基本キャラ（例：ネオ）
+   master.forms      : [{id, characterId, name, short, race, battleType, shotType}]
+                       進化形態。name=正式名（ハローワールド・モード）、short=一覧用の短縮名（ハロー）
+   units             : [{id, formId, device, no, fruits:[{name, grade, kind}], memo}]
+                       所持個体。no=同じ端末・同じキャラの個体番号（ネオ 個体1/個体2）。
+                       実は最大4枠を保持（旧データの4枠目を失わない）。画面は3枠が基本で、4枠目は存在する個体だけ表示
+                       kind（同族/戦型/撃種/その他）は将来の重複・有効判定用の分類（未設定可）
+   suits             : [{id, stageKey, formId, source, site, sourceUrl, sourceUpdatedAt,
+                         evaluationType, rank, grade, verificationStatus, note}]
+                       ステージ適正。出典ごとに別レコード（みんなのクリアモンスターと攻略サイトは混ぜない）。
+                       evaluationType: RANK=順位(rank) / GRADE=ランク(grade, S/A/B…) / CANDIDATE=順位・ランクなしの候補
+                       順位とランクは相互に変換しない（「Sランクだから1位」などにしない）。
+                       verificationStatus: VERIFIED=確認済み / UNVERIFIED=未検証（外部調査・取り込み直後）/ NEEDS_REVIEW=要確認
+   picks             : {stageKey: {device: unitId}}                   ステージごとの編成（端末ごとに使う個体）
+   migrated          : {"stageKey#順位": {formId, source, at, units, pending}}  旧TOP20から取り込んだ記録
+   importIssues      : [{id, at, stageKey, source, site, characterName, formName, reason}]
+                       JSON取り込みで対応する進化形態が決まらなかった行（推測で作成・紐づけしない。確認用に残す）
+   旧データ（characters / rankings / ownership）はそのまま残し、読み込み時に変換・書き込みはしない。 */
+const FRUIT_MAX=4, FRUIT_BASE=3;
+const FRUIT_KINDS=['同族','戦型','撃種','その他'];
+const SOURCES={GAME_CLEAR_MONSTERS:'みんなのクリアモンスター',GAMEWITH:'GameWith',ALTEMA:'アルテマ',OTHER_SITE:'その他サイト'};
+const EVAL_TYPES={RANK:'順位',GRADE:'ランク',CANDIDATE:'候補'};
+const VERIFY={VERIFIED:'確認済み',UNVERIFIED:'未検証',NEEDS_REVIEW:'要確認'};
+const INFO_MODES=[['form','進化形態'],['type','種族・戦型・撃種'],['fruit','実'],['all','全部']];
+function normFruits(a){
+  if(!Array.isArray(a)) return [];
+  return a.filter(x=>x&&typeof x==='object')
+    .map(x=>({name:clean(x.name,20),grade:GRADES.includes(x.grade)?x.grade:'',kind:FRUIT_KINDS.includes(x.kind)?x.kind:''}))
+    .filter(x=>x.name||x.grade).slice(0,FRUIT_MAX);
+}
+function normRankNo(v){const n=parseInt(v,10);return n>=1&&n<=RANKS?n:null}
+function normUrl(v){const s=clean(v,300);return /^https?:\/\/[^\s"'<>]+$/i.test(s)?s:''}
+function normDate(v){const s=clean(v,10);return /^\d{4}-\d{2}-\d{2}$/.test(s)?s:''}
+// 保存済みの適正1件を正規化する。評価形式が無い（このファイルの初期版で作った）レコードは、
+// 保存されている値そのものから決める（順位があればRANK、ランクがあればGRADE、どちらも無ければCANDIDATE）。
+// 検証状態が無いレコードは安全側で「未検証」とする。順位とランクは互いに変換しない。
+function normSuit(s){
+  const rank=normRankNo(s.rank), grade=clean(s.grade,8);
+  const evaluationType=EVAL_TYPES[s.evaluationType]?s.evaluationType:rank?'RANK':grade?'GRADE':'CANDIDATE';
+  return {id:clean(s.id,40),stageKey:clean(s.stageKey,80),formId:clean(s.formId,40),source:s.source,
+    site:s.source==='OTHER_SITE'?clean(s.site,30):'',sourceUrl:normUrl(s.sourceUrl),sourceUpdatedAt:normDate(s.sourceUpdatedAt),
+    evaluationType,rank,grade,
+    verificationStatus:VERIFY[s.verificationStatus]?s.verificationStatus:'UNVERIFIED',note:clean(s.note,60)};
+}
+// 同じ評価として1件にまとめる単位（ステージ・進化形態・出典・その他サイト名）。別サイトは別レコード
+function suitKey(s){return [s.stageKey,s.formId,s.source,s.source==='OTHER_SITE'?s.site:''].join('\u0001')}
+function normV3(raw,d){
+  const m=raw.master&&typeof raw.master==='object'?raw.master:{};
+  const ids=new Set(), once=id=>id&&!ids.has(id)&&ids.add(id);
+  d.master.characters=(Array.isArray(m.characters)?m.characters:[]).filter(c=>c&&typeof c==='object')
+    .map(c=>({id:clean(c.id,40),name:clean(c.name,40)})).filter(c=>c.name&&once(c.id));
+  // 参照先のキャラが無い形態・形態が無い個体/適正も消さずに残す（画面で「要確認」と表示する）
+  d.master.forms=(Array.isArray(m.forms)?m.forms:[]).filter(f=>f&&typeof f==='object').map(f=>{
+    const b=normBasic(f);
+    return {id:clean(f.id,40),characterId:clean(f.characterId,40),name:clean(f.name,60),short:clean(f.short,16),
+      race:typeof f.race==='string'?f.race:'',battleType:b.battleType,shotType:b.shotType};
+  }).filter(f=>f.name&&once(f.id));
+  d.units=(Array.isArray(raw.units)?raw.units:[]).filter(u=>u&&typeof u==='object').map(u=>{
+    const no=parseInt(u.no,10);
+    return {id:clean(u.id,40),formId:clean(u.formId,40),device:DEVICES.includes(u.device)?u.device:clean(u.device,20),
+      no:no>=1&&no<=99?no:null,fruits:normFruits(u.fruits),memo:clean(u.memo,100)};
+  }).filter(u=>once(u.id));
+  d.suits=(Array.isArray(raw.suits)?raw.suits:[]).filter(s=>s&&typeof s==='object'&&SOURCES[s.source]&&isStageKey(s.stageKey))
+    .map(normSuit).filter(s=>once(s.id));
+  // ステージごとの「今回使う端末」（最大4台・選んだ順＝①〜④の編成順で保持）
+  if(raw.useDevs&&typeof raw.useDevs==='object'){
+    Object.entries(raw.useDevs).forEach(([k,v])=>{
+      if(isStageKey(k)&&Array.isArray(v)) d.useDevs[k]=[...new Set(v.filter(x=>DEVICES.includes(x)))].slice(0,4);
+    });
+  }
+  if(raw.picks&&typeof raw.picks==='object'){
+    Object.entries(raw.picks).forEach(([k,byDev])=>{
+      if(!isStageKey(k)||!byDev||typeof byDev!=='object') return;
+      DEVICES.forEach(dev=>{const id=clean(byDev[dev],40);if(id)(d.picks[k]=d.picks[k]||{})[dev]=id});
+    });
+  }
+  d.importIssues=(Array.isArray(raw.importIssues)?raw.importIssues:[]).filter(x=>x&&typeof x==='object').map(x=>({
+    id:clean(x.id,40),at:clean(x.at,40),stageKey:clean(x.stageKey,80),source:SOURCES[x.source]?x.source:'',site:clean(x.site,30),
+    characterName:clean(x.characterName,40),formName:clean(x.formName,60),reason:clean(x.reason,120)})).filter(x=>once(x.id)).slice(0,500);
+  if(raw.migrated&&typeof raw.migrated==='object'){
+    Object.entries(raw.migrated).forEach(([k,v])=>{
+      if(!v||typeof v!=='object') return;
+      d.migrated[clean(k,90)]={formId:clean(v.formId,40),source:SOURCES[v.source]?v.source:'',at:clean(v.at,40),
+        units:Math.max(0,parseInt(v.units,10)||0),pending:Array.isArray(v.pending)?v.pending.map(x=>clean(x,120)).filter(Boolean).slice(0,20):[]};
+    });
+  }
+}
+
 function blank(){
   return {app:APP,version:1,deviceNames:{},characters:[],
     extraStages:Object.fromEntries(QUESTS.filter(q=>q.canAdd).map(q=>[q.id,[]])),
     rankings:{},ownership:{},
-    ui:{view:'stage',quest:QUESTS[0].id,stage:{},rankDevice:DEVICES[0]}};
+    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],
+    ui:{view:'stage',quest:QUESTS[0].id,stage:{},rankDevice:DEVICES[0],infoMode:'none',charaOpen:null}};
 }
 function normalize(raw){
   const d=blank();
@@ -532,9 +816,12 @@ function normalize(raw){
       });
     });
   }
+  normV3(raw,d);
   if(raw.ui&&typeof raw.ui==='object'){
     if(VIEWS.includes(raw.ui.view)) d.ui.view=raw.ui.view;
     if(DEVICES.includes(raw.ui.rankDevice)) d.ui.rankDevice=raw.ui.rankDevice;
+    if(raw.ui.infoMode==='none'||INFO_MODES.some(([m])=>m===raw.ui.infoMode)) d.ui.infoMode=raw.ui.infoMode;
+    if(typeof raw.ui.charaOpen==='string') d.ui.charaOpen=clean(raw.ui.charaOpen,40)||null;
     if(QMAP[raw.ui.quest]) d.ui.quest=raw.ui.quest;
     // クエスト単位（"天魔の孤城"）と系統単位（"天魔の孤城::試練の間"）の選択位置を保持
     if(raw.ui.stage&&typeof raw.ui.stage==='object'){
@@ -655,20 +942,31 @@ function renderStage(){
   $('stageCount').textContent=`${stages.length}ステージ`+(added?`（うち追加${added}）`:'');
   $('questNote').textContent=def.note;
   $('stageTitle').textContent=`${q}・${stageText(q,s)}`;
+  // 今回使う端末（6台から最大4台）を選び、選んだ端末だけを①〜④として縦に並べる
+  const use=useDevsOf(k);
+  $('devPick').innerHTML=`<div class="dpHead"><span>今回使う端末</span><span class="small">${use.length}/${USE_MAX}台</span></div>
+    <div class="dpGrid">${DEVICES.map(d=>{const on=use.includes(d);
+      return `<button type="button" class="dpBtn${on?' on':''}" role="checkbox" aria-checked="${on}" data-act="useDev" data-dev="${esc(d)}"><span class="dpBox">${on?SLOT_MARKS[use.indexOf(d)]:''}</span>${esc(devLabel(d))}</button>`}).join('')}</div>
+    <div class="dpMsg" id="devPickMsg" role="status"></div>`;
+  $('stageDevices').innerHTML=use.length?use.map((d,i)=>{
+    const n=candidatesFor(k,d).length;
+    return `
+      <div class="dev pickDev" data-dev="${esc(d)}">
+        <div class="devHead"><div class="devName"><span class="slotNo">${SLOT_MARKS[i]}</span>${devNameHtml(d)}</div>
+          <span class="cnt${n?' has':''}">候補${n}</span></div>
+        ${pickBlock(k,d)}
+      </div>`;
+  }).join(''):`<div class="dev empty"><div class="devName">今回使う端末を選んでください</div><span class="none">上のチェックで最大${USE_MAX}台</span></div>`;
+  // 従来の登録キャラ（旧機能）は、4枠の編成とは別に折りたたんで残す（貸出・返却・編集もここから使える）
   const here=db.characters.filter(c=>c.stages.includes(k));
-  $('stageDevices').innerHTML=DEVICES.map(d=>{
+  const legacy=DEVICES.map(d=>{
     const at=here.filter(c=>locOf(c)===d).sort((a,b)=>sortJa(a.name,b.name));
     const away=here.filter(c=>c.device===d&&c.lentTo).sort((a,b)=>sortJa(a.name,b.name));
-    if(!at.length&&!away.length){
-      return `<div class="dev empty"><div class="devName">${devNameHtml(d)}</div><span class="none">登録なし</span><span class="cnt">0体</span></div>`;
-    }
-    return `
-      <div class="dev">
-        <div class="devHead"><div class="devName">${devNameHtml(d)}</div><span class="cnt${at.length?' has':''}">${at.length}体</span></div>
-        ${at.map(c=>charRow(c,d)).join('')}
-        ${away.map(c=>charRow(c,d)).join('')}
-      </div>`;
+    return at.length+away.length?`<div class="dev legacyDev" data-dev="${esc(d)}"><div class="devHead"><div class="devName">${devNameHtml(d)}</div><span class="cnt">旧登録${at.length}体</span></div>
+      ${at.map(c=>charRow(c,d)).join('')}${away.map(c=>charRow(c,d)).join('')}</div>`:'';
   }).join('');
+  $('legacyStage').hidden=!legacy;
+  $('legacyStage').innerHTML=legacy?`<summary>従来の登録キャラ（旧機能・${here.length}件）</summary>${legacy}`:'';
 }
 
 /* ---- キャラ検索 ---- */
@@ -942,10 +1240,232 @@ function paintRank(r){
   $('tMsg').textContent=`${r}位を「${OWN[rankMode]}」にしました（${devLabel(dev)}）`;
 }
 
+/* ---- 新構造：参照・候補抽出 ---- */
+function charOf(id){return db.master.characters.find(c=>c.id===id)||null}
+function formOf(id){return db.master.forms.find(f=>f.id===id)||null}
+function formsOfChar(cid){return db.master.forms.filter(f=>f.characterId===cid)}
+function formShort(f){return f.short||f.name}
+function formLabel(f){
+  if(!f) return '（形態不明・要確認）';
+  const c=charOf(f.characterId);
+  return `${c?c.name:'（キャラ不明）'}｜${formShort(f)}`;
+}
+function unitLabel(u){return `${formLabel(formOf(u.formId))} 個体${u.no??'?'}`}
+function fruitText(x){return `${x.kind?`[${x.kind}]`:''}${x.name||'名称未設定'}${x.grade?` ${x.grade}`:''}`}
+// このステージに適正がある進化形態（どの出典でも1件あれば適正。形態が削除済みの適正は除く）
+function suitFormIds(k){return new Set(db.suits.filter(s=>s.stageKey===k&&formOf(s.formId)).map(s=>s.formId))}
+// ステージ → 端末 → その端末が所持しているステージ適正個体
+function candidatesFor(k,dev){
+  const ids=suitFormIds(k);
+  return db.units.filter(u=>u.device===dev&&ids.has(u.formId))
+    .sort((a,b)=>sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId)))||(a.no||0)-(b.no||0));
+}
+// 端末ごとの進化形態の所持判定（TOP10の「所持／別形態（！）／未所持」表示と同じ考え方）
+function formStatus(formId,dev){
+  const f=formOf(formId);if(!f) return 'not-owned';
+  const mine=db.units.filter(u=>u.device===dev);
+  if(mine.some(u=>u.formId===formId)) return 'owned';
+  if(mine.some(u=>formOf(u.formId)?.characterId===f.characterId)) return 'alt-form';
+  return 'not-owned';
+}
+// 個体番号：同じ端末の同じキャラの中で連番（形態が違っても「ネオ 個体1／個体2」）
+function nextUnitNo(formId,dev,exceptId){
+  const cid=formOf(formId)?.characterId;
+  const used=db.units.filter(u=>u.id!==exceptId&&u.device===dev&&formOf(u.formId)?.characterId===cid).map(u=>u.no||0);
+  return used.length?Math.max(...used)+1:1;
+}
+// 評価形式どおりに表示する（順位はそのまま順位、ランクはそのままランク。相互に変換しない）
+function suitText(s){
+  if(s.evaluationType==='RANK') return s.rank?`${s.rank}位`:'順位未記載';
+  if(s.evaluationType==='GRADE') return s.grade?`ランク ${s.grade}`:'ランク未記載';
+  return '候補';
+}
+// このステージで、確認済み（VERIFIED）の適正が1件以上ある進化形態
+function verifiedFormIds(k){return new Set(db.suits.filter(s=>s.stageKey===k&&s.verificationStatus==='VERIFIED').map(s=>s.formId))}
+function typeChips(f){
+  return [['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]]
+    .map(([l,v])=>`<span class="ty${v?'':' unset'}" title="${l}">${esc(v||l+'未設定')}</span>`).join('');
+}
+function fruitChips(u){
+  return u.fruits.length?u.fruits.map((x,i)=>`<span class="fr"><b>${i+1}</b>${esc(fruitText(x))}</span>`).join('')
+    :'<span class="small">実なし</span>';
+}
+function unitInfoHtml(u,mode){
+  const f=formOf(u.formId), c=f&&charOf(f.characterId);
+  if(mode==='type') return `<div class="pInfo">${typeChips(f)}</div>`;
+  if(mode==='fruit') return `<div class="pInfo">${fruitChips(u)}</div>`;
+  if(mode==='all'){
+    const rows=[['キャラ',c?.name],['形態',f?.name],['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType],
+      // 実1〜3は常に表示、4枠目は持っている個体だけ（空の4行目は出さない）
+      ...Array.from({length:Math.max(FRUIT_BASE,u.fruits.length)},(_,i)=>[`実${i+1}`,u.fruits[i]?fruitText(u.fruits[i]):''])];
+    return `<dl class="pAll">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||'—')}</dd>`).join('')}</dl>`;
+  }
+  return `<div class="pInfo"><span class="pForm">${esc(f?f.name:'形態不明・要確認')}</span></div>`;
+}
+
+/* ---- ステージ画面：今回使う端末（最大4台）と、端末ごとの編成カード ---- */
+const USE_MAX=4, SLOT_MARKS=['①','②','③','④'];
+// 保存済みの選択（選んだ順＝①〜④の編成順。空の選択も「選んでいない」として尊重）。
+// 未保存のステージは、個体を選び済みの端末から端末の並び順で最大4台
+function useDevsOf(k){
+  const v=db.useDevs[k];
+  if(Array.isArray(v)) return v.filter(d=>DEVICES.includes(d)).slice(0,USE_MAX);
+  return DEVICES.filter(d=>db.picks[k]?.[d]).slice(0,USE_MAX);
+}
+// ステージ画面用の実の短縮表示（保存値は正式な名前のまま）。例：同族の絆・加撃＋特級L → 同族加撃L
+const GRADE_SHORT={'特級':'特','特級M':'M','特級L':'L','特級EL':'EL'};
+function fruitShort(x){
+  let n=String(x.name||'').replace(/の絆[・･]?/g,'').replace(/[・･\s]/g,'');
+  if(!n) n='名称未設定';
+  if(x.kind&&x.kind!=='その他'&&!n.startsWith(x.kind)) n=x.kind+n;
+  return n+(GRADE_SHORT[x.grade]||'');
+}
+// 編成カード：1行目 キャラ｜進化形態 個体番号 ／ 2行目 種族 戦型 撃種 ／ 3行目 実1〜3（4つ目があれば次の行）
+function unitCardHtml(u,unverified){
+  const f=formOf(u.formId), c=f&&charOf(f.characterId);
+  const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
+  return `<div class="uCard">
+    <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b><span class="uSep">｜</span><span class="uForm">${esc(f?formShort(f):'形態不明・要確認')}</span>
+      <span class="uNo">個体${u.no??'?'}</span>${unverified?'<span class="vb v-UNVERIFIED">未検証</span>':''}</div>
+    <div class="uL2">${[['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
+    ${u.fruits.length?`<div class="uL3">${u.fruits.slice(0,FRUIT_BASE).map(chip).join('')}</div>${u.fruits.length>FRUIT_BASE?`<div class="uL3 uL4">${u.fruits.slice(FRUIT_BASE).map(chip).join('')}</div>`:''}`
+      :'<div class="uL3"><span class="frNone">実なし</span></div>'}
+  </div>`;
+}
+function pickBlock(k,d){
+  const cands=candidatesFor(k,d), sel=db.picks[k]?.[d]||'';
+  const unit=sel?db.units.find(u=>u.id===sel):null, stale=!!sel&&!cands.some(u=>u.id===sel);
+  let reason='';
+  if(!cands.length){
+    const owned=db.units.filter(u=>u.device===d).length, suited=suitFormIds(k).size;
+    reason=!suited?'このステージの適正が未登録です':!owned?'この端末の所持個体が未登録です':'所持個体に、このステージの適正キャラがいません';
+  }
+  // 未検証の適正しかない形態の個体も候補には出すが、「（未検証）」と明示する
+  const verified=verifiedFormIds(k), mark=u=>verified.has(u.formId)?'':'（未検証）';
+  const opts=[`<option value="">${cands.length?'— 使う個体を選ぶ —':'候補なし'}</option>`,
+    stale?`<option value="${esc(sel)}" selected>${esc(unit?unitLabel(unit):'削除された個体')}（候補外）</option>`:'',
+    ...cands.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u)+mark(u))}</option>`)].join('');
+  return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!cands.length&&!stale?' disabled':''}>${opts}</select>`+
+    (stale?'<div class="pWarn">選択中の個体は今の候補外です（適正・所持・形態を確認してください）</div>':'')+
+    // 編成判断に必要な情報（形態・種族・戦型・撃種・実）は常時表示。下の「詳細」は補助（既定は表示なし）
+    (unit&&!stale?unitCardHtml(unit,!verified.has(unit.formId)):'')+
+    (unit&&!stale&&db.ui.infoMode!=='none'?unitInfoHtml(unit,db.ui.infoMode):'')+
+    (cands.length&&!sel?'<div class="pNone">使う個体を選んでください</div>':'')+
+    (reason?`<div class="pNone">${esc(reason)}</div>`:'');
+}
+// 補助の詳細表示（正式な形態名・実の正式名など）。押すと表示、もう一度押すと閉じる
+function renderInfoBar(){
+  $('infoBar').innerHTML=`<span class="small">詳細</span>`+INFO_MODES.map(([m,l])=>
+    `<button type="button" class="iMode${m===db.ui.infoMode?' on':''}" data-act="infoMode" data-mode="${m}" aria-pressed="${m===db.ui.infoMode}">${l}</button>`).join('');
+}
+function renderSuitPanel(){
+  const q=db.ui.quest, s=curStage(), k=key(q,s), list=db.suits.filter(x=>x.stageKey===k);
+  // 出典（＋その他サイト名）ごとに分けて表示し、順位・ランクを1つのランキングに混ぜない
+  const groups=[];
+  Object.keys(SOURCES).forEach(src=>{
+    const sites=src==='OTHER_SITE'?[...new Set(list.filter(x=>x.source===src).map(x=>x.site))].sort(sortJa):[''];
+    sites.forEach(site=>groups.push([src,site,list.filter(x=>x.source===src&&(src!=='OTHER_SITE'||x.site===site))]));
+  });
+  const order={RANK:0,GRADE:1,CANDIDATE:2};
+  // ランクは表示順だけ強い順に並べる（値は変えない。知らない表記は入力どおり最後に並べる）
+  const GRADE_ORDER=['SSS','SS+','SS','S+','S','A+','A','B+','B','C+','C','D'];
+  const gi=g=>{const i=GRADE_ORDER.indexOf(String(g).toUpperCase());return i<0?GRADE_ORDER.length:i};
+  const body=groups.filter(([,,items])=>items.length).map(([src,site,items])=>{
+    items.sort((a,b)=>order[a.evaluationType]-order[b.evaluationType]||(a.rank??99)-(b.rank??99)||gi(a.grade)-gi(b.grade)||sortJa(a.grade,b.grade)||sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId))));
+    const meta=items.find(x=>x.sourceUrl||x.sourceUpdatedAt);
+    return `<div class="sSrc">${esc(SOURCES[src])}${site?`（${esc(site)}）`:''}${src==='GAME_CLEAR_MONSTERS'?'・ゲーム内の順位':''}
+      ${meta?.sourceUpdatedAt?`<span class="small">更新 ${esc(meta.sourceUpdatedAt)}</span>`:''}
+      ${meta?.sourceUrl?`<a class="small" href="${esc(meta.sourceUrl)}" target="_blank" rel="noopener noreferrer">出典</a>`:''}</div>`+items.map(x=>{
+      const f=formOf(x.formId);
+      const owners=DEVICES.map(d=>[d,db.units.filter(u=>u.device===d&&u.formId===x.formId).length,formStatus(x.formId,d)])
+        .filter(([,n,st])=>n||st==='alt-form').map(([d,n,st])=>st==='owned'?`${d}×${n}`:`${d}！`);
+      return `<div class="sRow${f?'':' bad'}"><div class="rowMain"><div class="cname">${esc(formLabel(f))}<span class="x">${esc(suitText(x))}</span>
+          <span class="vb v-${x.verificationStatus}">${esc(VERIFY[x.verificationStatus])}</span></div>
+        <div class="meta">${owners.length?'所持：'+esc(owners.join(' ')):'所持なし'}${x.note?'・'+esc(x.note):''}</div></div>
+        <span class="acts">${x.verificationStatus!=='VERIFIED'?`<button class="mini ret" data-act="suitVerify" data-id="${esc(x.id)}">確認済みにする</button>`:''}
+        <button class="mini" data-act="suitEdit" data-id="${esc(x.id)}">編集</button></span></div>`;
+    }).join('');
+  }).join('');
+  const unv=list.filter(x=>x.verificationStatus!=='VERIFIED').length;
+  $('suitPanel').innerHTML=`<div class="ptitle"><span>このステージの適正（出典別）</span><button class="mini" data-act="suitAdd">＋ 適正を追加</button></div>
+    ${unv?`<div class="note">未検証・要確認の適正が${unv}件あります。内容を確認してから「確認済みにする」を押してください（候補には「（未検証）」と表示されます）。</div>`:''}
+    ${body||`<div class="small">${db.master.forms.length?'まだ適正が登録されていません。':'先に「キャラ」タブでキャラ・進化形態を登録してください。'}</div>`}
+    <div class="small" style="margin-top:6px">「！」はその端末が同じキャラの別の進化形態だけを持っていることを表します。出典ごとの順位・ランクは混ぜずに表示します。</div>`;
+}
+
+/* ---- キャラ画面：キャラ → 端末・個体・形態・実・適正ステージ ---- */
+function renderChara(){
+  const qtxt=$('charaSearch').value.trim().toLowerCase();
+  const list=db.master.characters.filter(c=>!qtxt||(c.name+' '+formsOfChar(c.id).map(f=>f.name+' '+f.short).join(' ')).toLowerCase().includes(qtxt))
+    .sort((a,b)=>sortJa(a.name,b.name));
+  $('charaCount').textContent=`全${db.master.characters.length}キャラ・${db.units.length}個体`;
+  const orphans=db.master.forms.filter(f=>!charOf(f.characterId)).length+db.units.filter(u=>!formOf(u.formId)||!DEVICES.includes(u.device)).length;
+  $('charaWarn').hidden=!orphans;
+  $('charaWarn').textContent=orphans?`参照先が見つからないデータが${orphans}件あります（削除せず保持しています・要確認）`:'';
+  $('charaList').innerHTML=list.length?list.map(c=>{
+    const forms=formsOfChar(c.id), fids=new Set(forms.map(f=>f.id));
+    const units=db.units.filter(u=>fids.has(u.formId)), suits=db.suits.filter(s=>fids.has(s.formId));
+    const open=db.ui.charaOpen===c.id;
+    const head=`<button type="button" class="cHead" data-act="charaOpen" data-id="${esc(c.id)}" aria-expanded="${open}">
+      <span class="cname">${esc(c.name)}</span><span class="small">形態${forms.length}・個体${units.length}・適正${suits.length} ${open?'▲':'▼'}</span></button>`;
+    if(!open) return `<div class="card chara">${head}</div>`;
+    const formRows=forms.map(f=>`<div class="row"><div class="rowMain"><div class="cname">${esc(formShort(f))}<span class="x">${esc(f.name)}</span></div>
+      <div class="badges">${typeChips(f)}</div></div><button class="mini" data-act="formEdit" data-id="${esc(f.id)}">編集</button></div>`).join('')
+      ||'<div class="small">進化形態が未登録です</div>';
+    const unitRows=DEVICES.map(d=>{
+      const us=units.filter(u=>u.device===d).sort((a,b)=>(a.no||0)-(b.no||0));
+      if(!us.length) return '';
+      return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>`<div class="row"><div class="rowMain">
+        <div class="cname">個体${u.no??'?'}<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span></div>
+        <div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}</div>
+        <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></div>`).join('');
+    }).join('')||'<div class="small">所持個体が未登録です</div>';
+    const suitRows=suits.length?`<div class="badges">${suits.sort((a,b)=>sortJa(a.stageKey,b.stageKey)).map(s=>
+      `<span class="b">${esc(stageLabel(s.stageKey))}・${esc(formShort(formOf(s.formId)||{name:'形態不明'}))}・${esc(SOURCES[s.source])} ${esc(suitText(s))}</span>`).join('')}</div>`
+      :'<div class="small">適正ステージは未登録です（ステージ画面の「＋ 適正を追加」から登録）</div>';
+    return `<div class="card chara open">${head}
+      <div class="pgroup">進化形態</div>${formRows}
+      <div class="tools"><button class="tool" data-act="formAdd" data-id="${esc(c.id)}">＋ 進化形態</button>
+        <button class="tool" data-act="unitAdd" data-id="${esc(c.id)}"${forms.length?'':' disabled'}>＋ 所持個体</button>
+        <button class="tool" data-act="mcharEdit" data-id="${esc(c.id)}">キャラ名を編集</button></div>
+      <div class="pgroup">所持個体（端末別）</div>${unitRows}
+      <div class="pgroup">適正ステージ</div>${suitRows}</div>`;
+  }).join(''):`<div class="empty">${db.master.characters.length?'該当するキャラがいません':'まだキャラが登録されていません（「＋ キャラ追加」から登録）'}</div>`;
+}
+
+/* ---- 管理：旧データ（TOP20）から新形式への取り込み ---- */
+function legacyEntries(){
+  const out=[];
+  Object.entries(db.rankings).forEach(([k,v])=>v.entries.forEach(e=>{
+    if(e.name) out.push({k,r:e.rank,name:e.name,basic:normBasic(e),done:db.migrated[k+'#'+e.rank]||null});
+  }));
+  return out.sort((a,b)=>sortJa(a.k,b.k)||a.r-b.r);
+}
+function renderMigration(){
+  const all=legacyEntries(), todo=all.filter(x=>!x.done);
+  $('migCount').textContent=all.length?`未変換・要確認 ${todo.length}件／全${all.length}件`:'';
+  $('migList').innerHTML=all.length?all.map(x=>{
+    const id=x.k+'#'+x.r, own=DEVICES.map(d=>[d,ownOf(x.k,d,x.r)]).filter(([,o])=>o);
+    const ownTxt=own.map(([d,o])=>`${d}:${o.status?OWN[o.status]:'状態未入力'}${o.count!=null?'×'+countText(o.count):''}${o.wakuwaku?.length?'・実'+o.wakuwaku.length:''}`).join(' ／ ')||'所持状況なし';
+    const head=`<div class="cname">${esc(stageLabel(x.k))} ${x.r}位：${esc(x.name)}</div>
+      <div class="meta">${esc([x.basic.race,x.basic.battleType,x.basic.shotType].filter(Boolean).join('・')||'基本情報なし')}／${esc(ownTxt)}</div>`;
+    if(x.done) return `<div class="row"><div class="rowMain">${head}<div class="badges"><span class="b ok">取り込み済み：${esc(formLabel(formOf(x.done.formId)))}・${esc(SOURCES[x.done.source]||'')}・個体${x.done.units}件</span>
+      ${x.done.pending.map(p=>`<span class="b out">要確認：${esc(p)}</span>`).join('')}</div></div></div>`;
+    const forms=db.master.forms.filter(f=>charOf(f.characterId)?.name===x.name);
+    return `<div class="row mig"><div class="rowMain">${head}
+      ${forms.length?`<div class="two" style="margin-top:6px">
+        <select data-mig-form="${esc(id)}" aria-label="取り込む進化形態"><option value="">進化形態を選ぶ</option>${forms.map(f=>`<option value="${esc(f.id)}">${esc(formLabel(f))}（${esc(f.name)}）</option>`).join('')}</select>
+        <select data-mig-src="${esc(id)}" aria-label="出典"><option value="">出典を選ぶ</option>${Object.entries(SOURCES).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('')}</select></div>
+        <div class="tools"><button class="tool" data-act="migrate" data-id="${esc(id)}">この順位を取り込む</button></div>`
+      :`<div class="badges"><span class="b out">未変換・要確認：「${esc(x.name)}」のキャラ・進化形態が未登録です（キャラタブで登録すると選べます）</span></div>`}
+      </div></div>`;
+  }).join(''):'<div class="small">取り込める旧データ（キャラ名のある順位）はありません</div>';
+}
+
 function render(){
   VIEWS.forEach(v=>$('view-'+v).classList.toggle('active',v===db.ui.view));
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===db.ui.view));
-  renderStage();renderTop20();renderSearch();renderDevices();renderAdmin();
+  renderStage();renderInfoBar();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();
 }
 function scrollActiveChip(){
   const a=document.querySelector('#stageChips .chip.active');
@@ -1012,7 +1532,359 @@ function saveLend(){
 function returnChar(c){c.lentTo=null;persist();render()}
 function closeModals(){
   document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
-  editingId=null;lendingId=null;rankEditing=null;pendingImport=null;
+  editingId=null;lendingId=null;rankEditing=null;pendingImport=null;mEdit=null;
+}
+
+/* ---- 新構造の編集（キャラ・進化形態・所持個体・適正） ---- */
+let mEdit=null; // {type:'mchar'|'form'|'unit'|'suit', id, charId, stageKey}
+function raceOptions(sel,customSel,customField,race){
+  sel.innerHTML='<option value="">未設定</option>'+RACE_GROUPS.map(([group,names])=>
+    `<optgroup label="${esc(group)}">${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</optgroup>`).join('')+
+    `<option value="${CUSTOM_RACE}">その他・新規</option>`;
+  sel.value=race?(RACES.includes(race)?race:CUSTOM_RACE):'';
+  customSel.value=race&&!RACES.includes(race)?race:'';
+  customField.hidden=sel.value!==CUSTOM_RACE;
+}
+function openMChar(c=null){
+  mEdit={type:'mchar',id:c?c.id:null};
+  $('mcTitle').textContent=c?'キャラ名を編集':'キャラ追加';
+  $('mcName').value=c?c.name:'';
+  const used=c&&formsOfChar(c.id).length;
+  $('mcDelete').style.display=c?'':'none';$('mcDelete').disabled=!!used;
+  $('mcNote').textContent=used?'進化形態が登録されているキャラは削除できません（先に形態を削除）':'';
+  $('mcharModal').classList.add('open');
+}
+function saveMChar(){
+  const name=clean($('mcName').value,40);
+  if(!name){$('mcNote').textContent='キャラ名を入力してください';return}
+  if(db.master.characters.some(c=>c.name===name&&c.id!==mEdit.id)){$('mcNote').textContent='同じ名前のキャラが既にあります';return}
+  if(mEdit.id) charOf(mEdit.id).name=name;
+  else{const id=uid();db.master.characters.push({id,name});db.ui.charaOpen=id}
+  persist();closeModals();render();
+}
+function deleteMChar(){
+  const c=charOf(mEdit?.id);if(!c||formsOfChar(c.id).length)return;
+  if(!confirm(`キャラ「${c.name}」を削除しますか？`))return;
+  db.master.characters=db.master.characters.filter(x=>x.id!==c.id);
+  persist();closeModals();render();
+}
+function openForm(charId,f=null){
+  mEdit={type:'form',id:f?f.id:null,charId:f?f.characterId:charId};
+  const c=charOf(mEdit.charId);
+  $('fmTitle').textContent=`${c?c.name:'（キャラ不明）'}：${f?'進化形態を編集':'進化形態を追加'}`;
+  $('fmName').value=f?f.name:'';$('fmShort').value=f?f.short:'';
+  raceOptions($('fmRace'),$('fmRaceCustom'),$('fmRaceCustomField'),f?f.race:'');
+  $('fmBattle').innerHTML='<option value="">未設定</option>'+BATTLE_TYPES.map(n=>`<option>${n}</option>`).join('');
+  $('fmShot').innerHTML='<option value="">未設定</option>'+SHOT_TYPES.map(n=>`<option>${n}</option>`).join('');
+  $('fmBattle').value=f?f.battleType:'';$('fmShot').value=f?f.shotType:'';
+  const used=f&&(db.units.some(u=>u.formId===f.id)||db.suits.some(s=>s.formId===f.id));
+  $('fmDelete').style.display=f?'':'none';$('fmDelete').disabled=!!used;
+  $('fmNote').textContent=used?'所持個体または適正が登録されている形態は削除できません':'';
+  $('formModal').classList.add('open');$('formModal').querySelector('.modal').scrollTop=0;
+}
+function saveForm(){
+  const name=clean($('fmName').value,60);
+  if(!name){$('fmNote').textContent='正式な進化形態名を入力してください';return}
+  const old=mEdit.id?formOf(mEdit.id):null, custom=$('fmRaceCustom').value;
+  const race=$('fmRace').value===CUSTOM_RACE?(old&&custom===old.race?custom:clean(custom,40)):$('fmRace').value;
+  const b=normBasic({battleType:$('fmBattle').value,shotType:$('fmShot').value});
+  const item={id:old?old.id:uid(),characterId:mEdit.charId,name,short:clean($('fmShort').value,16),race,battleType:b.battleType,shotType:b.shotType};
+  db.master.forms=old?db.master.forms.map(f=>f.id===old.id?item:f):[...db.master.forms,item];
+  persist();closeModals();render();
+}
+function deleteForm(){
+  const f=formOf(mEdit?.id);if(!f||db.units.some(u=>u.formId===f.id)||db.suits.some(s=>s.formId===f.id))return;
+  if(!confirm(`進化形態「${f.name}」を削除しますか？`))return;
+  db.master.forms=db.master.forms.filter(x=>x.id!==f.id);
+  persist();closeModals();render();
+}
+function openUnit(charId,u=null){
+  const f=u?formOf(u.formId):null;
+  mEdit={type:'unit',id:u?u.id:null,charId:f?f.characterId:charId};
+  const c=charOf(mEdit.charId), forms=formsOfChar(mEdit.charId);
+  $('unTitle').textContent=`${c?c.name:'（キャラ不明）'}：${u?`個体${u.no??'?'}を編集`:'所持個体を追加'}`;
+  $('unDevice').innerHTML=DEVICES.map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}</option>`).join('');
+  $('unDevice').value=u&&DEVICES.includes(u.device)?u.device:(DEVICES.includes(db.ui.rankDevice)?db.ui.rankDevice:DEVICES[0]);
+  $('unForm').innerHTML=(u&&!f?'<option value="">（形態不明・要確認）</option>':'')+forms.map(x=>`<option value="${esc(x.id)}">${esc(formShort(x))}（${esc(x.name)}）</option>`).join('');
+  $('unForm').value=u?(f?u.formId:''):(forms[0]?.id||'');
+  $('unNo').value=u?.no??nextUnitNo($('unForm').value,$('unDevice').value);
+  $('unMemo').value=u?u.memo:'';
+  // 3枠が基本。4枠目は既に4つ目を持っている個体だけ最初から表示し、それ以外は「＋4枠目」で開く
+  const four=!!(u&&u.fruits.length>FRUIT_BASE);
+  $('unFruits').innerHTML=Array.from({length:FRUIT_MAX},(_,i)=>`
+    <div class="frRow"${i>=FRUIT_BASE&&!four?' hidden':''}><span class="no">${i+1}</span>
+      <input id="unFrName${i}" maxlength="20" placeholder="例：撃種加撃" aria-label="わくわくの実${i+1}の名前">
+      <select id="unFrGrade${i}" aria-label="わくわくの実${i+1}の等級"><option value="">等級</option>${GRADES.map(g=>`<option>${g}</option>`).join('')}</select>
+      <select id="unFrKind${i}" aria-label="わくわくの実${i+1}の系統"><option value="">系統</option>${FRUIT_KINDS.map(k=>`<option>${k}</option>`).join('')}</select>
+    </div>`).join('');
+  (u?u.fruits:[]).forEach((x,i)=>{$('unFrName'+i).value=x.name;$('unFrGrade'+i).value=x.grade;$('unFrKind'+i).value=x.kind});
+  $('unFruit4Btn').hidden=four;
+  $('unDelete').style.display=u?'':'none';$('unNote').textContent='';
+  $('unitModal').classList.add('open');$('unitModal').querySelector('.modal').scrollTop=0;
+}
+function saveUnit(){
+  const formId=$('unForm').value, device=$('unDevice').value;
+  if(!formOf(formId)){$('unNote').textContent='進化形態を選んでください';return}
+  if(!DEVICES.includes(device)){$('unNote').textContent='端末を選んでください';return}
+  const no=parseInt($('unNo').value,10);
+  const old=mEdit.id?db.units.find(u=>u.id===mEdit.id):null;
+  const item={id:old?old.id:uid(),formId,device,no:no>=1&&no<=99?no:nextUnitNo(formId,device,old?.id),
+    fruits:normFruits(Array.from({length:FRUIT_MAX},(_,i)=>({name:$('unFrName'+i).value,grade:$('unFrGrade'+i).value,kind:$('unFrKind'+i).value}))),
+    memo:clean($('unMemo').value,100)};
+  db.units=old?db.units.map(u=>u.id===old.id?item:u):[...db.units,item];
+  persist();closeModals();render();
+}
+function deleteUnit(){
+  const u=db.units.find(x=>x.id===mEdit?.id);if(!u)return;
+  if(!confirm(`${unitLabel(u)}（${u.device}）を削除しますか？`))return;
+  db.units=db.units.filter(x=>x.id!==u.id);
+  persist();closeModals();render();
+}
+function openSuit(s=null){
+  const k=s?s.stageKey:key(db.ui.quest,curStage());
+  mEdit={type:'suit',id:s?s.id:null,stageKey:k};
+  $('stTitle').textContent=`${stageLabel(k)}：${s?'適正を編集':'適正を追加'}`;
+  $('stForm').innerHTML='<option value="">進化形態を選ぶ</option>'+[...db.master.characters].sort((a,b)=>sortJa(a.name,b.name)).map(c=>{
+    const fs=formsOfChar(c.id);
+    return fs.length?`<optgroup label="${esc(c.name)}">${fs.map(f=>`<option value="${esc(f.id)}">${esc(formLabel(f))}（${esc(f.name)}）</option>`).join('')}</optgroup>`:'';
+  }).join('');
+  $('stForm').value=s?s.formId:'';
+  $('stSource').innerHTML=Object.entries(SOURCES).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
+  $('stSource').value=s?s.source:'GAME_CLEAR_MONSTERS';
+  $('stEval').innerHTML=Object.entries(EVAL_TYPES).map(([v,l])=>`<option value="${v}">${esc(l)}（${v}）</option>`).join('');
+  $('stEval').value=s?s.evaluationType:'RANK';
+  $('stVerify').innerHTML=Object.entries(VERIFY).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
+  $('stVerify').value=s?s.verificationStatus:'UNVERIFIED';
+  $('stRank').value=s?.rank??'';$('stGrade').value=s?s.grade:'';$('stSite').value=s?s.site:'';$('stNote').value=s?s.note:'';
+  $('stUrl').value=s?s.sourceUrl:'';$('stDate').value=s?s.sourceUpdatedAt:'';
+  syncSuitModal();
+  $('stDelete').style.display=s?'':'none';$('stMsg').textContent='';
+  $('suitModal').classList.add('open');$('suitModal').querySelector('.modal').scrollTop=0;
+}
+// みんなのクリアモンスターは順位（RANK）だけ。RANKは順位欄、GRADEはランク欄、CANDIDATEはどちらも使わない
+function syncSuitModal(){
+  const src=$('stSource').value;
+  if(src==='GAME_CLEAR_MONSTERS') $('stEval').value='RANK';
+  $('stEval').disabled=src==='GAME_CLEAR_MONSTERS';
+  const ev=$('stEval').value;
+  $('stRankField').hidden=ev!=='RANK';
+  $('stGradeField').hidden=ev!=='GRADE';
+  $('stSiteField').hidden=src!=='OTHER_SITE';
+  $('stUrlFields').hidden=src==='GAME_CLEAR_MONSTERS';
+}
+function saveSuit(){
+  const formId=$('stForm').value, source=$('stSource').value, ev=source==='GAME_CLEAR_MONSTERS'?'RANK':$('stEval').value;
+  if(!formOf(formId)){$('stMsg').textContent='進化形態を選んでください';return}
+  if(!SOURCES[source]){$('stMsg').textContent='出典を選んでください';return}
+  if(!EVAL_TYPES[ev]){$('stMsg').textContent='評価形式を選んでください';return}
+  const rankRaw=$('stRank').value.trim(), rank=normRankNo(rankRaw), grade=clean($('stGrade').value,8);
+  if(ev==='RANK'&&!rank){$('stMsg').textContent=source==='GAME_CLEAR_MONSTERS'?'みんなのクリアモンスターは順位を入力してください（1〜20）':'順位は1〜20の数字で入力してください';return}
+  if(ev==='GRADE'&&!grade){$('stMsg').textContent='ランク（S/A/B など）を入力してください';return}
+  const site=source==='OTHER_SITE'?clean($('stSite').value,30):'';
+  if(source==='OTHER_SITE'&&!site){$('stMsg').textContent='サイト名を入力してください';return}
+  const urlRaw=$('stUrl').value.trim();
+  if(urlRaw&&!normUrl(urlRaw)){$('stMsg').textContent='出典URLは http(s):// で始まるURLにしてください';return}
+  // 評価形式で使わない欄の値は保存しない（順位⇔ランクの変換はしない）
+  const item={id:mEdit.id||uid(),stageKey:mEdit.stageKey,formId,source,site,
+    sourceUrl:source==='GAME_CLEAR_MONSTERS'?'':normUrl(urlRaw),sourceUpdatedAt:source==='GAME_CLEAR_MONSTERS'?'':normDate($('stDate').value),
+    evaluationType:ev,rank:ev==='RANK'?rank:null,grade:ev==='GRADE'?grade:'',
+    verificationStatus:VERIFY[$('stVerify').value]?$('stVerify').value:'UNVERIFIED',note:clean($('stNote').value,60)};
+  // 同じステージ・形態・出典（その他サイトはサイト名も）は1件にまとめる。別サイトの評価は別レコード
+  if(db.suits.some(s=>s.id!==item.id&&suitKey(s)===suitKey(item))){$('stMsg').textContent='同じ出典の適正が既にあります（その行を編集してください）';return}
+  db.suits=mEdit.id?db.suits.map(s=>s.id===item.id?item:s):[...db.suits,item];
+  persist();closeModals();render();
+}
+function verifySuit(id){
+  const s=db.suits.find(x=>x.id===id);if(!s)return;
+  s.verificationStatus='VERIFIED';persist();render();
+}
+
+/* ---- 外部の適正データ（JSON）の取り込み ----
+   形式（1ブロック、またはブロックの配列。blocks:[…] でも可）:
+   {"format":"monst-suitability-import-v1", "stageKey":"破界の星墓::パライソ"（または "quest"+"stage"）,
+    "source":"GAMEWITH|ALTEMA|OTHER_SITE|GAME_CLEAR_MONSTERS", "site":"（OTHER_SITEのときサイト名）",
+    "sourceUrl":"https://…", "sourceUpdatedAt":"2026-09-28", "evaluationType":"RANK|GRADE|CANDIDATE",
+    "entries":[{"characterName":"…","formName":"正式名または短縮名","rank":1,"grade":"S","verificationStatus":"UNVERIFIED","note":""}]}
+   ・形式エラーが1つでもあれば何も書き込まない（全体を取り消し）
+   ・キャラ名＋進化形態名が登録済みの形態と完全一致した行だけ取り込む。未登録キャラは作成しない。
+     キャラ名だけ一致・形態不明・候補が複数の行は「要確認」として一覧に残す（紐づけない）
+   ・RANKは rank のみ、GRADEは grade のみ、CANDIDATEはどちらも無し。違う欄が入っていればエラー（変換しない）
+   ・verificationStatus 省略時は UNVERIFIED（外部調査の結果は未検証として入る）
+   ・同じステージ・形態・出典（その他サイトはサイト名も）の既存レコードは置き換え（重複させない）。
+     確認済み（VERIFIED）の順位・ランクが変わる場合、取り込み側が VERIFIED でなければ「要確認」にする。
+     今回のデータに含まれない同じ出典の既存レコードは削除しない（件数だけ表示） */
+const IMPORT_FORMAT='monst-suitability-import-v1';
+let pendingSuitImport=null;
+function resolveStageKey(b){
+  const k=typeof b.stageKey==='string'?b.stageKey.trim():(typeof b.quest==='string'&&typeof b.stage==='string'?key(b.quest.trim(),b.stage.trim()):'');
+  if(!isStageKey(k)) return '';
+  const [q,s]=k.split(SEP);
+  return QMAP[q].stages.includes(s)||(db.extraStages[q]||[]).includes(s)?k:'';
+}
+function parseSuitImport(text){
+  let raw;
+  try{raw=JSON.parse(text)}catch{return {errors:['JSONとして読み取れません']}}
+  const blocks=Array.isArray(raw)?raw:raw&&Array.isArray(raw.blocks)?raw.blocks:[raw];
+  const errors=[], out=[];
+  if(!blocks.length) errors.push('データが空です');
+  if(blocks.length>50) errors.push('一度に取り込めるのは50ブロックまでです');
+  blocks.forEach((b,bi)=>{
+    const at=`${bi+1}件目`;
+    if(!b||typeof b!=='object'||Array.isArray(b)){errors.push(`${at}：形式が正しくありません`);return}
+    if(b.format!=null&&b.format!==IMPORT_FORMAT) errors.push(`${at}：format が不明です（${IMPORT_FORMAT}）`);
+    const k=resolveStageKey(b);if(!k) errors.push(`${at}：ステージ（stageKey）が不明です`);
+    const source=b.source, ev=b.evaluationType;
+    if(!SOURCES[source]) errors.push(`${at}：source が不明です（${Object.keys(SOURCES).join(' / ')}）`);
+    if(!EVAL_TYPES[ev]) errors.push(`${at}：evaluationType が不明です（RANK / GRADE / CANDIDATE）`);
+    if(source==='GAME_CLEAR_MONSTERS'&&ev!=='RANK') errors.push(`${at}：みんなのクリアモンスターは evaluationType RANK（順位）だけです`);
+    const site=source==='OTHER_SITE'?clean(b.site,30):'';
+    if(source==='OTHER_SITE'&&!site) errors.push(`${at}：OTHER_SITE には site（サイト名）が必要です`);
+    if(b.sourceUrl!=null&&b.sourceUrl!==''&&!normUrl(b.sourceUrl)) errors.push(`${at}：sourceUrl は http(s):// のURLにしてください`);
+    if(b.sourceUpdatedAt!=null&&b.sourceUpdatedAt!==''&&!normDate(b.sourceUpdatedAt)) errors.push(`${at}：sourceUpdatedAt は YYYY-MM-DD にしてください`);
+    if(!Array.isArray(b.entries)||!b.entries.length){errors.push(`${at}：entries が空です`);return}
+    if(b.entries.length>200) errors.push(`${at}：entries は200件までです`);
+    const entries=b.entries.map((e,ei)=>{
+      const ea=`${at}の${ei+1}行目`;
+      if(!e||typeof e!=='object'||Array.isArray(e)){errors.push(`${ea}：形式が正しくありません`);return null}
+      const characterName=clean(e.characterName,40), formName=clean(e.formName,60);
+      if(!characterName) errors.push(`${ea}：characterName がありません`);
+      const hasRank=e.rank!=null&&e.rank!=='', hasGrade=e.grade!=null&&String(e.grade).trim()!=='';
+      const rank=hasRank&&Number.isInteger(Number(e.rank))?normRankNo(e.rank):null;
+      if(hasRank&&!rank) errors.push(`${ea}：rank は1〜20の整数です`);
+      if(ev==='RANK'&&!hasRank) errors.push(`${ea}：evaluationType RANK なので rank が必要です`);
+      if(ev&&ev!=='RANK'&&hasRank) errors.push(`${ea}：${ev} では rank を入れられません（順位とランクは変換しません）`);
+      if(ev==='GRADE'&&!hasGrade) errors.push(`${ea}：evaluationType GRADE なので grade が必要です`);
+      if(ev&&ev!=='GRADE'&&hasGrade) errors.push(`${ea}：${ev} では grade を入れられません（順位とランクは変換しません）`);
+      const vs=e.verificationStatus==null||e.verificationStatus===''?'UNVERIFIED':e.verificationStatus;
+      if(!VERIFY[vs]) errors.push(`${ea}：verificationStatus が不明です（VERIFIED / UNVERIFIED / NEEDS_REVIEW）`);
+      return {characterName,formName,rank,grade:hasGrade?clean(e.grade,8):'',verificationStatus:vs,note:clean(e.note,60)};
+    });
+    out.push({stageKey:k,source,site,sourceUrl:normUrl(b.sourceUrl),sourceUpdatedAt:normDate(b.sourceUpdatedAt),evaluationType:ev,entries});
+  });
+  return errors.length?{errors:errors.slice(0,30).concat(errors.length>30?[`ほか${errors.length-30}件`]:[])}:{errors:[],blocks:out};
+}
+// 取り込み計画を作るだけ（db は変更しない）
+function planSuitImport(p){
+  const plan={blocks:p.blocks,add:[],update:[],same:[],issues:[],dupInFile:0,notIncluded:0};
+  const seen=new Set();
+  p.blocks.forEach(b=>{
+    const touched=new Set();
+    b.entries.forEach(e=>{
+      const issue=reason=>plan.issues.push({stageKey:b.stageKey,source:b.source,site:b.site,characterName:e.characterName,formName:e.formName,reason});
+      const chars=db.master.characters.filter(c=>c.name===e.characterName);
+      if(!chars.length) return issue('未登録のキャラ（自動では作成しません）');
+      if(chars.length>1) return issue('同じ名前のキャラが複数あります');
+      if(!e.formName) return issue('進化形態の指定がありません（キャラ名だけでは紐づけません）');
+      const forms=formsOfChar(chars[0].id).filter(f=>f.name===e.formName||f.short===e.formName);
+      if(!forms.length) return issue('進化形態が一致しません（正式名・短縮名と完全一致のみ）');
+      if(forms.length>1) return issue('一致する進化形態が複数あります');
+      const item={stageKey:b.stageKey,formId:forms[0].id,source:b.source,site:b.site,sourceUrl:b.sourceUrl,sourceUpdatedAt:b.sourceUpdatedAt,
+        evaluationType:b.evaluationType,rank:e.rank,grade:e.grade,verificationStatus:e.verificationStatus,note:e.note};
+      const k=suitKey(item);
+      if(seen.has(k)){plan.dupInFile++;return}
+      seen.add(k);touched.add(k);
+      const cur=db.suits.find(s=>suitKey(s)===k);
+      if(!cur) return plan.add.push(item);
+      if(cur.verificationStatus==='VERIFIED'&&item.verificationStatus!=='VERIFIED'){
+        item.verificationStatus=['evaluationType','rank','grade'].some(f=>cur[f]!==item[f])?'NEEDS_REVIEW':'VERIFIED';
+      }
+      if(['sourceUrl','sourceUpdatedAt','evaluationType','rank','grade','verificationStatus','note'].every(f=>cur[f]===item[f])) return plan.same.push(cur.id);
+      plan.update.push({id:cur.id,item});
+    });
+    plan.notIncluded+=db.suits.filter(s=>s.stageKey===b.stageKey&&s.source===b.source&&(b.source!=='OTHER_SITE'||s.site===b.site)&&!touched.has(suitKey(s))).length;
+  });
+  return plan;
+}
+// 計画どおりに反映する。途中で失敗した場合は取り込み前の状態に戻す
+function applySuitImport(plan){
+  const backupState=JSON.stringify({suits:db.suits,importIssues:db.importIssues});
+  try{
+    const now=new Date().toISOString(), upd=new Map(plan.update.map(x=>[x.id,x.item]));
+    const suits=db.suits.map(s=>upd.has(s.id)?{...upd.get(s.id),id:s.id}:s).concat(plan.add.map(it=>({...it,id:uid()})));
+    const ik=x=>[x.stageKey,x.source,x.site,x.characterName,x.formName].join('\u0001');
+    const fresh=plan.issues.map(x=>({...x,id:uid(),at:now})), freshKeys=new Set(fresh.map(ik));
+    db.suits=suits.map(normSuit);
+    db.importIssues=db.importIssues.filter(x=>!freshKeys.has(ik(x))).concat(fresh).slice(-500);
+    persist();
+    return true;
+  }catch(err){
+    const b=JSON.parse(backupState);db.suits=b.suits;db.importIssues=b.importIssues;
+    return false;
+  }
+}
+function previewSuitImport(){
+  const text=$('imText').value;
+  pendingSuitImport=null;$('imApply').disabled=true;
+  const p=parseSuitImport(text);
+  if(p.errors.length){
+    $('imResult').innerHTML=`<div class="note">取り込めません（何も変更していません）：<br>${p.errors.map(esc).join('<br>')}</div>`;return;
+  }
+  const plan=planSuitImport(p);
+  pendingSuitImport={text,plan};
+  $('imApply').disabled=!(plan.add.length||plan.update.length||plan.issues.length);
+  const blk=plan.blocks.map(b=>`${esc(stageLabel(b.stageKey))}：${esc(SOURCES[b.source])}${b.site?`（${esc(b.site)}）`:''}・${esc(EVAL_TYPES[b.evaluationType])}・${b.entries.length}行`).join('<br>');
+  $('imResult').innerHTML=`<div class="small" style="font-size:12px;line-height:1.6">${blk}<br>
+    追加 ${plan.add.length}件／更新 ${plan.update.length}件／変更なし ${plan.same.length}件／要確認（取り込まない） ${plan.issues.length}件
+    ${plan.dupInFile?`／ファイル内の重複 ${plan.dupInFile}件（1件にまとめます）`:''}
+    ${plan.notIncluded?`<br>今回のデータに含まれない同じ出典の既存適正 ${plan.notIncluded}件は削除しません`:''}
+    ${plan.update.some(u=>u.item.verificationStatus==='NEEDS_REVIEW')?'<br>確認済みの内容が変わる行は「要確認」になります':''}</div>
+    ${plan.issues.length?`<div class="note">${plan.issues.slice(0,20).map(x=>`${esc(x.characterName)}${x.formName?`／${esc(x.formName)}`:''}：${esc(x.reason)}`).join('<br>')}${plan.issues.length>20?`<br>ほか${plan.issues.length-20}件`:''}</div>`:''}`;
+}
+function confirmSuitImport(){
+  const pi=pendingSuitImport;
+  if(!pi||pi.text!==$('imText').value){$('imMsg').textContent='先に「内容を確認」を押してください';$('imApply').disabled=true;return}
+  const ok=applySuitImport(pi.plan);
+  pendingSuitImport=null;$('imApply').disabled=true;
+  render();
+  $('imMsg').textContent=ok
+    ?`取り込みました（追加${pi.plan.add.length}件・更新${pi.plan.update.length}件・要確認${pi.plan.issues.length}件）。取り込んだ適正は確認するまで「未検証」です。`
+    :'取り込みに失敗したため、取り込み前の状態に戻しました';
+}
+function renderImportIssues(){
+  const list=db.importIssues;
+  $('imIssues').innerHTML=list.length?`<div class="pgroup">取り込めなかった行（要確認・${list.length}件）</div>`+list.map(x=>`
+    <div class="row"><div class="rowMain"><div class="cname">${esc(x.characterName)}${x.formName?`<span class="x">${esc(x.formName)}</span>`:''}</div>
+      <div class="meta">${esc(isStageKey(x.stageKey)?stageLabel(x.stageKey):x.stageKey)}・${esc(SOURCES[x.source]||'')}${x.site?`（${esc(x.site)}）`:''}：${esc(x.reason)}</div></div>
+      <button class="mini" data-act="issueDone" data-id="${esc(x.id)}">確認済み</button></div>`).join('')
+    :'';
+}
+function deleteSuit(){
+  const s=db.suits.find(x=>x.id===mEdit?.id);if(!s)return;
+  if(!confirm(`${formLabel(formOf(s.formId))}（${SOURCES[s.source]}）の適正を削除しますか？`))return;
+  db.suits=db.suits.filter(x=>x.id!==s.id);
+  persist();closeModals();render();
+}
+// 旧TOP20の1順位を新形式へ取り込む。旧データ（rankings/ownership）は変更しない。
+// 推測はしない：形態と出典は利用者が選ぶ。別形態・所持数2以上・4つ目の実などは「要確認」として記録する
+function migrateEntry(id){
+  const [k,rs]=[id.slice(0,id.lastIndexOf('#')),id.slice(id.lastIndexOf('#')+1)], r=parseInt(rs,10);
+  const formId=document.querySelector(`[data-mig-form="${CSS.escape(id)}"]`)?.value, source=document.querySelector(`[data-mig-src="${CSS.escape(id)}"]`)?.value;
+  if(!formOf(formId)||!SOURCES[source]){$('migMsg').textContent='進化形態と出典を選んでください';return}
+  if(db.migrated[id]) return;
+  const pending=[];
+  // みんなのクリアモンスターなら旧データの順位をそのまま順位として、攻略サイトなら順位・ランクを付けず「候補」として登録する。
+  // どちらも内容を確認するまでは「未検証」
+  if(!db.suits.some(s=>s.stageKey===k&&s.formId===formId&&s.source===source)){
+    const gcm=source==='GAME_CLEAR_MONSTERS';
+    db.suits.push(normSuit({id:uid(),stageKey:k,formId,source,evaluationType:gcm?'RANK':'CANDIDATE',rank:gcm?r:null,grade:'',
+      verificationStatus:'UNVERIFIED',note:gcm?'旧データから取り込み':`旧データの${r}位（順位の意味は要確認）`}));
+  }
+  let made=0;
+  DEVICES.forEach(d=>{
+    const o=ownOf(k,d,r);if(!o) return;
+    if(o.status==='owned'){
+      const w=o.wakuwaku||[];
+      db.units.push({id:uid(),formId,device:d,no:nextUnitNo(formId,d),fruits:normFruits(w),
+        memo:`旧データ（${stageLabel(k)} ${r}位）から取り込み`});
+      made++;
+      // 旧データの実は最大4つ。新しい個体も4枠まで持てるので、4つ目も捨てずにそのまま移す
+      if(o.count>1) pending.push(`${d}：旧所持数${countText(o.count)}のうち1体だけ作成`);
+    }else if(o.status==='alt-form') pending.push(`${d}：別形態で所持（形態が分からないため個体は未作成）`);
+    else if(!o.status&&o.wakuwaku?.length) pending.push(`${d}：状態未入力で実だけ登録あり（未取り込み）`);
+  });
+  db.migrated[id]={formId,source,at:new Date().toISOString(),units:made,pending};
+  persist();render();
+  $('migMsg').textContent=`${stageLabel(k)} ${r}位を取り込みました（個体${made}件${pending.length?`・要確認${pending.length}件`:''}）`;
 }
 
 /* ---- 管理操作 ---- */
@@ -1043,7 +1915,8 @@ function removeStage(s){
 function backupJson(){
   return JSON.stringify({app:APP,version:1,exportedAt:new Date().toISOString(),
     data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages,
-      rankings:db.rankings,ownership:db.ownership}},null,1);
+      rankings:db.rankings,ownership:db.ownership,
+      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues}},null,1);
 }
 function backup(){
   const text=backupJson();
@@ -1131,8 +2004,60 @@ document.addEventListener('click',e=>{
     case 'saveRank':saveRank();break;
     case 'importPreset':{const p=TOP20_PRESETS.find(x=>x.id===b.dataset.preset);if(p)openImport(p.data);break}
     case 'applyImport':confirmImport();break;
+    // 新構造
+    case 'infoMode':if(INFO_MODES.some(([m])=>m===b.dataset.mode)){db.ui.infoMode=db.ui.infoMode===b.dataset.mode?'none':b.dataset.mode;persist();render()}break;
+    case 'useDev':{
+      const k=key(db.ui.quest,curStage()), d=b.dataset.dev;
+      if(!DEVICES.includes(d)) break;
+      const cur=useDevsOf(k);
+      if(!cur.includes(d)&&cur.length>=USE_MAX){$('devPickMsg').textContent=`${USE_MAX}台まで選択できます`;break}
+      // 外した端末の個体選択（picks）は消さない。もう一度選べば以前の個体がそのまま使われる
+      db.useDevs[k]=cur.includes(d)?cur.filter(x=>x!==d):[...cur,d];
+      persist();render();break;
+    }
+    case 'charaOpen':db.ui.charaOpen=db.ui.charaOpen===b.dataset.id?null:b.dataset.id;persist();render();break;
+    case 'mcharAdd':openMChar();break;
+    case 'mcharEdit':{const x=charOf(b.dataset.id);if(x)openMChar(x);break}
+    case 'saveMChar':saveMChar();break;
+    case 'deleteMChar':deleteMChar();break;
+    case 'formAdd':if(charOf(b.dataset.id))openForm(b.dataset.id);break;
+    case 'formEdit':{const f=formOf(b.dataset.id);if(f)openForm(f.characterId,f);break}
+    case 'saveForm':saveForm();break;
+    case 'deleteForm':deleteForm();break;
+    case 'unitAdd':if(charOf(b.dataset.id)&&formsOfChar(b.dataset.id).length)openUnit(b.dataset.id);break;
+    case 'unitEdit':{const u=db.units.find(x=>x.id===b.dataset.id);if(u)openUnit(null,u);break}
+    case 'saveUnit':saveUnit();break;
+    case 'deleteUnit':deleteUnit();break;
+    case 'suitAdd':openSuit();break;
+    case 'suitEdit':{const s=db.suits.find(x=>x.id===b.dataset.id);if(s)openSuit(s);break}
+    case 'saveSuit':saveSuit();break;
+    case 'deleteSuit':deleteSuit();break;
+    case 'migrate':migrateEntry(b.dataset.id);break;
+    case 'suitVerify':verifySuit(b.dataset.id);break;
+    case 'showFruit4':document.querySelectorAll('#unFruits .frRow[hidden]').forEach(r=>{r.hidden=false});b.hidden=true;$('unFrName3').focus();break;
+    case 'imPreview':$('imMsg').textContent='';previewSuitImport();break;
+    case 'imApply':confirmSuitImport();break;
+    case 'issueDone':db.importIssues=db.importIssues.filter(x=>x.id!==b.dataset.id);persist();render();break;
   }
 });
+// ステージ画面：端末ごとに使う個体を選ぶ（候補は「その端末が所持しているステージ適正個体」だけ）
+document.addEventListener('change',e=>{
+  const sel=e.target.closest('[data-pick-dev]');
+  if(!sel) return;
+  const k=key(db.ui.quest,curStage()), dev=sel.dataset.pickDev;
+  if(!DEVICES.includes(dev)) return;
+  const byDev=db.picks[k]||(db.picks[k]={});
+  if(sel.value) byDev[dev]=sel.value; else{delete byDev[dev];if(!Object.keys(byDev).length)delete db.picks[k]}
+  persist();render();
+});
+$('charaSearch').addEventListener('input',renderChara);
+$('fmRace').addEventListener('change',()=>{$('fmRaceCustomField').hidden=$('fmRace').value!==CUSTOM_RACE});
+$('unForm').addEventListener('change',()=>{if(!mEdit?.id)$('unNo').value=nextUnitNo($('unForm').value,$('unDevice').value)});
+$('unDevice').addEventListener('change',()=>{if(!mEdit?.id)$('unNo').value=nextUnitNo($('unForm').value,$('unDevice').value)});
+$('stSource').addEventListener('change',syncSuitModal);
+$('stEval').addEventListener('change',syncSuitModal);
+// 貼り付け内容を変えたら、確認済みの取り込み計画は無効にする
+$('imText').addEventListener('input',()=>{pendingSuitImport=null;$('imApply').disabled=true});
 $('searchInput').addEventListener('input',renderSearch);
 $('rRace').addEventListener('change',syncRaceCustom);
 $('exQuest').addEventListener('change',()=>{$('exMsg').textContent='';renderAdmin()});
