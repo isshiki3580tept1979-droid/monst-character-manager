@@ -174,6 +174,26 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .dpBox{flex:none;width:18px;height:18px;border:2px solid currentColor;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1}
 .dpMsg{font-size:12px;font-weight:800;color:#b45309;min-height:1em;margin-top:4px}
 .dpMsg:empty{display:none}
+/* わくわくの実の入力ブロック（1枠＝実名＋等級＋系統） */
+.frRow.frSlot{display:block;border:1px solid #e9d5ff;background:#faf5ff;border-radius:12px;padding:8px 10px;margin-bottom:8px}
+.frRow.frSlot[hidden]{display:none}
+.frHead{font-size:13px;font-weight:900;color:#5b21b6;margin-bottom:2px}
+.frLbl{font-size:11px;font-weight:800;color:#475569;margin:4px 0 2px}
+.frSub{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.frSlot input,.frSlot select{min-height:44px}
+#unFruit4Btn{width:100%;min-height:44px;margin:0 0 4px;border-style:dashed;color:#5b21b6}
+.mHead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.mHead h2{margin:0}
+.backBtn{flex:none;border:0;border-radius:999px;background:#e2e8f0;color:#0f172a;font-weight:900;min-height:40px;padding:6px 12px}
+.unChar{font-size:15px;font-weight:900;color:#1e3a8a;margin-bottom:8px}
+.btns{flex-wrap:wrap}
+.btns .btn-next{flex-basis:100%;background:#0f766e;color:#fff}
+.btns .btn-next[hidden]{display:none}
+.stickyBtns{position:sticky;bottom:-14px;background:#fff;padding:8px 0 10px;margin-bottom:-4px;box-shadow:0 -8px 12px -8px #0f172a33}
+.guide{font-size:12px;font-weight:800;color:#0f766e;background:#ecfdf5;border-radius:10px;padding:8px 10px;margin:6px 0;line-height:1.5}
+.guide[hidden]{display:none}
+.okMsg{font-size:12px;font-weight:800;color:#166534;background:#dcfce7;border-radius:10px;padding:8px 10px;margin:6px 0;line-height:1.5}
+.row.justSaved{outline:2px solid #22c55e;background:#f0fdf4}
 .qrCheck{display:flex;align-items:center;gap:8px;font-size:13px;min-height:40px;margin-bottom:6px}
 .qrCheck input{width:22px;height:22px;flex:none}
 #qrStageNote{margin-bottom:8px;font-size:12px;color:#1e3a8a;font-weight:800}
@@ -530,6 +550,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <button class="btn-del" id="mcDelete" data-act="deleteMChar" style="display:none">削除</button>
       <button class="btn-cancel" data-act="close">キャンセル</button>
       <button class="btn-save" data-act="saveMChar">保存</button>
+      <button class="btn-next" id="mcNext" data-act="saveMCharNext">保存して進化形態の登録へ →</button>
     </div>
   </div>
 </div>
@@ -538,6 +559,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 <div class="modalBack" id="formModal">
   <div class="modal">
     <h2 id="fmTitle">進化形態</h2>
+    <div class="guide" id="fmGuide" hidden></div>
     <div class="field"><label for="fmName">正式な進化形態名</label><input id="fmName" maxlength="60" placeholder="例：ハローワールド・モード"></div>
     <div class="field"><label for="fmShort">短縮表示名（一覧用・空欄なら正式名）</label><input id="fmShort" maxlength="16" placeholder="例：ハロー"></div>
     <div class="field"><label for="fmRace">種族</label><select id="fmRace"></select></div>
@@ -551,6 +573,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <button class="btn-del" id="fmDelete" data-act="deleteForm" style="display:none">削除</button>
       <button class="btn-cancel" data-act="close">キャンセル</button>
       <button class="btn-save" data-act="saveForm">保存</button>
+      <button class="btn-next" id="fmNext" data-act="saveFormNext">保存して所持個体の登録へ →</button>
     </div>
   </div>
 </div>
@@ -558,25 +581,27 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 <!-- 所持個体 -->
 <div class="modalBack" id="unitModal">
   <div class="modal">
-    <h2 id="unTitle">所持個体</h2>
+    <div class="mHead"><button type="button" class="backBtn" data-act="close">← 戻る</button><h2 id="unTitle">所持個体</h2></div>
+    <div class="unChar" id="unChar"></div>
+    <div class="field"><label for="unForm">進化形態</label><select id="unForm"></select><div class="small" id="unFormNote"></div></div>
     <div class="two field">
-      <div><label for="unDevice">端末</label><select id="unDevice"></select></div>
+      <div><label for="unDevice">所持端末</label><select id="unDevice"></select></div>
       <div><label for="unNo">個体番号</label><input id="unNo" type="number" min="1" max="99" inputmode="numeric"></div>
     </div>
-    <div class="field"><label for="unForm">現在の進化形態</label><select id="unForm"></select></div>
-    <label>わくわくの実（基本3つ・最大4つ）</label>
+    <div class="pgroup">わくわくの実（基本3つ・最大4つ）</div>
     <div id="unFruits"></div>
-    <button type="button" class="mini" id="unFruit4Btn" data-act="showFruit4">＋ 4枠目</button>
-    <div class="small">系統（同族・戦型・撃種・その他）は任意です。空欄の枠は保存しません。</div>
+    <button type="button" class="tool" id="unFruit4Btn" data-act="showFruit4">＋ 4枠目を追加</button>
+    <div class="small" style="margin-top:6px">実名は正式名で入力（候補から選ぶこともできます）。空欄の実は保存しません。実がなくても保存できます。</div>
     <div class="field" style="margin-top:10px"><label for="unMemo">メモ</label><input id="unMemo" maxlength="100"></div>
     <div class="msg" id="unNote" style="color:#991b1b"></div>
-    <div class="btns">
+    <div class="btns stickyBtns">
       <button class="btn-del" id="unDelete" data-act="deleteUnit" style="display:none">削除</button>
       <button class="btn-cancel" data-act="close">キャンセル</button>
-      <button class="btn-save" data-act="saveUnit">保存</button>
+      <button class="btn-save" data-act="saveUnit">所持個体を保存</button>
     </div>
   </div>
 </div>
+<datalist id="fruitNameList"></datalist>
 
 <!-- ステージ適正 -->
 <div class="modalBack" id="suitModal">
@@ -1473,29 +1498,37 @@ function renderChara(){
     const head=`<button type="button" class="cHead" data-act="charaOpen" data-id="${esc(c.id)}" aria-expanded="${open}">
       <span class="cname">${esc(c.name)}</span><span class="small">形態${forms.length}・個体${units.length}・適正${suits.length} ${open?'▲':'▼'}</span></button>`;
     if(!open) return `<div class="card chara">${head}</div>`;
+    const flash=charaFlash&&units.some(u=>u.id===charaFlash.unitId)?charaFlash:null;
+    const guide=!forms.length?'① 「＋ 進化形態」で進化形態を登録 → ② 「＋ 所持個体」で端末とわくわくの実を登録'
+      :!units.length?'次に「＋ 所持個体」で、どの端末にいるかと、わくわくの実を登録してください':'';
     const formRows=forms.map(f=>`<div class="row"><div class="rowMain"><div class="cname">${esc(formShort(f))}<span class="x">${esc(f.name)}</span></div>
       <div class="badges">${typeChips(f)}</div></div><button class="mini" data-act="formEdit" data-id="${esc(f.id)}">編集</button></div>`).join('')
       ||'<div class="small">進化形態が未登録です</div>';
     const unitRows=DEVICES.map(d=>{
       const us=units.filter(u=>u.device===d).sort((a,b)=>(a.no||0)-(b.no||0));
       if(!us.length) return '';
-      return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>`<div class="row"><div class="rowMain">
+      return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>`<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
         <div class="cname">個体${u.no??'?'}<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span></div>
-        <div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}</div>
+        <div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}
+        <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:'ステージ適正 未登録（ステージ画面の候補には出ません）'}</div></div>
         <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></div>`).join('');
     }).join('')||'<div class="small">所持個体が未登録です</div>';
     const suitRows=suits.length?`<div class="badges">${suits.sort((a,b)=>sortJa(a.stageKey,b.stageKey)).map(s=>
       `<span class="b">${esc(stageLabel(s.stageKey))}・${esc(formShort(formOf(s.formId)||{name:'形態不明'}))}・${esc(SOURCES[s.source])} ${esc(suitText(s))}</span>`).join('')}</div>`
       :'<div class="small">適正ステージは未登録です（ステージ画面の「＋ 適正を追加」から登録）</div>';
     return `<div class="card chara open">${head}
+      ${flash?`<div class="okMsg" role="status">${esc(flash.text)}</div>`:''}
+      ${guide?`<div class="guide">${esc(guide)}</div>`:''}
       <div class="pgroup">進化形態</div>${formRows}
-      <div class="tools"><button class="tool" data-act="formAdd" data-id="${esc(c.id)}">＋ 進化形態</button>
-        <button class="tool" data-act="unitAdd" data-id="${esc(c.id)}"${forms.length?'':' disabled'}>＋ 所持個体</button>
+      <div class="tools"><button class="tool${forms.length?'':' main'}" data-act="formAdd" data-id="${esc(c.id)}">＋ 進化形態</button>
+        <button class="tool${forms.length&&!units.length?' main':''}" data-act="unitAdd" data-id="${esc(c.id)}">＋ 所持個体</button>
         <button class="tool" data-act="mcharEdit" data-id="${esc(c.id)}">キャラ名を編集</button></div>
       <div class="pgroup">所持個体（端末別）</div>${unitRows}
       <div class="pgroup">適正ステージ</div>${suitRows}</div>`;
   }).join(''):`<div class="empty">${db.master.characters.length?'該当するキャラがいません':'まだキャラが登録されていません（「＋ キャラ追加」から登録）'}</div>`;
+  charaFlash=null; // 保存直後に一度だけ表示
 }
+function suitStagesOf(formId){return new Set(db.suits.filter(x=>x.formId===formId).map(x=>x.stageKey)).size}
 
 /* ---- 管理：旧データ（TOP20）から新形式への取り込み ---- */
 function legacyEntries(){
@@ -1596,7 +1629,7 @@ function saveLend(){
 function returnChar(c){c.lentTo=null;persist();render()}
 function closeModals(){
   document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
-  editingId=null;lendingId=null;rankEditing=null;pendingImport=null;mEdit=null;qrStage=null;
+  editingId=null;lendingId=null;rankEditing=null;pendingImport=null;mEdit=null;qrStage=null;dirtyBase=null;
 }
 
 /* ---- 新構造の編集（キャラ・進化形態・所持個体・適正） ---- */
@@ -1609,6 +1642,36 @@ function raceOptions(sel,customSel,customField,race){
   customSel.value=race&&!RACES.includes(race)?race:'';
   customField.hidden=sel.value!==CUSTOM_RACE;
 }
+// わくわくの実の入力欄（1枠ずつ「実名」「等級」「系統（任意）」をまとめた縦長のブロック。スマホで押しやすい幅）
+const STD_FRUITS=['同族','撃種','戦型'].flatMap(k=>['加撃','加撃速','加命撃'].map(x=>`${k}の絆・${x}`));
+function refreshFruitNameList(){
+  const names=[...new Set([...STD_FRUITS,...db.units.flatMap(u=>u.fruits.map(x=>x.name)).filter(Boolean)])].sort(sortJa);
+  $('fruitNameList').innerHTML=names.map(n=>`<option value="${esc(n)}"></option>`).join('');
+}
+function fruitSlotsHtml(p,visible){
+  return Array.from({length:FRUIT_MAX},(_,i)=>`
+    <div class="frRow frSlot"${i>=visible?' hidden':''}>
+      <div class="frHead">わくわくの実${i+1}${i>=FRUIT_BASE?'（4枠目）':''}</div>
+      <label class="frLbl" for="${p}Name${i}">実名</label>
+      <input id="${p}Name${i}" maxlength="20" list="fruitNameList" autocomplete="off" placeholder="例：同族の絆・加撃" aria-label="わくわくの実${i+1}の実名">
+      <div class="frSub">
+        <div><label class="frLbl" for="${p}Grade${i}">等級</label><select id="${p}Grade${i}" aria-label="わくわくの実${i+1}の等級"><option value="">未設定</option>${GRADES.map(g=>`<option>${g}</option>`).join('')}</select></div>
+        <div><label class="frLbl" for="${p}Kind${i}">系統（任意）</label><select id="${p}Kind${i}" aria-label="わくわくの実${i+1}の系統"><option value="">未設定</option>${FRUIT_KINDS.map(k=>`<option>${k}</option>`).join('')}</select></div>
+      </div>
+    </div>`).join('');
+}
+// 未保存の入力がある画面を閉じるときは確認する（所持個体・ステージからの登録）
+let dirtyBase=null;
+function dirtyState(id){const m=$(id);return m?JSON.stringify([...m.querySelectorAll('input,select')].map(e=>e.type==='checkbox'?e.checked:e.value)):''}
+function markClean(id){dirtyBase={id,state:dirtyState(id)}}
+function confirmDiscard(){
+  const open=document.querySelector('.modalBack.open');
+  if(!open||!dirtyBase||dirtyBase.id!==open.id) return true;
+  return dirtyState(open.id)===dirtyBase.state||confirm('入力内容を破棄しますか？');
+}
+// 保存後にキャラ画面で一度だけ出す案内
+let charaFlash=null;
+
 function openMChar(c=null){
   mEdit={type:'mchar',id:c?c.id:null};
   $('mcTitle').textContent=c?'キャラ名を編集':'キャラ追加';
@@ -1616,15 +1679,19 @@ function openMChar(c=null){
   const used=c&&formsOfChar(c.id).length;
   $('mcDelete').style.display=c?'':'none';$('mcDelete').disabled=!!used;
   $('mcNote').textContent=used?'進化形態が登録されているキャラは削除できません（先に形態を削除）':'';
+  $('mcNext').hidden=!!c;
   $('mcharModal').classList.add('open');
 }
-function saveMChar(){
+// next=true：保存後そのまま進化形態の登録へ（キャラ → 進化形態 → 所持個体 を一続きで）
+function saveMChar(next){
   const name=clean($('mcName').value,40);
   if(!name){$('mcNote').textContent='キャラ名を入力してください';return}
   if(db.master.characters.some(c=>c.name===name&&c.id!==mEdit.id)){$('mcNote').textContent='同じ名前のキャラが既にあります';return}
-  if(mEdit.id) charOf(mEdit.id).name=name;
-  else{const id=uid();db.master.characters.push({id,name});db.ui.charaOpen=id}
+  let id=mEdit.id;
+  if(id) charOf(id).name=name;
+  else{id=uid();db.master.characters.push({id,name});db.ui.charaOpen=id}
   persist();closeModals();render();
+  if(next) openForm(id,null,{next:true,guide:'キャラ「'+name+'」を登録しました。次に進化形態を登録してください。'});
 }
 function deleteMChar(){
   const c=charOf(mEdit?.id);if(!c||formsOfChar(c.id).length)return;
@@ -1632,8 +1699,11 @@ function deleteMChar(){
   db.master.characters=db.master.characters.filter(x=>x.id!==c.id);
   persist();closeModals();render();
 }
-function openForm(charId,f=null){
+// opts.guide：上部の案内文。opts.next：保存後に所持個体の登録へ進むボタンを強調
+function openForm(charId,f=null,opts={}){
   mEdit={type:'form',id:f?f.id:null,charId:f?f.characterId:charId};
+  $('fmGuide').hidden=!opts.guide;$('fmGuide').textContent=opts.guide||'';
+  $('fmNext').hidden=!!f;
   const c=charOf(mEdit.charId);
   $('fmTitle').textContent=`${c?c.name:'（キャラ不明）'}：${f?'進化形態を編集':'進化形態を追加'}`;
   $('fmName').value=f?f.name:'';$('fmShort').value=f?f.short:'';
@@ -1646,7 +1716,7 @@ function openForm(charId,f=null){
   $('fmNote').textContent=used?'所持個体または適正が登録されている形態は削除できません':'';
   $('formModal').classList.add('open');$('formModal').querySelector('.modal').scrollTop=0;
 }
-function saveForm(){
+function saveForm(next){
   const name=clean($('fmName').value,60);
   if(!name){$('fmNote').textContent='正式な進化形態名を入力してください';return}
   const old=mEdit.id?formOf(mEdit.id):null, custom=$('fmRaceCustom').value;
@@ -1654,7 +1724,9 @@ function saveForm(){
   const b=normBasic({battleType:$('fmBattle').value,shotType:$('fmShot').value});
   const item={id:old?old.id:uid(),characterId:mEdit.charId,name,short:clean($('fmShort').value,16),race,battleType:b.battleType,shotType:b.shotType};
   db.master.forms=old?db.master.forms.map(f=>f.id===old.id?item:f):[...db.master.forms,item];
+  db.ui.charaOpen=item.characterId;
   persist();closeModals();render();
+  if(next) openUnit(item.characterId,null,item.id);
 }
 function deleteForm(){
   const f=formOf(mEdit?.id);if(!f||db.units.some(u=>u.formId===f.id)||db.suits.some(s=>s.formId===f.id))return;
@@ -1662,29 +1734,29 @@ function deleteForm(){
   db.master.forms=db.master.forms.filter(x=>x.id!==f.id);
   persist();closeModals();render();
 }
-function openUnit(charId,u=null){
+// preFormId：進化形態の登録から続けて開いたときに、その形態を選んだ状態にする
+function openUnit(charId,u=null,preFormId=null){
   const f=u?formOf(u.formId):null;
   mEdit={type:'unit',id:u?u.id:null,charId:f?f.characterId:charId};
   const c=charOf(mEdit.charId), forms=formsOfChar(mEdit.charId);
-  $('unTitle').textContent=`${c?c.name:'（キャラ不明）'}：${u?`個体${u.no??'?'}を編集`:'所持個体を追加'}`;
+  $('unTitle').textContent=u?`個体${u.no??'?'}を編集`:'所持個体を登録';
+  $('unChar').textContent=`キャラ：${c?c.name:'（キャラ不明）'}`;
   $('unDevice').innerHTML=DEVICES.map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}</option>`).join('');
   $('unDevice').value=u&&DEVICES.includes(u.device)?u.device:(DEVICES.includes(db.ui.rankDevice)?db.ui.rankDevice:DEVICES[0]);
   $('unForm').innerHTML=(u&&!f?'<option value="">（形態不明・要確認）</option>':'')+forms.map(x=>`<option value="${esc(x.id)}">${esc(formShort(x))}（${esc(x.name)}）</option>`).join('');
-  $('unForm').value=u?(f?u.formId:''):(forms[0]?.id||'');
+  $('unForm').value=u?(f?u.formId:''):(forms.some(x=>x.id===preFormId)?preFormId:(forms[0]?.id||''));
+  $('unFormNote').textContent=forms.length===1?'この進化形態で登録します':`${forms.length}つの進化形態から選んでください`;
   $('unNo').value=u?.no??nextUnitNo($('unForm').value,$('unDevice').value);
   $('unMemo').value=u?u.memo:'';
   // 3枠が基本。4枠目は既に4つ目を持っている個体だけ最初から表示し、それ以外は「＋4枠目」で開く
   const four=!!(u&&u.fruits.length>FRUIT_BASE);
-  $('unFruits').innerHTML=Array.from({length:FRUIT_MAX},(_,i)=>`
-    <div class="frRow"${i>=FRUIT_BASE&&!four?' hidden':''}><span class="no">${i+1}</span>
-      <input id="unFrName${i}" maxlength="20" placeholder="例：撃種加撃" aria-label="わくわくの実${i+1}の名前">
-      <select id="unFrGrade${i}" aria-label="わくわくの実${i+1}の等級"><option value="">等級</option>${GRADES.map(g=>`<option>${g}</option>`).join('')}</select>
-      <select id="unFrKind${i}" aria-label="わくわくの実${i+1}の系統"><option value="">系統</option>${FRUIT_KINDS.map(k=>`<option>${k}</option>`).join('')}</select>
-    </div>`).join('');
+  refreshFruitNameList();
+  $('unFruits').innerHTML=fruitSlotsHtml('unFr',four?FRUIT_MAX:FRUIT_BASE);
   (u?u.fruits:[]).forEach((x,i)=>{$('unFrName'+i).value=x.name;$('unFrGrade'+i).value=x.grade;$('unFrKind'+i).value=x.kind});
   $('unFruit4Btn').hidden=four;
   $('unDelete').style.display=u?'':'none';$('unNote').textContent='';
   $('unitModal').classList.add('open');$('unitModal').querySelector('.modal').scrollTop=0;
+  markClean('unitModal');
 }
 function saveUnit(){
   const formId=$('unForm').value, device=$('unDevice').value;
@@ -1696,7 +1768,16 @@ function saveUnit(){
     fruits:normFruits(Array.from({length:FRUIT_MAX},(_,i)=>({name:$('unFrName'+i).value,grade:$('unFrGrade'+i).value,kind:$('unFrKind'+i).value}))),
     memo:clean($('unMemo').value,100)};
   db.units=old?db.units.map(u=>u.id===old.id?item:u):[...db.units,item];
-  persist();closeModals();render();
+  // 保存後はそのキャラの詳細へ戻り、保存した個体をすぐ見えるようにする
+  const fm=formOf(formId), hasSuit=db.suits.some(x=>x.formId===formId);
+  db.ui.charaOpen=fm.characterId;
+  charaFlash={unitId:item.id,text:`所持個体を保存しました（${device} 個体${item.no}・${formShort(fm)}）`+
+    (hasSuit?'':'。この進化形態のステージ適正は未登録のため、ステージ画面の候補にはまだ出ません（ステージ画面の「＋ 適正を追加」で登録）')};
+  persist();closeModals();
+  if(db.ui.view!=='chara') db.ui.view='chara';
+  render();
+  const row=document.querySelector(`#charaList [data-unit="${CSS.escape(item.id)}"]`);
+  if(row) row.scrollIntoView({block:'center'});
 }
 function deleteUnit(){
   const u=db.units.find(x=>x.id===mEdit?.id);if(!u)return;
@@ -1727,12 +1808,8 @@ function openQuickReg(){
   const use=useDevsOf(qrStage);
   $('qrDevice').innerHTML=DEVICES.map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}${use.includes(d)?`（${SLOT_MARKS[use.indexOf(d)]}）`:''}</option>`).join('');
   $('qrDevice').value=use.find(d=>!db.picks[qrStage]?.[d])||use[0]||DEVICES[0];
-  $('qrFruits').innerHTML=Array.from({length:FRUIT_MAX},(_,i)=>`
-    <div class="frRow"><span class="no">${i+1}</span>
-      <input id="qrFrName${i}" maxlength="20" placeholder="${i===FRUIT_MAX-1?'4つ目（任意）':'例：同族の絆・加撃'}" aria-label="わくわくの実${i+1}の名前">
-      <select id="qrFrGrade${i}" aria-label="わくわくの実${i+1}の等級"><option value="">等級</option>${GRADES.map(g=>`<option>${g}</option>`).join('')}</select>
-      <select id="qrFrKind${i}" aria-label="わくわくの実${i+1}の系統"><option value="">系統</option>${FRUIT_KINDS.map(k=>`<option>${k}</option>`).join('')}</select>
-    </div>`).join('');
+  refreshFruitNameList();
+  $('qrFruits').innerHTML=fruitSlotsHtml('qrFr',FRUIT_MAX);
   $('qrSource').innerHTML=Object.entries(SOURCES).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
   $('qrSource').value='MANUAL';
   $('qrEval').innerHTML=Object.entries(EVAL_TYPES).map(([v,l])=>`<option value="${v}">${esc(l)}（${v}）</option>`).join('');
@@ -1742,6 +1819,7 @@ function openQuickReg(){
   $('qrSuitOn').checked=true;$('qrMsg').textContent='';
   syncQrChar();syncQrSuit();
   $('qrModal').classList.add('open');$('qrModal').querySelector('.modal').scrollTop=0;
+  markClean('qrModal');
 }
 function syncQrChar(){
   const cid=$('qrChar').value, isNew=cid===NEW;
@@ -2149,7 +2227,7 @@ function restore(){
 /* ---- イベント ---- */
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');
-  if(e.target.classList.contains('modalBack')){closeModals();return}
+  if(e.target.classList.contains('modalBack')){if(confirmDiscard())closeModals();return}
   if(!b)return;
   const c=b.dataset.id?db.characters.find(x=>x.id===b.dataset.id):null;
   switch(b.dataset.act){
@@ -2177,7 +2255,7 @@ document.addEventListener('click',e=>{
     case 'saveChar':saveChar();break;
     case 'deleteChar':deleteChar();break;
     case 'saveLend':saveLend();break;
-    case 'close':closeModals();break;
+    case 'close':if(confirmDiscard())closeModals();break;
     case 'saveNames':saveNames();break;
     case 'addStage':addStage();break;
     case 'removeStage':removeStage(b.dataset.stage);break;
@@ -2217,12 +2295,18 @@ document.addEventListener('click',e=>{
     case 'mcharAdd':openMChar();break;
     case 'mcharEdit':{const x=charOf(b.dataset.id);if(x)openMChar(x);break}
     case 'saveMChar':saveMChar();break;
+    case 'saveMCharNext':saveMChar(true);break;
     case 'deleteMChar':deleteMChar();break;
     case 'formAdd':if(charOf(b.dataset.id))openForm(b.dataset.id);break;
     case 'formEdit':{const f=formOf(b.dataset.id);if(f)openForm(f.characterId,f);break}
     case 'saveForm':saveForm();break;
+    case 'saveFormNext':saveForm(true);break;
     case 'deleteForm':deleteForm();break;
-    case 'unitAdd':if(charOf(b.dataset.id)&&formsOfChar(b.dataset.id).length)openUnit(b.dataset.id);break;
+    // 進化形態が無いときも反応する：先に進化形態の登録を開き、保存後そのまま所持個体の登録へ進める
+    case 'unitAdd':if(charOf(b.dataset.id)){
+      if(formsOfChar(b.dataset.id).length) openUnit(b.dataset.id);
+      else openForm(b.dataset.id,null,{next:true,guide:'先に進化形態を登録してください。「保存して所持個体の登録へ」を押すと、そのまま端末とわくわくの実の登録へ進みます。'});
+    }break;
     case 'unitEdit':{const u=db.units.find(x=>x.id===b.dataset.id);if(u)openUnit(null,u);break}
     case 'saveUnit':saveUnit();break;
     case 'deleteUnit':deleteUnit();break;
@@ -2232,7 +2316,7 @@ document.addEventListener('click',e=>{
     case 'deleteSuit':deleteSuit();break;
     case 'migrate':migrateEntry(b.dataset.id);break;
     case 'suitVerify':verifySuit(b.dataset.id);break;
-    case 'showFruit4':document.querySelectorAll('#unFruits .frRow[hidden]').forEach(r=>{r.hidden=false});b.hidden=true;$('unFrName3').focus();break;
+    case 'showFruit4':document.querySelectorAll('#unFruits .frRow[hidden]').forEach(r=>{r.hidden=false});b.hidden=true;$('unFrName3').focus();$('unFrName3').scrollIntoView({block:'center'});break;
     case 'imPreview':$('imMsg').textContent='';previewSuitImport();break;
     case 'imApply':confirmSuitImport();break;
     case 'issueDone':db.importIssues=db.importIssues.filter(x=>x.id!==b.dataset.id);persist();render();break;
