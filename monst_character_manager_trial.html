@@ -174,6 +174,18 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .dpBox{flex:none;width:18px;height:18px;border:2px solid currentColor;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1}
 .dpMsg{font-size:12px;font-weight:800;color:#b45309;min-height:1em;margin-top:4px}
 .dpMsg:empty{display:none}
+.invSum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:6px}
+.invSum div{background:#f8fafc;border-radius:8px;text-align:center;font-size:11px;color:#64748b;padding:4px}
+.invSum b{display:block;font-size:16px;color:#0f172a}
+.invSec{font-size:13px;font-weight:900;margin:10px 0 4px}
+.invRow{border-radius:10px;padding:6px 8px;margin-bottom:4px;background:#f8fafc;border-left:4px solid #94a3b8;overflow-wrap:anywhere}
+.invRow.inv-ok{border-left-color:#16a34a}
+.invRow.inv-review{border-left-color:#d97706;background:#fffbeb}
+.invRow.inv-conflict{border-left-color:#dc2626;background:#fef2f2}
+.invRow.inv-reject{border-left-color:#64748b;background:#f1f5f9}
+.invRow .warn{color:#92400e;font-weight:700}
+.invChecks{margin-top:8px}
+.invChecks summary,#invChecksSaved summary{font-size:12px;font-weight:800;color:#475569;min-height:32px;display:flex;align-items:center}
 /* わくわくの実の入力ブロック（1枠＝実名＋等級＋系統） */
 .frRow.frSlot{display:block;border:1px solid #e9d5ff;background:#faf5ff;border-radius:12px;padding:8px 10px;margin-bottom:8px}
 .frRow.frSlot[hidden]{display:none}
@@ -334,6 +346,20 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
         <button class="tool main" data-act="addStage">追加</button>
       </div>
       <div class="msg" id="exMsg"></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">所持データの取り込み（JSON）</div>
+      <div class="small">端末ごとの所持確認（所持／未所持）と所持個体（進化形態・図鑑No.・種族・戦型・撃種・わくわくの実）を取り込みます。適正データ（ステージ適正）の取り込みとは別です。まず「内容を確認」で結果を見てから「取り込む」を押してください。JSONに無い項目は空欄のままにし、推測では補いません。</div>
+      <label for="invFile" style="margin-top:8px">ファイルから読み込む</label>
+      <input id="invFile" type="file" accept="application/json,.json,.txt">
+      <textarea id="invText" style="margin-top:6px" placeholder="所持データのJSONを貼り付け"></textarea>
+      <div class="tools">
+        <button class="tool" data-act="invPreview">内容を確認</button>
+        <button class="tool main" id="invApply" data-act="invApply" disabled>取り込む</button>
+      </div>
+      <div id="invResult" style="margin-top:6px"></div>
+      <div class="msg" id="invMsg"></div>
+      <div id="invChecksSaved"></div>
     </div>
     <div class="panel">
       <div class="ptitle">適正データの取り込み（JSON）</div>
@@ -714,6 +740,11 @@ const RACE_GROUPS=[
 const RACES=RACE_GROUPS.flatMap(([,names])=>names);
 const CUSTOM_RACE='__custom__';
 const BATTLE_TYPES=['バランス型','パワー型','スピード型','砲撃型'];
+// 進化形態（master.forms）の戦型は超戦型も持てる。旧TOP10の基本情報（BATTLE_TYPES）は従来どおり
+const FORM_BATTLE_TYPES=[...BATTLE_TYPES,'超バランス型','超パワー型','超スピード型','超砲撃型'];
+function normFormBasic(x){
+  return {battleType:FORM_BATTLE_TYPES.includes(x?.battleType)?x.battleType:'',shotType:SHOT_TYPES.includes(x?.shotType)?x.shotType:''};
+}
 const SHOT_TYPES=['反射','貫通'];
 function normBasic(e){
   return {race:typeof e?.race==='string'?e.race:'',
@@ -762,6 +793,7 @@ const SOURCES={GAME_CLEAR_MONSTERS:'みんなのクリアモンスター',GAMEWI
 const IMPORT_SOURCES=['GAME_CLEAR_MONSTERS','GAMEWITH','ALTEMA','OTHER_SITE'];
 const EVAL_TYPES={RANK:'順位',GRADE:'ランク',CANDIDATE:'候補'};
 const VERIFY={VERIFIED:'確認済み',UNVERIFIED:'未検証',NEEDS_REVIEW:'要確認'};
+const OWN_CHECK={OWNED_EXACT:'所持',OWNED_OTHER_FORM:'別形態で所持',NOT_OWNED:'未所持',NEEDS_REVIEW:'要確認'};
 const INFO_MODES=[['form','進化形態'],['type','種族・戦型・撃種'],['fruit','実'],['all','全部']];
 function normFruits(a){
   if(!Array.isArray(a)) return [];
@@ -792,15 +824,28 @@ function normV3(raw,d){
     .map(c=>({id:clean(c.id,40),name:clean(c.name,40)})).filter(c=>c.name&&once(c.id));
   // 参照先のキャラが無い形態・形態が無い個体/適正も消さずに残す（画面で「要確認」と表示する）
   d.master.forms=(Array.isArray(m.forms)?m.forms:[]).filter(f=>f&&typeof f==='object').map(f=>{
-    const b=normBasic(f);
-    return {id:clean(f.id,40),characterId:clean(f.characterId,40),name:clean(f.name,60),short:clean(f.short,16),
+    const b=normFormBasic(f);
+    const x={id:clean(f.id,40),characterId:clean(f.characterId,40),name:clean(f.name,60),short:clean(f.short,16),
       race:typeof f.race==='string'?f.race:'',battleType:b.battleType,shotType:b.shotType};
+    // 図鑑No.・表示名（所持データ取り込みで入る。無い形態には項目を作らない）
+    const no=clean(f.monsterNo,10), full=clean(f.fullDisplayName,80);
+    if(no) x.monsterNo=no;
+    if(full) x.fullDisplayName=full;
+    return x;
   }).filter(f=>f.name&&once(f.id));
   d.units=(Array.isArray(raw.units)?raw.units:[]).filter(u=>u&&typeof u==='object').map(u=>{
     const no=parseInt(u.no,10);
     return {id:clean(u.id,40),formId:clean(u.formId,40),device:DEVICES.includes(u.device)?u.device:clean(u.device,20),
-      no:no>=1&&no<=99?no:null,fruits:normFruits(u.fruits),memo:clean(u.memo,100)};
+      no:no>=1&&no<=99?no:null,fruits:normFruits(u.fruits),memo:clean(u.memo,100),
+      // 所持データ取り込みで入った個体だけが持つ項目（確認状態・取り込み元）
+      ...(VERIFY[u.verificationStatus]?{verificationStatus:u.verificationStatus}:{}),...(clean(u.importSource,60)?{importSource:clean(u.importSource,60)}:{})};
   }).filter(u=>once(u.id));
+  // 端末ごとの所持確認の記録（BOX検索で「所持／別形態／未所持」を確認した結果）。units / suits とは別に保持する
+  d.ownershipChecks=(Array.isArray(raw.ownershipChecks)?raw.ownershipChecks:[]).filter(x=>x&&typeof x==='object'&&OWN_CHECK[x.status]).map(x=>({
+    id:clean(x.id,40),device:DEVICES.includes(x.device)?x.device:clean(x.device,20),characterName:clean(x.characterName,40),
+    requestedFormName:clean(x.requestedFormName,60),scope:clean(x.scope,20),stage:clean(x.stage,40),stageKey:isStageKey(x.stageKey)?x.stageKey:'',
+    status:x.status,checkedAt:clean(x.checkedAt,40),importedAt:clean(x.importedAt,40),source:clean(x.source,60)
+  })).filter(x=>x.characterName&&once(x.id));
   d.suits=(Array.isArray(raw.suits)?raw.suits:[]).filter(s=>s&&typeof s==='object'&&SOURCES[s.source]&&isStageKey(s.stageKey))
     .map(normSuit).filter(s=>once(s.id));
   // ステージごとの「今回使う端末」（最大4台・選んだ順＝①〜④の編成順で保持）
@@ -831,7 +876,7 @@ function blank(){
   return {app:APP,version:1,deviceNames:{},characters:[],
     extraStages:Object.fromEntries(QUESTS.filter(q=>q.canAdd).map(q=>[q.id,[]])),
     rankings:{},ownership:{},
-    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],
+    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],ownershipChecks:[],
     ui:{view:'stage',quest:QUESTS[0].id,stage:{},rankDevice:DEVICES[0],infoMode:'none',charaOpen:null}};
 }
 function normalize(raw){
@@ -1415,7 +1460,7 @@ function unitCardHtml(u,unverified){
   const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
   return `<div class="uCard">
     <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b><span class="uSep">｜</span><span class="uForm">${esc(f?formShort(f):'形態不明・要確認')}</span>
-      <span class="uNo">個体${u.no??'?'}</span>${unverified?'<span class="vb v-UNVERIFIED">未検証</span>':''}</div>
+      <span class="uNo">個体${u.no??'?'}</span>${unverified?'<span class="vb v-UNVERIFIED">未検証</span>':''}${u.verificationStatus==='NEEDS_REVIEW'?'<span class="vb v-NEEDS_REVIEW">個体要確認</span>':''}</div>
     <div class="uL2">${[['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
     ${u.fruits.length?`<div class="uL3">${u.fruits.slice(0,FRUIT_BASE).map(chip).join('')}</div>${u.fruits.length>FRUIT_BASE?`<div class="uL3 uL4">${u.fruits.slice(FRUIT_BASE).map(chip).join('')}</div>`:''}`
       :'<div class="uL3"><span class="frNone">実なし</span></div>'}
@@ -1501,14 +1546,14 @@ function renderChara(){
     const flash=charaFlash&&units.some(u=>u.id===charaFlash.unitId)?charaFlash:null;
     const guide=!forms.length?'① 「＋ 進化形態」で進化形態を登録 → ② 「＋ 所持個体」で端末とわくわくの実を登録'
       :!units.length?'次に「＋ 所持個体」で、どの端末にいるかと、わくわくの実を登録してください':'';
-    const formRows=forms.map(f=>`<div class="row"><div class="rowMain"><div class="cname">${esc(formShort(f))}<span class="x">${esc(f.name)}</span></div>
+    const formRows=forms.map(f=>`<div class="row"><div class="rowMain"><div class="cname">${esc(formShort(f))}<span class="x">${esc(f.name)}${f.monsterNo?` No.${esc(f.monsterNo)}`:''}</span></div>
       <div class="badges">${typeChips(f)}</div></div><button class="mini" data-act="formEdit" data-id="${esc(f.id)}">編集</button></div>`).join('')
       ||'<div class="small">進化形態が未登録です</div>';
     const unitRows=DEVICES.map(d=>{
       const us=units.filter(u=>u.device===d).sort((a,b)=>(a.no||0)-(b.no||0));
       if(!us.length) return '';
       return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>`<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
-        <div class="cname">個体${u.no??'?'}<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span></div>
+        <div class="cname">個体${u.no??'?'}<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span>${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}</div>
         <div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}
         <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:'ステージ適正 未登録（ステージ画面の候補には出ません）'}</div></div>
         <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></div>`).join('');
@@ -1562,7 +1607,7 @@ function renderMigration(){
 function render(){
   VIEWS.forEach(v=>$('view-'+v).classList.toggle('active',v===db.ui.view));
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===db.ui.view));
-  renderStage();renderInfoBar();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();
+  renderStage();renderInfoBar();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();renderOwnershipChecks();
 }
 function scrollActiveChip(){
   const a=document.querySelector('#stageChips .chip.active');
@@ -1708,7 +1753,7 @@ function openForm(charId,f=null,opts={}){
   $('fmTitle').textContent=`${c?c.name:'（キャラ不明）'}：${f?'進化形態を編集':'進化形態を追加'}`;
   $('fmName').value=f?f.name:'';$('fmShort').value=f?f.short:'';
   raceOptions($('fmRace'),$('fmRaceCustom'),$('fmRaceCustomField'),f?f.race:'');
-  $('fmBattle').innerHTML='<option value="">未設定</option>'+BATTLE_TYPES.map(n=>`<option>${n}</option>`).join('');
+  $('fmBattle').innerHTML='<option value="">未設定</option>'+FORM_BATTLE_TYPES.map(n=>`<option>${n}</option>`).join('');
   $('fmShot').innerHTML='<option value="">未設定</option>'+SHOT_TYPES.map(n=>`<option>${n}</option>`).join('');
   $('fmBattle').value=f?f.battleType:'';$('fmShot').value=f?f.shotType:'';
   const used=f&&(db.units.some(u=>u.formId===f.id)||db.suits.some(s=>s.formId===f.id));
@@ -1721,8 +1766,9 @@ function saveForm(next){
   if(!name){$('fmNote').textContent='正式な進化形態名を入力してください';return}
   const old=mEdit.id?formOf(mEdit.id):null, custom=$('fmRaceCustom').value;
   const race=$('fmRace').value===CUSTOM_RACE?(old&&custom===old.race?custom:clean(custom,40)):$('fmRace').value;
-  const b=normBasic({battleType:$('fmBattle').value,shotType:$('fmShot').value});
-  const item={id:old?old.id:uid(),characterId:mEdit.charId,name,short:clean($('fmShort').value,16),race,battleType:b.battleType,shotType:b.shotType};
+  const b=normFormBasic({battleType:$('fmBattle').value,shotType:$('fmShot').value});
+  // 図鑑No.・表示名（取り込みで入った値）は編集画面に欄が無いのでそのまま引き継ぐ
+  const item={...(old||{}),id:old?old.id:uid(),characterId:mEdit.charId,name,short:clean($('fmShort').value,16),race,battleType:b.battleType,shotType:b.shotType};
   db.master.forms=old?db.master.forms.map(f=>f.id===old.id?item:f):[...db.master.forms,item];
   db.ui.charaOpen=item.characterId;
   persist();closeModals();render();
@@ -1802,7 +1848,7 @@ function openQuickReg(){
   $('qrChar').value=NEW;$('qrCharName').value='';
   ['qrFormName','qrFormShort','qrRaceCustom','qrSite','qrRank','qrGrade'].forEach(id=>{$(id).value=''});
   raceOptions($('qrRace'),$('qrRaceCustom'),$('qrRaceCustomField'),'');
-  $('qrBattle').innerHTML='<option value="">未設定</option>'+BATTLE_TYPES.map(n=>`<option>${n}</option>`).join('');
+  $('qrBattle').innerHTML='<option value="">未設定</option>'+FORM_BATTLE_TYPES.map(n=>`<option>${n}</option>`).join('');
   $('qrShot').innerHTML='<option value="">未設定</option>'+SHOT_TYPES.map(n=>`<option>${n}</option>`).join('');
   // 端末：今回使う端末のうち、まだ個体を選んでいない最初の端末（なければ①、未選択ならメイン）
   const use=useDevsOf(qrStage);
@@ -1868,7 +1914,7 @@ function saveQuickReg(){
     const name=clean($('qrFormName').value,60);
     if(!name) return err('正式な進化形態名を入力してください');
     if(!newChar&&formsOfChar(charId).some(f=>f.name===name)) return err('同じ名前の進化形態が既にあります（一覧から選んでください）');
-    const custom=$('qrRaceCustom').value, b=normBasic({battleType:$('qrBattle').value,shotType:$('qrShot').value});
+    const custom=$('qrRaceCustom').value, b=normFormBasic({battleType:$('qrBattle').value,shotType:$('qrShot').value});
     newForm={id:uid(),characterId:charId,name,short:clean($('qrFormShort').value,16),
       race:$('qrRace').value===CUSTOM_RACE?clean(custom,40):$('qrRace').value,battleType:b.battleType,shotType:b.shotType};
     formId=newForm.id;
@@ -2115,6 +2161,206 @@ function confirmSuitImport(){
     ?`取り込みました（追加${pi.plan.add.length}件・更新${pi.plan.update.length}件・要確認${pi.plan.issues.length}件）。取り込んだ適正は確認するまで「未検証」です。`
     :'取り込みに失敗したため、取り込み前の状態に戻しました';
 }
+/* ---- 所持データ（所持確認・所持個体）のJSON取り込み ----
+   適正データ（suits）とは別物。ステージ名は「どのステージの候補として検索したか」の情報なので、suits は作らない。
+   形式: {"schema":"monst-hakai-main-staging-v1","device":"メイン","scope":"破界の星墓",
+          "ownershipChecks":[{characterName,requestedFormName,stage,status}],
+          "units":[{characterName,formName,fullDisplayName,monsterNo,race,battleType,shotType,unitNo,fruits:[{name,grade}],verificationStatus,note}]}
+   ・推測しない：JSONに無い項目（null/空）は空欄のまま。名前は完全一致だけで照合し、表記揺れを同一視しない
+   ・分類：取り込み可能（VERIFIEDで情報がそろう）／要確認（確認済みの部分だけ取り込み「要確認」の印を付ける）／
+           矛盾（既存データと食い違う。上書きせず取り込まない）／取り込み不可（キャラ名・進化形態が空など）
+   ・再取り込み：同じ個体（端末＋キャラ＋進化形態＋個体番号）で同じ内容なら何もしない。空欄への追加だけ補完。
+     食い違いは上書きせず「矛盾」にする
+   ・取り込みは「内容を確認」→「取り込む」の2段階。保存に失敗したら取り込み前の状態に戻す */
+const INV_SCHEMAS=['monst-hakai-main-staging-v1'];
+const INV_FIELDS=[['monsterNo','図鑑No.'],['race','種族'],['battleType','戦型'],['shotType','撃種']];
+let pendingInv=null;
+function invText(v,max){return typeof v==='string'||typeof v==='number'?clean(String(v),max):''}
+function parseInventory(text){
+  let j;
+  try{j=JSON.parse(text)}catch{return {errors:['JSONとして読み取れません']}}
+  const err=[];
+  if(!j||typeof j!=='object'||Array.isArray(j)) return {errors:['データの形式が正しくありません']};
+  if(!INV_SCHEMAS.includes(j.schema)) err.push(`schema が不明です（${INV_SCHEMAS.join(' / ')}）`);
+  if(!DEVICES.includes(j.device)) err.push('device（端末名）が不明です');
+  if(!QMAP[j.scope]) err.push('scope（クエスト名）が不明です');
+  if(!Array.isArray(j.units)) err.push('units が配列ではありません');
+  if(!Array.isArray(j.ownershipChecks)) err.push('ownershipChecks が配列ではありません');
+  (Array.isArray(j.units)?j.units:[]).forEach((u,i)=>{if(!u||typeof u!=='object'||Array.isArray(u)) err.push(`units の${i+1}件目の形式が正しくありません`)});
+  (Array.isArray(j.ownershipChecks)?j.ownershipChecks:[]).forEach((c,i)=>{
+    if(!c||typeof c!=='object'||Array.isArray(c)) err.push(`ownershipChecks の${i+1}件目の形式が正しくありません`);
+    else if(!OWN_CHECK[c.status]) err.push(`ownershipChecks の${i+1}件目の status が不明です（${Object.keys(OWN_CHECK).join(' / ')}）`);
+    else if(!invText(c.characterName,40)) err.push(`ownershipChecks の${i+1}件目に characterName がありません`);
+  });
+  if((j.units||[]).length>300||(j.ownershipChecks||[]).length>500) err.push('件数が多すぎます');
+  return err.length?{errors:err}:{errors:[],data:j};
+}
+function fruitsSame(a,b){return JSON.stringify(a.map(x=>[x.name,x.grade,x.kind||'']))===JSON.stringify(b.map(x=>[x.name,x.grade,x.kind||'']))}
+// 取り込み計画を作るだけ（db は変更しない）。コピーの上で順に照合するので、同じJSON内の同じキャラも1件にまとまる
+function planInventory(j){
+  const dev=j.device, src=j.schema;
+  const chars=JSON.parse(JSON.stringify(db.master.characters)), forms=JSON.parse(JSON.stringify(db.master.forms)), units=JSON.parse(JSON.stringify(db.units));
+  const charName=f=>chars.find(c=>c.id===f.characterId)?.name||'';
+  const formById=id=>forms.find(f=>f.id===id);
+  const rows=j.units.map((u,i)=>{
+    const r={i,characterName:invText(u.characterName,40),formName:invText(u.formName,60),fullDisplayName:invText(u.fullDisplayName,80),
+      unitNo:u.unitNo,vs:u.verificationStatus,note:invText(u.note,100),cls:'ok',reasons:[],actions:[],same:false};
+    const fail=(cls,m)=>{r.cls=cls;r.reasons.push(m);return r};
+    if(!r.characterName) return fail('reject','キャラ名が空のため識別できません');
+    if(!r.formName) return fail('reject','進化形態名が空のため識別できません（所持確認の記録としては残ります）');
+    if(!VERIFY[r.vs]) r.reasons.push('verificationStatus が無い／不明のため「要確認」として扱います');
+    const no=Number.isInteger(u.unitNo)&&u.unitNo>=1&&u.unitNo<=99?u.unitNo:null;
+    if(no==null) r.reasons.push('個体番号（unitNo）が無い／不正のため、自動で番号を付けます');
+    // 項目の読み取り（無いものは空欄。推測しない）
+    const inc={monsterNo:invText(u.monsterNo,10),race:invText(u.race,40),battleType:'',shotType:''};
+    const bt=invText(u.battleType,20), st=invText(u.shotType,20);
+    if(bt){if(FORM_BATTLE_TYPES.includes(bt)) inc.battleType=bt; else r.reasons.push(`戦型「${bt}」は未対応の表記のため取り込みません`)}
+    if(st){if(SHOT_TYPES.includes(st)) inc.shotType=st; else r.reasons.push(`撃種「${st}」は未対応の表記のため取り込みません`)}
+    const fr=Array.isArray(u.fruits)?u.fruits:[];
+    if(fr.length>FRUIT_MAX) r.reasons.push(`実が${fr.length}つあります（最大${FRUIT_MAX}つまで取り込み）`);
+    const fruits=fr.slice(0,FRUIT_MAX).map((x,k)=>{
+      const name=invText(x?.name,20), grade=invText(x?.grade,8);
+      if(grade&&!GRADES.includes(grade)) r.reasons.push(`実${k+1}の等級「${grade}」は未対応のため空欄にします`);
+      if(!name) r.reasons.push(`実${k+1}の名前が空です`);
+      return {name,grade:GRADES.includes(grade)?grade:'',kind:''};
+    }).filter(x=>x.name||x.grade);
+    r.fruits=fruits;r.fields=inc;
+    // キャラ・進化形態の照合（完全一致のみ）
+    const cs=chars.filter(c=>c.name===r.characterName);
+    if(cs.length>1) return fail('conflict','同じ名前のキャラが複数登録されています');
+    if(inc.monsterNo){
+      const other=forms.find(x=>x.monsterNo===inc.monsterNo&&!(charName(x)===r.characterName&&x.name===r.formName));
+      if(other) return fail('conflict',`図鑑No.${inc.monsterNo} が既存の「${charName(other)}｜${other.name}」と同じです（名前が違うため自動では直しません）`);
+    }
+    let ch=cs[0], fm=ch?forms.find(x=>x.characterId===ch.id&&x.name===r.formName):null;
+    const patch={};
+    if(fm){
+      for(const [k,label] of INV_FIELDS){
+        if(!inc[k]) continue;
+        if(!fm[k]) patch[k]=inc[k];
+        else if(fm[k]!==inc[k]) return fail('conflict',`${label}が既存（${fm[k]}）と違います（JSON：${inc[k]}）`);
+      }
+      if(r.fullDisplayName&&!fm.fullDisplayName) patch.fullDisplayName=r.fullDisplayName;
+    }
+    // 個体の照合（端末＋キャラ＋進化形態＋個体番号）
+    let unit=null, unitPatch=null;
+    if(ch&&no!=null){
+      const sameNo=units.filter(x=>x.device===dev&&formById(x.formId)?.characterId===ch.id&&x.no===no);
+      if(sameNo.length){
+        const x=sameNo[0];
+        if(!fm||x.formId!==fm.id) return fail('conflict',`${dev}の「${r.characterName}」個体${no}は別の進化形態（${formById(x.formId)?.name||'不明'}）で登録済みです`);
+        unit=x;
+        if(fruitsSame(x.fruits,fruits)){r.same=true}
+        else if(!x.fruits.length&&fruits.length) unitPatch={fruits};
+        else return fail('conflict',`${dev}の個体${no}の実が既存と違います（上書きしません）`);
+        if(r.vs==='VERIFIED'&&x.verificationStatus==='NEEDS_REVIEW') unitPatch={...(unitPatch||{}),verificationStatus:'VERIFIED'};
+      }
+    }
+    // ここまで矛盾なし → コピーへ反映
+    if(!ch){ch={id:uid(),name:r.characterName};chars.push(ch);r.actions.push('キャラを新規登録')}
+    if(!fm){
+      fm={id:uid(),characterId:ch.id,name:r.formName,short:'',race:inc.race,battleType:inc.battleType,shotType:inc.shotType};
+      if(inc.monsterNo) fm.monsterNo=inc.monsterNo;
+      if(r.fullDisplayName) fm.fullDisplayName=r.fullDisplayName;
+      forms.push(fm);r.actions.push('進化形態を新規登録');
+    }else if(Object.keys(patch).length){
+      Object.assign(fm,patch);r.actions.push('空欄だった項目を補完：'+Object.keys(patch).map(k=>(INV_FIELDS.find(x=>x[0]===k)||[k,'表示名'])[1]).join('・'));
+    }
+    if(!unit){
+      const u2={id:uid(),formId:fm.id,device:dev,no:no??(()=>{const used=units.filter(x=>x.device===dev&&formById(x.formId)?.characterId===ch.id).map(x=>x.no||0);return used.length?Math.max(...used)+1:1})(),
+        fruits,memo:'',verificationStatus:VERIFY[r.vs]?r.vs:'NEEDS_REVIEW',importSource:src};
+      units.push(u2);r.unitNo=u2.no;r.actions.push(`${dev} 個体${u2.no}を登録`);
+    }else if(unitPatch){
+      Object.assign(unit,unitPatch);r.actions.push(unitPatch.fruits?'空だった実を補完':'確認状態を「確認済み」に更新');
+    }else r.actions.push('登録済み（変更なし）');
+    r.formAfter={race:fm.race,battleType:fm.battleType,shotType:fm.shotType,monsterNo:fm.monsterNo||''};
+    const missing=INV_FIELDS.filter(([k])=>!fm[k]).map(([,l])=>l);
+    if(missing.length) r.reasons.push('未取得：'+missing.join('・'));
+    if(r.vs!=='VERIFIED'||r.reasons.length) r.cls='review';
+    return r;
+  });
+  // 所持確認の記録（端末＋キャラ＋指定形態＋ステージ）。同じ内容なら何もしない。結果が違う記録は上書きせず矛盾にする
+  const now=new Date().toISOString(), checks=[], checkSame=[], checkConflict=[], contradictions=[];
+  j.ownershipChecks.forEach(c=>{
+    const x={device:dev,characterName:invText(c.characterName,40),requestedFormName:invText(c.requestedFormName,60),scope:j.scope,
+      stage:invText(c.stage,40),stageKey:isStageKey(key(j.scope,invText(c.stage,40)))&&QMAP[j.scope].stages.includes(invText(c.stage,40))?key(j.scope,invText(c.stage,40)):'',
+      status:c.status,checkedAt:invText(c.checkedAt,40),importedAt:now,source:src};
+    const k=[x.device,x.characterName,x.requestedFormName,x.scope,x.stage].join('\u0001');
+    const cur=db.ownershipChecks.find(e=>[e.device,e.characterName,e.requestedFormName,e.scope,e.stage].join('\u0001')===k);
+    if(cur){ if(cur.status===x.status) checkSame.push(x); else checkConflict.push({...x,existing:cur.status}); return }
+    if(checks.some(e=>[e.device,e.characterName,e.requestedFormName,e.scope,e.stage].join('\u0001')===k)) return;
+    checks.push(x);
+    // 「未所持」なのに既存データではこの端末に所持している → 自動では直さず知らせる
+    if(x.status==='NOT_OWNED'){
+      const ids=new Set(db.master.characters.filter(ch=>ch.name===x.characterName).map(ch=>ch.id));
+      const n=db.units.filter(u=>u.device===dev&&ids.has(formOf(u.formId)?.characterId)).length;
+      if(n) contradictions.push(`${x.characterName}：今回は「未所持」ですが、既存データでは${dev}に${n}体登録されています（自動では変更しません）`);
+    }
+  });
+  const take=rows.filter(r=>r.cls==='ok'||r.cls==='review');
+  const changes=take.filter(r=>!r.same||r.actions.some(a=>a!=='登録済み（変更なし）')).length+checks.length;
+  return {j,rows,chars,forms,units,checks,checkSame,checkConflict,contradictions,changes};
+}
+function invRowHtml(r){
+  const a=r.formAfter||{}, head=`${esc(r.characterName||'（キャラ名なし）')}｜${esc(r.formName||'（進化形態なし）')}`;
+  const typeLine=[a.race,a.battleType,a.shotType].map(v=>v||'未確認').join(' / ');
+  return `<div class="invRow inv-${r.cls}"><div class="cname">${head}</div>
+    ${r.cls==='reject'||r.cls==='conflict'?'':`<div class="meta">${esc(pendingInv?.plan.j.device||'')} 個体${esc(String(r.unitNo??'?'))}・${esc(typeLine)}・実${r.fruits.length}個${a.monsterNo?`・No.${esc(a.monsterNo)}`:''}</div>`}
+    ${r.actions.length?`<div class="meta">${esc(r.actions.join('／'))}</div>`:''}
+    ${r.reasons.map(m=>`<div class="meta warn">${esc(m)}</div>`).join('')}
+    ${r.note?`<div class="meta">メモ：${esc(r.note)}</div>`:''}</div>`;
+}
+function previewInventory(){
+  const text=$('invText').value;
+  pendingInv=null;$('invApply').disabled=true;$('invMsg').textContent='';
+  const p=parseInventory(text);
+  if(p.errors.length){$('invResult').innerHTML=`<div class="note">取り込めません（何も変更していません）：<br>${p.errors.map(esc).join('<br>')}</div>`;return}
+  const plan=planInventory(p.data);
+  pendingInv={text,plan};
+  const by=c=>plan.rows.filter(r=>r.cls===c);
+  const st={};plan.checks.concat(plan.checkSame).forEach(x=>st[x.status]=(st[x.status]||0)+1);
+  $('invApply').disabled=!plan.changes;
+  const sec=(cls,title,list)=>list.length?`<div class="invSec">${title}（${list.length}件）</div>${list.map(invRowHtml).join('')}`:'';
+  $('invResult').innerHTML=`<div class="invSum">
+      <div><b>${by('ok').length}</b>取り込み可能</div><div><b>${by('review').length}</b>要確認</div>
+      <div><b>${by('conflict').length}</b>矛盾</div><div><b>${by('reject').length}</b>取り込み不可</div></div>
+    <div class="small">${esc(p.data.device)}・${esc(p.data.scope)}／個体 ${plan.rows.length}件・所持確認 ${p.data.ownershipChecks.length}件
+      （所持 ${st.OWNED_EXACT||0}・別形態 ${st.OWNED_OTHER_FORM||0}・未所持 ${st.NOT_OWNED||0}・要確認 ${st.NEEDS_REVIEW||0}）。
+      新しい所持確認 ${plan.checks.length}件・登録済み ${plan.checkSame.length}件${plan.checkConflict.length?`・結果が違う記録 ${plan.checkConflict.length}件（上書きしません）`:''}。
+      このJSONから適正（ステージ適正）は作りません。${plan.changes?'':'<b>取り込む変更はありません（登録済みと同じ内容です）。</b>'}</div>
+    ${plan.contradictions.length||plan.checkConflict.length?`<div class="note">${plan.contradictions.map(esc).concat(plan.checkConflict.map(x=>`${esc(x.characterName)}（${esc(x.stage)}）：既存の記録は「${esc(OWN_CHECK[x.existing])}」、今回は「${esc(OWN_CHECK[x.status])}」`)).join('<br>')}</div>`:''}
+    ${sec('ok','✅ 取り込み可能',by('ok'))}
+    ${sec('review','⚠ 要確認（確認できた項目だけ取り込み、「要確認」の印を付けます）',by('review'))}
+    ${sec('conflict','⚠ 矛盾（既存データと食い違うため取り込みません）',by('conflict'))}
+    ${sec('reject','❌ 取り込み不可',by('reject'))}
+    <details class="invChecks"><summary>所持確認の内容（${p.data.ownershipChecks.length}件）</summary>${p.data.ownershipChecks.map(c=>
+      `<div class="meta">${esc(c.stage||'')}：${esc(c.characterName)}${c.requestedFormName?`（${esc(c.requestedFormName)}）`:''} — ${esc(OWN_CHECK[c.status])}</div>`).join('')}</details>`;
+}
+// 計画どおりに反映する。保存に失敗したら取り込み前の状態に戻す
+function confirmInventory(){
+  const pi=pendingInv;
+  if(!pi||pi.text!==$('invText').value){$('invMsg').textContent='先に「内容を確認」を押してください';$('invApply').disabled=true;return}
+  const plan=planInventory(pi.plan.j); // 確認後にデータが変わっていても安全なように、保存直前に計画を作り直す
+  const backupState=JSON.stringify({master:db.master,units:db.units,ownershipChecks:db.ownershipChecks});
+  try{
+    db.master.characters=plan.chars;db.master.forms=plan.forms;db.units=plan.units;
+    db.ownershipChecks=db.ownershipChecks.concat(plan.checks.map(x=>({...x,id:uid()})));
+    persist();
+  }catch(e){
+    const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.ownershipChecks=b.ownershipChecks;
+    pendingInv=null;$('invApply').disabled=true;render();
+    $('invMsg').textContent='取り込みに失敗したため、取り込み前の状態に戻しました';return;
+  }
+  const n=c=>plan.rows.filter(r=>r.cls===c).length;
+  pendingInv=null;$('invApply').disabled=true;render();
+  $('invMsg').textContent=`取り込みました（取り込み可能 ${n('ok')}件・要確認 ${n('review')}件・所持確認 ${plan.checks.length}件。矛盾 ${n('conflict')}件と取り込み不可 ${n('reject')}件は取り込んでいません）`;
+}
+function renderOwnershipChecks(){
+  const list=db.ownershipChecks;
+  $('invChecksSaved').innerHTML=list.length?`<details><summary>保存済みの所持確認（${list.length}件）</summary>${list.map(x=>
+    `<div class="meta">${esc(x.device)}・${esc(x.stage||x.scope||'')}：${esc(x.characterName)}${x.requestedFormName?`（${esc(x.requestedFormName)}）`:''} — ${esc(OWN_CHECK[x.status])}</div>`).join('')}</details>`:'';
+}
+
 function renderImportIssues(){
   const list=db.importIssues;
   $('imIssues').innerHTML=list.length?`<div class="pgroup">取り込めなかった行（要確認・${list.length}件）</div>`+list.map(x=>`
@@ -2191,7 +2437,7 @@ function backupJson(){
   return JSON.stringify({app:APP,version:1,exportedAt:new Date().toISOString(),
     data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages,
       rankings:db.rankings,ownership:db.ownership,
-      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues}},null,1);
+      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks}},null,1);
 }
 function backup(){
   const text=backupJson();
@@ -2319,6 +2565,8 @@ document.addEventListener('click',e=>{
     case 'showFruit4':document.querySelectorAll('#unFruits .frRow[hidden]').forEach(r=>{r.hidden=false});b.hidden=true;$('unFrName3').focus();$('unFrName3').scrollIntoView({block:'center'});break;
     case 'imPreview':$('imMsg').textContent='';previewSuitImport();break;
     case 'imApply':confirmSuitImport();break;
+    case 'invPreview':previewInventory();break;
+    case 'invApply':confirmInventory();break;
     case 'issueDone':db.importIssues=db.importIssues.filter(x=>x.id!==b.dataset.id);persist();render();break;
   }
 });
@@ -2345,6 +2593,13 @@ $('qrRace').addEventListener('change',()=>{$('qrRaceCustomField').hidden=$('qrRa
 $('stEval').addEventListener('change',syncSuitModal);
 // 貼り付け内容を変えたら、確認済みの取り込み計画は無効にする
 $('imText').addEventListener('input',()=>{pendingSuitImport=null;$('imApply').disabled=true});
+$('invText').addEventListener('input',()=>{pendingInv=null;$('invApply').disabled=true});
+$('invFile').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{$('invText').value=String(r.result);pendingInv=null;$('invApply').disabled=true;$('invMsg').textContent='読み込みました。「内容を確認」を押してください'};
+  r.readAsText(file);
+});
 $('searchInput').addEventListener('input',renderSearch);
 $('rRace').addEventListener('change',syncRaceCustom);
 $('exQuest').addEventListener('change',()=>{$('exMsg').textContent='';renderAdmin()});

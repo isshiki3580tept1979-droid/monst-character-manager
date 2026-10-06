@@ -1,0 +1,393 @@
+{
+  "schema": "monst-hakai-main-staging-v1",
+  "device": "メイン",
+  "scope": "破界の星墓",
+  "ownershipChecks": [
+    {
+      "characterName": "キャローネ",
+      "requestedFormName": "",
+      "stage": "パラノヴィア",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "エル",
+      "requestedFormName": "堕天",
+      "stage": "パラノヴィア",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "江戸川コナン",
+      "requestedFormName": "",
+      "stage": "パラノヴィア",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "春野サクラ",
+      "requestedFormName": "",
+      "stage": "パラノヴィア",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "ペリー",
+      "requestedFormName": "",
+      "stage": "パラノヴィア",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "乙骨憂太",
+      "requestedFormName": "",
+      "stage": "ニギミタマ",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "物干し竿",
+      "requestedFormName": "",
+      "stage": "ニギミタマ",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "sinギルティ",
+      "requestedFormName": "赦罪",
+      "stage": "ニギミタマ",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "マスター・コーヴ",
+      "requestedFormName": "",
+      "stage": "ニギミタマ",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "ツクモ",
+      "requestedFormName": "",
+      "stage": "桃源郷",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "風火輪α",
+      "requestedFormName": "",
+      "stage": "桃源郷",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "伏黒恵",
+      "requestedFormName": "",
+      "stage": "桃源郷",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "ニケ",
+      "requestedFormName": "ビクトリアス・フォーム",
+      "stage": "桃源郷",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "アフェレデイン",
+      "requestedFormName": "",
+      "stage": "桃源郷",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "めぐみん",
+      "requestedFormName": "",
+      "stage": "コキュートス",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "自来也",
+      "requestedFormName": "ガマ仙人",
+      "stage": "コキュートス",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "ガウェイン",
+      "requestedFormName": "",
+      "stage": "コキュートス",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "エレン",
+      "requestedFormName": "",
+      "stage": "コキュートス",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "アルスラーン",
+      "requestedFormName": "",
+      "stage": "コキュートス",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "チェンソーマン＆ビーム",
+      "requestedFormName": "",
+      "stage": "コキュートス",
+      "status": "OWNED_EXACT"
+    },
+    {
+      "characterName": "チェリー・ブロッサム",
+      "requestedFormName": "",
+      "stage": "コキュートス",
+      "status": "NOT_OWNED"
+    },
+    {
+      "characterName": "マサムネ",
+      "requestedFormName": "約束の焔刃",
+      "stage": "コキュートス",
+      "status": "OWNED_EXACT"
+    }
+  ],
+  "units": [
+    {
+      "characterName": "春野サクラ",
+      "formName": "戦場に咲く豪拳",
+      "fullDisplayName": "戦場に咲く豪拳 春野サクラ",
+      "monsterNo": "9234",
+      "race": "亜人",
+      "battleType": "パワー型",
+      "shotType": "貫通",
+      "unitNo": 1,
+      "fruits": [],
+      "verificationStatus": "VERIFIED",
+      "note": "画面で詳細を確認済み"
+    },
+    {
+      "characterName": "乙骨憂太",
+      "formName": "現代の異能",
+      "fullDisplayName": "現代の異能 乙骨憂太",
+      "monsterNo": "9317",
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [
+        {
+          "name": "撃種の絆・加命撃",
+          "grade": "特級EL"
+        },
+        {
+          "name": "撃種の絆・加撃速",
+          "grade": "特級EL"
+        },
+        {
+          "name": "撃種の絆・加撃",
+          "grade": "特級EL"
+        }
+      ],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持・図鑑No・実3枠は画面確認済み。種族・戦型・撃種は未取得"
+    },
+    {
+      "characterName": "物干し竿",
+      "formName": "巌流の斬妻を支えし大学物干し竿",
+      "fullDisplayName": "巌流の斬妻を支えし大学物干し竿",
+      "monsterNo": null,
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持確認のみ。表記も含め詳細画面で再確認が必要"
+    },
+    {
+      "characterName": "sinギルティ",
+      "formName": "赦罪",
+      "fullDisplayName": "sinギルティ：赦罪",
+      "monsterNo": null,
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持・実なしは確認。詳細項目未取得"
+    },
+    {
+      "characterName": "マスター・コーヴ",
+      "formName": "死闘に挑む森羅万象流武術師範",
+      "fullDisplayName": "死闘に挑む森羅万象流武術師範 マスター・コーヴ",
+      "monsterNo": "9063",
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [
+        {
+          "name": "戦型の絆・加命撃",
+          "grade": "特級EL"
+        },
+        {
+          "name": "戦型の絆・加撃速",
+          "grade": "特級EL"
+        },
+        {
+          "name": "戦型の絆・加撃",
+          "grade": "特級EL"
+        }
+      ],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持・図鑑No・実3枠は画面確認済み。種族・戦型・撃種は未取得"
+    },
+    {
+      "characterName": "風火輪α",
+      "formName": "波間を駆け抜けし真夏の宝貝",
+      "fullDisplayName": "波間を駆け抜けし真夏の宝貝 風火輪α",
+      "monsterNo": null,
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [
+        {
+          "name": "速必殺の力",
+          "grade": "特級L"
+        },
+        {
+          "name": "撃種の絆・加撃",
+          "grade": "特級L"
+        },
+        {
+          "name": "同族の絆・加撃",
+          "grade": "特級L"
+        }
+      ],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持・実3枠は確認。図鑑No・種族・戦型・撃種は未取得"
+    },
+    {
+      "characterName": "ニケ",
+      "formName": "ビクトリアス・フォーム",
+      "fullDisplayName": "ニケ：ビクトリアス・フォーム",
+      "monsterNo": "8658",
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [
+        {
+          "name": "速必殺の力",
+          "grade": "特級L"
+        },
+        {
+          "name": "戦型の絆・加命撃",
+          "grade": "特級L"
+        },
+        {
+          "name": "同族の絆・加撃",
+          "grade": "特級L"
+        }
+      ],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "1体所持をユーザー確認。図鑑No・実3枠は画面確認済み。種族・戦型・撃種は未取得"
+    },
+    {
+      "characterName": "ニケ",
+      "formName": "グロリアス・フォーム",
+      "fullDisplayName": "ニケ：グロリアス・フォーム",
+      "monsterNo": "8659",
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 2,
+      "fruits": [
+        {
+          "name": "同族の絆・加命撃",
+          "grade": "特級L"
+        },
+        {
+          "name": "同族の絆・加撃速",
+          "grade": "特級L"
+        },
+        {
+          "name": "同族の絆・加撃",
+          "grade": "特級L"
+        }
+      ],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "別個体で1体所持をユーザー確認。図鑑No・実3枠は画面確認済み。種族・戦型・撃種は未取得"
+    },
+    {
+      "characterName": "めぐみん",
+      "formName": "爆裂魔法を操る者",
+      "fullDisplayName": "爆裂魔法を操る者 めぐみん",
+      "monsterNo": null,
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [
+        {
+          "name": "撃種の絆・加速",
+          "grade": "特級L"
+        },
+        {
+          "name": "速必殺の力",
+          "grade": "特級"
+        },
+        {
+          "name": "撃種の絆・加撃",
+          "grade": "特級"
+        }
+      ],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持・実3枠は確認。詳細項目未取得"
+    },
+    {
+      "characterName": "自来也",
+      "formName": "ガマ仙人",
+      "fullDisplayName": "ガマ仙人 自来也",
+      "monsterNo": "9244",
+      "race": "亜人",
+      "battleType": "超バランス型",
+      "shotType": "反射",
+      "unitNo": 1,
+      "fruits": [
+        {
+          "name": "同族の絆・加命撃",
+          "grade": "特級EL"
+        },
+        {
+          "name": "スコア稼ぎの力",
+          "grade": "特級L"
+        },
+        {
+          "name": "将命削りの力",
+          "grade": "特級M"
+        }
+      ],
+      "verificationStatus": "VERIFIED",
+      "note": "画面で詳細・実を確認済み"
+    },
+    {
+      "characterName": "チェンソーマン＆ビーム",
+      "formName": "",
+      "fullDisplayName": "チェンソーマン＆ビーム",
+      "monsterNo": null,
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持確認のみ。詳細画面未取得"
+    },
+    {
+      "characterName": "マサムネ",
+      "formName": "約束の焔刃",
+      "fullDisplayName": "マサムネ：約束の焔刃",
+      "monsterNo": null,
+      "race": null,
+      "battleType": null,
+      "shotType": null,
+      "unitNo": 1,
+      "fruits": [],
+      "verificationStatus": "NEEDS_REVIEW",
+      "note": "所持確認のみ。詳細画面未取得"
+    }
+  ],
+  "notes": [
+    "このファイルは現在確認できている範囲のステージングJSON。未取得項目はnullまたは空文字のまま。",
+    "VERIFIEDは詳細情報まで画面確認できた個体のみ。所持だけ確認できた個体はNEEDS_REVIEW。",
+    "ニケはビクトリアス・フォーム1体、グロリアス・フォーム1体を別個体として所持。"
+  ]
+}
