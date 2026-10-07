@@ -1,0 +1,25 @@
+{
+  "schema": "monst-hakai-owned-suit-links-staging-v1",
+  "scope": "破界の星墓",
+  "source": "GAMEWITH",
+  "sourceCheckedAt": "2026-10-07",
+  "evaluationType": "GRADE",
+  "importReady": [
+    {"stageKeyHint": "ニギミタマ","characterName": "乙骨憂太","formName": "現代の異能","sourceCharacterLabel": "乙骨憂太","sourceFormLabel": null,"grade": "S","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549893","verificationStatus": "VERIFIED"},
+    {"stageKeyHint": "ニギミタマ","characterName": "sinギルティ","formName": "赦罪","sourceCharacterLabel": "ギルティ","sourceFormLabel": "赦罪","grade": "A","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549893","verificationStatus": "VERIFIED"},
+    {"stageKeyHint": "ニギミタマ","characterName": "マスター・コーヴ","formName": "死闘に挑む森羅万象流武術師範","sourceCharacterLabel": "マスターコーヴ","sourceFormLabel": null,"grade": "A","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549893","verificationStatus": "VERIFIED"},
+    {"stageKeyHint": "桃源郷","characterName": "風火輪α","formName": "波間を駆け抜けし真夏の宝貝","sourceCharacterLabel": "風火輪α","sourceFormLabel": null,"grade": "S","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549895","verificationStatus": "VERIFIED"},
+    {"stageKeyHint": "桃源郷","characterName": "ニケ","formName": "ビクトリアス・フォーム","sourceCharacterLabel": "ニケ","sourceFormLabel": "ビクトリアス","grade": "A","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549895","verificationStatus": "VERIFIED"},
+    {"stageKeyHint": "コキュートス","characterName": "自来也","formName": "ガマ仙人","sourceCharacterLabel": "自来也","sourceFormLabel": null,"grade": "S","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549896","verificationStatus": "VERIFIED"},
+    {"stageKeyHint": "コキュートス","characterName": "めぐみん","formName": "爆裂魔法を操る者","sourceCharacterLabel": "めぐみん","sourceFormLabel": null,"grade": "S","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549896","verificationStatus": "VERIFIED"},
+    {"stageKeyHint": "パラノヴィア","characterName": "マサムネ","formName": "約束の焔刃","sourceCharacterLabel": "マサムネ","sourceFormLabel": "約束","grade": "A","sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/511464","verificationStatus": "VERIFIED"}
+  ],
+  "needsReview": [
+    {"stageKeyHint": "ニギミタマ","characterName": "物干し竿","grade": "A","verificationStatus": "NEEDS_REVIEW","issue": "OWNED_FORM_NAME_MISMATCH","currentOwnedFormName": "巌流の斬妻を支えし大学物干し竿","referenceCanonicalDisplayName": "巌流の新妻を支えし大太刀 物干し竿","note": "OCR誤読の可能性が高い。ユーザー確認前に自動修正・自動リンクしない。"},
+    {"stageKeyHint": "アヴァロン/パラノヴィア","characterName": "ネオ","grade": "A","verificationStatus": "NEEDS_REVIEW","issue": "OWNED_OTHER_FORM","currentOwnedFormName": "ハロー / ハローワールド","referenceFormLabel": "獣神化改","note": "現在のGameWith適正は獣神化改。所持中のハロー形態へ自動リンクしない。"}
+  ],
+  "doNotLink": [
+    {"characterName": "春野サクラ","reason": "GameWithパラノヴィアAの『桜』は別キャラクター。春野サクラへ適正を付与しない。"},
+    {"characterName": "チェンソーマン＆ビーム","reason": "2026-10-07確認時点のGameWithコキュートスS/Aには掲載されていない。"}
+  ]
+}

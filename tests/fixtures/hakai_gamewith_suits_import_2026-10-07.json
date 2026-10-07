@@ -1,0 +1,97 @@
+[
+  {
+    "format": "monst-suitability-import-v1",
+    "stageKey": "破界の星墓::ニギミタマ",
+    "source": "GAMEWITH",
+    "sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549893",
+    "evaluationType": "GRADE",
+    "sourceUpdatedAt": "2026-10-06",
+    "entries": [
+      {
+        "characterName": "乙骨憂太",
+        "formName": "現代の異能",
+        "grade": "S",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：乙骨憂太"
+      },
+      {
+        "characterName": "sinギルティ",
+        "formName": "赦罪",
+        "grade": "A",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：ギルティ｜赦罪"
+      },
+      {
+        "characterName": "マスター・コーヴ",
+        "formName": "死闘に挑む森羅万象流武術師範",
+        "grade": "A",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：マスターコーヴ"
+      }
+    ]
+  },
+  {
+    "format": "monst-suitability-import-v1",
+    "stageKey": "破界の星墓::桃源郷",
+    "source": "GAMEWITH",
+    "sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549895",
+    "evaluationType": "GRADE",
+    "entries": [
+      {
+        "characterName": "風火輪α",
+        "formName": "波間を駆け抜けし真夏の宝貝",
+        "grade": "S",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：風火輪α"
+      },
+      {
+        "characterName": "ニケ",
+        "formName": "ビクトリアス・フォーム",
+        "grade": "A",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：ニケ｜ビクトリアス"
+      }
+    ]
+  },
+  {
+    "format": "monst-suitability-import-v1",
+    "stageKey": "破界の星墓::コキュートス",
+    "source": "GAMEWITH",
+    "sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/549896",
+    "evaluationType": "GRADE",
+    "sourceUpdatedAt": "2026-09-30",
+    "entries": [
+      {
+        "characterName": "自来也",
+        "formName": "ガマ仙人",
+        "grade": "S",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：自来也"
+      },
+      {
+        "characterName": "めぐみん",
+        "formName": "爆裂魔法を操る者",
+        "grade": "S",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：めぐみん"
+      }
+    ]
+  },
+  {
+    "format": "monst-suitability-import-v1",
+    "stageKey": "破界の星墓::パラノヴィア",
+    "source": "GAMEWITH",
+    "sourceUrl": "https://xn--eckwa2aa3a9c8j8bve9d.gamewith.jp/article/show/511464",
+    "evaluationType": "GRADE",
+    "sourceUpdatedAt": "2026-10-05",
+    "entries": [
+      {
+        "characterName": "マサムネ",
+        "formName": "約束の焔刃",
+        "grade": "A",
+        "verificationStatus": "VERIFIED",
+        "note": "GameWith表記：マサムネ｜約束"
+      }
+    ]
+  }
+]
