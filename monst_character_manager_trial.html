@@ -2157,8 +2157,14 @@ function confirmSuitImport(){
   const ok=applySuitImport(pi.plan);
   pendingSuitImport=null;$('imApply').disabled=true;
   render();
+  // 完了メッセージは実際に取り込んだ行（追加＋更新）の検証状態から作る
+  const vs=pi.plan.add.concat(pi.plan.update.map(u=>u.item)).map(it=>it.verificationStatus);
+  const cnt=s=>vs.filter(v=>v===s).length;
+  const states=Object.keys(VERIFY).filter(s=>cnt(s)).map(s=>`${VERIFY[s]}${cnt(s)}件`).join('・');
   $('imMsg').textContent=ok
-    ?`取り込みました（追加${pi.plan.add.length}件・更新${pi.plan.update.length}件・要確認${pi.plan.issues.length}件）。取り込んだ適正は確認するまで「未検証」です。`
+    ?`取り込みました（追加${pi.plan.add.length}件・更新${pi.plan.update.length}件・要確認${pi.plan.issues.length}件）。`
+      +(states?`取り込んだ適正の状態：${states}。`:'')
+      +(vs.some(v=>v!=='VERIFIED')?'未検証・要確認の適正は、内容を確認してから「確認済みにする」を押してください。':'')
     :'取り込みに失敗したため、取り込み前の状態に戻しました';
 }
 /* ---- 所持データ（所持確認・所持個体）のJSON取り込み ----

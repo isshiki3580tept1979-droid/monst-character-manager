@@ -142,3 +142,25 @@ test('app import never links 物干し竿 / ネオ / 桜 by reference names', as
     'ネオ:未登録のキャラ（自動では作成しません）','桜:未登録のキャラ（自動では作成しません）']);
   assert.equal(await owned(),ownedBefore);
 });
+
+test('import message reflects the imported verification status (VERIFIED is not called 未検証)', async()=>{
+  await importInventory();
+  await click('[data-act="view"][data-view="admin"]');await previewSuits();await click('[data-act="imApply"]');
+  const msg=await page.locator('#imMsg').textContent();
+  assert.match(msg,/追加8件・更新0件・要確認0件/);
+  assert.match(msg,/確認済み8件/);
+  assert.doesNotMatch(msg,/未検証/,'all 8 imported suits are VERIFIED');
+});
+
+test('import message still names 未検証 / 要確認 when the imported rows are not all VERIFIED', async()=>{
+  await importInventory();
+  const text=JSON.stringify({format:'monst-suitability-import-v1',stageKey:'破界の星墓::ニギミタマ',source:'GAMEWITH',evaluationType:'GRADE',entries:[
+    {characterName:'乙骨憂太',formName:'現代の異能',grade:'S',verificationStatus:'VERIFIED'},
+    {characterName:'sinギルティ',formName:'赦罪',grade:'A'},
+    {characterName:'マスター・コーヴ',formName:'死闘に挑む森羅万象流武術師範',grade:'A',verificationStatus:'NEEDS_REVIEW'}]});
+  await click('[data-act="view"][data-view="admin"]');await previewSuits(text);await click('[data-act="imApply"]');
+  const msg=await page.locator('#imMsg').textContent();
+  assert.match(msg,/追加3件/);
+  assert.match(msg,/確認済み1件・未検証1件・要確認1件/);
+  assert.deepEqual(await page.evaluate(()=>db.suits.map(s=>s.verificationStatus).sort()),['NEEDS_REVIEW','UNVERIFIED','VERIFIED']);
+});
