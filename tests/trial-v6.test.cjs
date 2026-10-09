@@ -47,7 +47,8 @@ async function seed(raw){await page.evaluate(({key,raw})=>localStorage.setItem(k
 const pickSel=dev=>page.locator(`.pickSel[data-pick-dev="${dev}"]`);
 const legacy={id:'legacy-1',name:'旧キャラ',device:'サブ2',count:1,memo:'旧メモ',stages:[STAGE]};
 const neo={characters:[{id:'c-neo',name:'ネオ'}],forms:[{id:'f-hello',characterId:'c-neo',name:'ハローワールド・モード',short:'ハロー',race:'亜人',battleType:'砲撃型',shotType:'貫通'}]};
-async function openReg(){await click('[data-act="quickReg"]');await page.locator('#qrModal.open').waitFor()}
+// 進化形態名は折りたたみ（任意）になったので、このファイルの入力テストでは開いてから入力する
+async function openReg(){await click('[data-act="quickReg"]');await page.locator('#qrModal.open').waitFor();await page.evaluate(()=>{document.getElementById('qrFormNameMore').open=true})}
 async function fillFruits(list){for(let i=0;i<list.length;i++){const [n,g,k]=list[i];await page.fill('#qrFrName'+i,n);if(g)await page.selectOption('#qrFrGrade'+i,g);if(k)await page.selectOption('#qrFrKind'+i,k)}}
 
 test('stage "＋ キャラ登録" opens the new flow (not the old characters[] form) with the stage as context', async()=>{
@@ -58,7 +59,7 @@ test('stage "＋ キャラ登録" opens the new flow (not the old characters[] f
   assert.match(await page.locator('#qrStageNote').textContent(),/禁忌の獄・一ノ獄/);
   assert.match(await page.locator('#qrSuitLabel').textContent(),/一ノ獄の適正として登録する/);
   // sections in order: キャラ → 進化形態 → 所持端末 → わくわくの実（4 rows） → このステージの適正
-  assert.deepEqual(await page.locator('#qrModal legend').allTextContents(),['1. キャラ','2. 進化形態','3. 所持端末','4. わくわくの実（最大4つ）','5. このステージの適正']);
+  assert.deepEqual(await page.locator('#qrModal legend').allTextContents(),['1. キャラ','2. 種族・戦型・撃種（進化形態は任意）','3. 所持端末','4. わくわくの実（最大4つ）','5. このステージの適正']);
   assert.equal(await page.locator('#qrFruits .frRow:visible').count(),4);
   // defaults: new character, first chosen device without a pick, own-judgment suitability (MANUAL / 候補 / 確認済み)
   assert.deepEqual([await page.inputValue('#qrChar'),await page.inputValue('#qrDevice'),await page.inputValue('#qrSource'),await page.inputValue('#qrEval'),await page.inputValue('#qrVerify')],
@@ -133,7 +134,8 @@ test('validation errors write nothing: missing names, duplicate character, rank/
     assert.match(await page.locator('#qrMsg').textContent(),msg);await click('#qrModal [data-act="close"]');assert.deepEqual(await snapshot(),before)};
   await tryErr(async()=>{},/キャラ名を入力してください/);
   await tryErr(async()=>{await page.fill('#qrCharName','ネオ')},/同じ名前のキャラが既にあります/);
-  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ')},/正式な進化形態名を入力してください/);
+  // 進化形態名は任意（空欄なら「進化形態未確認」）になったので、空欄はエラーにならず次の検証へ進む
+  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.selectOption('#qrSource','OTHER_SITE')},/サイト名を入力してください/);
   await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.fill('#qrFormName','獣神化');await page.selectOption('#qrSource','GAME_CLEAR_MONSTERS')},/順位を入力してください/);
   await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.fill('#qrFormName','獣神化');await page.selectOption('#qrSource','GAMEWITH');await page.selectOption('#qrEval','GRADE')},/ランク（S\/A\/B など）を入力してください/);
   await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.fill('#qrFormName','獣神化');await page.selectOption('#qrSource','OTHER_SITE')},/サイト名を入力してください/);

@@ -56,6 +56,8 @@ async function preview(obj=READING){
   await click('[data-act="srPreview"]');
 }
 const val=id=>page.inputValue('#'+id);
+// 進化形態・図鑑No.は折りたたみ（任意）。入力するときは開く
+const openMore=()=>page.evaluate(()=>{const d=document.getElementById('srMore');if(d)d.open=true});
 const result=async()=>(await page.locator('#srResult').textContent()).replace(/\s+/g,' ');
 async function toConfirm(device='サブ2'){await page.selectOption('#srDevice',device);await click('[data-act="srCheck"]')}
 const unitsOf=(d,name)=>{const ids=new Set(d.master.forms.filter(f=>d.master.characters.find(c=>c.id===f.characterId)?.name===name).map(f=>f.id));return d.units.filter(u=>ids.has(u.formId))};
@@ -211,19 +213,204 @@ test('register: confirm screen first, then the unit is added to the chosen devic
   await page.reload();assert.equal(unitsOf(await snapshot(),'架空キャラ壱').length,1);
 });
 
-test('進化形態 null: not guessed, registration blocked until it is typed in; 要確認 checkbox is respected', async()=>{
-  await preview({...READING,formName:null,needsReview:true});
-  assert.equal(await val('srF_formName'),'');
-  assert.match(await page.locator('#srWarn').textContent(),/進化形態が未確認です（推測では補いません）/);
-  await toConfirm('メイン');
-  assert.match(await result(),/進化形態が未確認です。推測では補わないため/);
-  assert.equal(await page.locator('#srApply').isDisabled(),true);
-  assert.deepEqual((await snapshot()).master.forms,[]);
-  await page.fill('#srF_formName','架空の形態・改');
-  await click('[data-act="srCheck"]');
-  assert.match(await result(),/確認状態：要確認/);
+// ===== 進化形態は任意（未確認のまま正式登録できる）=====
+const NARA={format:'monst-screenshot-reading-v1',characterName:'奈良シカマル',formName:null,monsterNo:'9252',race:null,battleType:null,shotType:null,
+  fruit1:'撃種の絆・加速命（特級L）',fruit2:'撃種の絆・加速（特級L）',fruit3:'撃種の絆・加命撃（特級L）',confidence:'MEDIUM',needsReview:true,reviewNotes:[],uncertainFields:[]};
+
+test('進化形態 null: 奈良シカマル is registered on マフティー（メイン） with 図鑑No. and three 特級L fruits; nothing is guessed', async()=>{
+  await seed({characters:[],deviceNames:{'メイン':'マフティー'},master:{characters:[],forms:[]},units:[]});
+  await preview(NARA);
+  // 進化形態・図鑑No.は通常は畳んだ欄の中（任意）。進化形態が空でも注意は出さない
+  assert.equal(await page.locator('#srMore').getAttribute('open'),null,'進化形態・図鑑No. are folded away');
+  assert.equal(await page.locator('#srF_formName').isVisible(),false);
+  assert.equal(await val('srF_monsterNo'),'9252','読み取れた図鑑No.は保持');
+  assert.equal(await page.locator('#srWarn').count(),0,'no warning only because 進化形態 is unknown');
+  await page.selectOption('#srDevice','メイン');await click('[data-act="srCheck"]');
+  const r=await result();
+  assert.match(r,/登録前の確認 奈良シカマル 登録先/);assert.doesNotMatch(r,/進化形態未確認/,"キャラ名中心の表示");
+  assert.match(r,/登録先：マフティー（メイン）・個体1（新しい個体として追加）/);
+  assert.match(r,/図鑑No\.9252/);
+  assert.match(r,/わくわくの実：撃種の絆・加速命 特級L、撃種の絆・加速 特級L、撃種の絆・加命撃 特級L/);
+  assert.doesNotMatch(r,/登録できません|進化形態が未確認です。/);
+  assert.equal(await page.locator('#srApply').isDisabled(),false);
   await click('[data-act="srApply"]');
-  const u=unitsOf(await snapshot(),'架空キャラ壱');assert.equal(u.length,1);assert.equal(u[0].verificationStatus,'NEEDS_REVIEW');
+  assert.match(await page.locator('#srMsg').textContent(),/登録しました：マフティー（メイン） 奈良シカマル 個体1（要確認）/);
+  const check=async()=>{
+    const d=await snapshot();
+    assert.equal(d.master.characters.filter(c=>c.name==='奈良シカマル').length,1);
+    const f=d.master.forms.filter(x=>x.characterId===d.master.characters[0].id);
+    assert.equal(f.length,1);assert.equal(f[0].unknownForm,true);assert.equal(f[0].name,'','進化形態名は推測しない');assert.equal(f[0].monsterNo,'9252');
+    assert.deepEqual([f[0].race,f[0].battleType,f[0].shotType],['','','']);
+    const u=unitsOf(d,'奈良シカマル');assert.equal(u.length,1);assert.equal(u[0].device,'メイン');
+    assert.deepEqual(u[0].fruits,[{name:'撃種の絆・加速命',grade:'特級L',kind:''},{name:'撃種の絆・加速',grade:'特級L',kind:''},{name:'撃種の絆・加命撃',grade:'特級L',kind:''}]);
+    assert.deepEqual(d.suits,[],'no stage suitability is guessed');
+  };
+  await check();
+  await page.reload();await check(); // 再読み込みで進化形態未確認の形態が消えない（個体が宙に浮かない）
+  // キャラ画面：キャラ名中心（「進化形態未確認」は出さない）。端末・実・図鑑No.は見え、形態の編集ボタンは残る
+  await click('[data-act="view"][data-view="chara"]');
+  const cid=(await snapshot()).master.characters[0].id;
+  await click(`[data-act="charaOpen"][data-id="${cid}"]`);
+  const t=(await page.locator('#view-chara').textContent()).replace(/\s+/g,' ');
+  assert.match(t,/奈良シカマル/);assert.match(t,/マフティー（メイン）（1体）/);assert.match(t,/No\.9252/);
+  assert.doesNotMatch(t,/進化形態未確認/);
+  assert.equal(await page.locator('#view-chara [data-act="formEdit"]').count(),1,'形態の編集はそのまま使える');
+});
+
+test('same character again with 進化形態 unknown: the one 進化形態未確認 entry is reused, units are never merged', async()=>{
+  await preview(NARA);await toConfirm('メイン');await click('[data-act="srApply"]');
+  await preview({...NARA,fruit3:null});await toConfirm('メイン');
+  assert.match(await result(),/メインには「奈良シカマル」の個体がすでにあります/);
+  assert.match(await result(),/個体1・実：撃種の絆・加速命 特級L/);
+  await click('[data-act="srApply"]');assert.match(await page.locator('#srMsg').textContent(),/チェックを入れてから/);
+  await page.check('#srDupOk');await click('[data-act="srApply"]');
+  await preview({...NARA,fruit1:null});await toConfirm('サブ1');await click('[data-act="srApply"]');
+  const d=await snapshot();
+  assert.equal(d.master.forms.length,1,'one 進化形態未確認 per character');
+  const u=unitsOf(d,'奈良シカマル');assert.deepEqual(u.map(x=>[x.device,x.no,x.fruits.length]),[['メイン',1,3],['メイン',2,2],['サブ1',1,2]]);
+});
+
+test('known 進化形態 in JSON still works (compatibility) and stays separate from 進化形態未確認; 図鑑No. is not a conflict within the same character', async()=>{
+  await preview(NARA);await toConfirm('メイン');await click('[data-act="srApply"]');
+  await preview({...NARA,formName:'架空の既知形態',fruit1:'加撃の実（特級M）',fruit2:null,fruit3:null});
+  assert.equal(await page.locator('#srMore').getAttribute('open'),'','folded section opens when the JSON has 進化形態');
+  assert.equal(await val('srF_formName'),'架空の既知形態');
+  await toConfirm('メイン');
+  assert.doesNotMatch(await result(),/図鑑No\.9252 が既存/);
+  assert.match(await result(),/奈良シカマル｜架空の既知形態/);
+  await page.check('#srDupOk');await click('[data-act="srApply"]');
+  const d=await snapshot();
+  const forms=d.master.forms.map(f=>[f.name,!!f.unknownForm,f.monsterNo||'']).sort();
+  assert.deepEqual(forms,[['',true,'9252'],['架空の既知形態',false,'9252']]);
+  assert.equal(unitsOf(d,'奈良シカマル').length,2);
+});
+
+test('stage: units of 進化形態未確認 are not treated as suitable; suitability import never attaches to it', async()=>{
+  const K='禁忌の獄::一ノ獄';
+  await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ玖'}],forms:[{id:'f1',characterId:'c1',name:'架空の既知形態',short:'',race:'',battleType:'',shotType:''},
+      {id:'fu',characterId:'c1',name:'',unknownForm:true,short:'',race:'',battleType:'',shotType:''}]},
+    units:[{id:'u1',formId:'fu',device:'メイン',no:1,fruits:[]}],
+    suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}]});
+  assert.deepEqual(await page.evaluate(k=>candidatesFor(k,'メイン').map(u=>u.id),K),[],'not a candidate (form unknown)');
+  assert.equal(await page.evaluate(()=>formStatus('f1','メイン')),'alt-form','shown as 別形態 for the known suitable form');
+  assert.equal(await page.evaluate(()=>formLabel(formOf('fu'))),'架空キャラ玖');
+  // 適正データの取り込み：キャラ名だけ・形態名が空の行は紐づけない（未確認の形態へ付かない）
+  await click('[data-act="view"][data-view="admin"]');
+  await page.fill('#imText',JSON.stringify({format:'monst-suitability-import-v1',stageKey:K,source:'GAMEWITH',evaluationType:'CANDIDATE',
+    entries:[{characterName:'架空キャラ玖',formName:''},{characterName:'架空キャラ玖',formName:'進化形態未確認'}]}));
+  await click('[data-act="imPreview"]');
+  const s=await page.locator('#imResult').textContent();
+  assert.doesNotMatch(s,/取り込み可能（[1-9]/);
+  assert.deepEqual((await snapshot()).suits.map(x=>x.formId),['f1']);
+});
+
+test('stage cards: a same-name unit of 進化形態未確認 is shown as 参考 and can be picked provisionally (never a confirmed candidate); exact-form units stay normal', async()=>{
+  const K='禁忌の獄::一ノ獄';
+  await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ玖'},{id:'c2',name:'架空キャラ拾壱'},{id:'c3',name:'適正なしの架空キャラ'}],
+      forms:[{id:'f1',characterId:'c1',name:'架空の既知形態',short:'',race:'',battleType:'',shotType:''},
+        {id:'fu',characterId:'c1',name:'',unknownForm:true,short:'',race:'亜人',battleType:'バランス型',shotType:'反射'},
+        {id:'f2',characterId:'c2',name:'架空の形態B',short:'',race:'魔族',battleType:'パワー型',shotType:'貫通'},
+        {id:'fu3',characterId:'c3',name:'',unknownForm:true,short:'',race:'',battleType:'',shotType:''}]},
+    units:[{id:'uRef',formId:'fu',device:'メイン',no:1,fruits:[{name:'撃種の絆・加命撃',grade:'特級L'}]},
+      {id:'uOk',formId:'f2',device:'メイン',no:1,fruits:[]},
+      {id:'uNo',formId:'fu3',device:'メイン',no:1,fruits:[]},
+      {id:'uRef2',formId:'fu',device:'サブ1',no:1,fruits:[]}],
+    suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'},
+      {id:'s2',stageKey:K,formId:'f2',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],
+    useDevs:{[K]:['メイン','サブ1']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
+  const main=page.locator('.pickDev[data-dev="メイン"]'), sub=page.locator('.pickDev[data-dev="サブ1"]');
+  // 選択肢：進化形態まで一致する候補の下に、参考（進化形態未確認）を「（仮）」として別グループで出す
+  assert.deepEqual(await main.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ拾壱｜架空の形態B 個体1','架空キャラ玖 個体1（仮）']);
+  assert.equal(await main.locator('.pickSel optgroup').getAttribute('label'),'参考（進化形態未確認・仮選択）');
+  assert.match(await main.locator('.devHead').textContent(),/候補1/);assert.match(await main.locator('.devHead').textContent(),/参考1/);
+  // 参考：同名キャラ（進化形態未確認）。キャラ名・種族・戦型・撃種・実を表示し、点線の別枠＋「参考」で区別
+  const ref=main.locator('.pRef');
+  assert.equal(await ref.count(),1);
+  const rt=(await ref.textContent()).replace(/\s+/g,' ');
+  assert.match(rt,/参考：適正キャラと同名（進化形態未確認・適正は未確定）/);
+  assert.match(rt,/架空キャラ玖 個体1/);assert.match(rt,/亜人.*バランス型.*反射/);assert.match(rt,/撃種加命撃L/);
+  assert.doesNotMatch(rt,/適正なしの架空キャラ/,'名前が適正キャラと一致しない個体は出さない');
+  assert.equal(await ref.locator('.uCard.uRef').count(),1);
+  // 候補が無い端末でも、参考があれば仮選択できる（選択欄は有効）
+  assert.equal(await sub.locator('.pickSel').isDisabled(),false);
+  assert.match(await sub.textContent(),/進化形態まで一致する所持個体はありません（参考から仮選択できます）/);
+  assert.match((await sub.locator('.pRef').textContent()).replace(/\s+/g,' '),/架空キャラ玖 個体1/);
+  // 通常の候補を選んだカードは従来どおり（参考・仮選択の印は付かない）
+  await main.locator('.pickSel').selectOption('uOk');
+  const okCard=main.locator('.uCard:not(.uRef)');
+  assert.equal(await okCard.count(),1);assert.doesNotMatch(await okCard.textContent(),/参考|仮選択/);
+  // 参考の個体を仮選択：保存されるのは個体IDだけ（従来の picks と同じ形）。カードは点線＋「仮選択・適正未確定」で区別し、種族・戦型・撃種・実を表示
+  await sub.locator('.pickSel').selectOption('uRef2');
+  await main.locator('.pickSel').selectOption('uRef');
+  let d=await snapshot();
+  assert.deepEqual(d.picks,{'禁忌の獄::一ノ獄':{'メイン':'uRef','サブ1':'uRef2'}});
+  const prov=main.locator('.uCard.uProv');
+  assert.equal(await prov.count(),1);
+  const pt=(await prov.textContent()).replace(/\s+/g,' ');
+  assert.match(pt,/架空キャラ玖 個体1/);assert.match(pt,/仮選択・適正未確定/);assert.match(pt,/亜人.*バランス型.*反射/);assert.match(pt,/撃種加命撃L/);
+  assert.doesNotMatch(await main.textContent(),/候補外/,'a provisional pick is not reported as stale');
+  assert.equal(await main.locator('.pRef .uCard').count(),0,'the picked one is not repeated in the 参考 list');
+  // 詳細表示（3モード）も使える
+  await click('[data-act="infoMode"][data-mode="all"]');
+  assert.match(await main.locator('.pAll').textContent(),/架空キャラ玖/);
+  await click('[data-act="infoMode"][data-mode="all"]');
+  // スマホ幅（390px）で横にはみ出さない（仮選択のカード・参考のカードとも）
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal scroll at 390px');
+  await page.screenshot({path:path.join(__dirname,'artifacts','v10-stage-provisional-390.png'),fullPage:true});
+  // 再読み込みしても仮選択のまま。適正・形態のデータは何も変わらない（推測で作らない・確定しない）
+  await page.reload();
+  assert.equal(await page.locator('.pickDev[data-dev="メイン"] .uCard.uProv').count(),1);
+  d=await snapshot();assert.deepEqual(d.suits.map(s=>s.formId),['f1','f2']);assert.equal(d.master.forms.find(f=>f.id==='fu').unknownForm,true);
+  // 仮選択は解除できる
+  await page.locator('.pickDev[data-dev="メイン"] .pickSel').selectOption('');
+  assert.deepEqual((await snapshot()).picks,{'禁忌の獄::一ノ獄':{'サブ1':'uRef2'}});
+});
+
+test('provisional pick becomes 候補外 if the unit is no longer a 参考 (e.g. its form was named later); nothing is auto-confirmed', async()=>{
+  const K='禁忌の獄::一ノ獄';
+  await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ玖'}],
+      forms:[{id:'f1',characterId:'c1',name:'架空の既知形態',short:'',race:'',battleType:'',shotType:''},{id:'fu',characterId:'c1',name:'',unknownForm:true,short:'',race:'',battleType:'',shotType:''}]},
+    units:[{id:'uRef',formId:'fu',device:'メイン',no:1,fruits:[]}],
+    suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],
+    picks:{[K]:{'メイン':'uRef'}},useDevs:{[K]:['メイン']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
+  assert.equal(await page.locator('.uCard.uProv').count(),1);
+  // 形態に別の名前を付けると、その形態には適正が無いので参考でも候補でもなくなる → 候補外として知らせる（自動で確定しない）
+  await page.evaluate(()=>{const f=formOf('fu');f.name='架空の別形態';delete f.unknownForm;persist();render()});
+  assert.match(await page.locator('.pickDev[data-dev="メイン"]').textContent(),/候補外/);
+  assert.deepEqual((await snapshot()).suits.map(s=>s.formId),['f1']);
+});
+
+test('naming 進化形態未確認 later in the form editor turns it into a normal form; units stay attached; backup/restore keeps the mark', async()=>{
+  await preview(NARA);await toConfirm('メイン');await click('[data-act="srApply"]');
+  const json=await page.evaluate(()=>backupJson());
+  assert.equal(JSON.parse(json).data.master.forms[0].unknownForm,true);
+  await seed({characters:[]});await click('[data-act="view"][data-view="admin"]');await page.fill('#bkText',json);await click('[data-act="restore"]');
+  let d=await snapshot();assert.equal(d.master.forms[0].unknownForm,true);assert.equal(unitsOf(d,'奈良シカマル').length,1);
+  const fid=d.master.forms[0].id;
+  await page.evaluate(id=>openForm(formOf(id).characterId,formOf(id)),fid);
+  assert.equal(await page.inputValue('#fmName'),'');
+  await page.fill('#fmName','架空の判明形態');await page.evaluate(()=>saveForm());
+  d=await snapshot();
+  assert.deepEqual([d.master.forms[0].id,d.master.forms[0].name,d.master.forms[0].unknownForm,d.master.forms[0].monsterNo],[fid,'架空の判明形態',undefined,'9252']);
+  assert.equal(unitsOf(d,'奈良シカマル').length,1);
+});
+
+test('quick registration from the stage: an empty 進化形態名 registers under 進化形態未確認 (reused, not duplicated)', async()=>{
+  await page.evaluate(()=>{db.ui.quest='禁忌の獄';db.ui.stage['禁忌の獄']='一ノ獄';persist();render()});
+  for(const fr of ['架空の実A','架空の実B']){
+    await page.evaluate(()=>openQuickReg());
+    await page.selectOption('#qrChar',await page.evaluate(()=>db.master.characters.find(c=>c.name==='架空キャラ拾')?.id||'__new__'));
+    if(await page.locator('#qrCharNameField').isVisible()) await page.fill('#qrCharName','架空キャラ拾');
+    assert.equal(await page.locator('#qrFormName').isVisible(),false,'進化形態名は折りたたみ（任意）');
+    await page.selectOption('#qrDevice','サブ2');await page.fill('#qrFrName0',fr);
+    await page.uncheck('#qrSuitOn');
+    await page.evaluate(()=>saveQuickReg());
+    assert.equal(await page.locator('#qrMsg').textContent(),'',fr);
+  }
+  const d=await snapshot();
+  const f=d.master.forms.filter(x=>x.characterId===d.master.characters.find(c=>c.name==='架空キャラ拾').id);
+  assert.equal(f.length,1);assert.equal(f[0].unknownForm,true);
+  assert.deepEqual(unitsOf(d,'架空キャラ拾').map(u=>[u.device,u.no,u.fruits[0].name]),[['サブ2',1,'架空の実A'],['サブ2',2,'架空の実B']]);
 });
 
 test('duplicate on the same device: never merged automatically; adding needs an explicit choice', async()=>{
@@ -333,7 +520,7 @@ const P=(i,extra={})=>({id:'p'+i,at:'2026-10-09T10:00:00.000Z',updatedAt:'',devi
 test('hold: 進化形態 null can be held without a device; nothing is registered, editor is cleared', async()=>{
   await preview({...READING,formName:null,needsReview:true,reviewNotes:['進化形態の欄が画像の外'],uncertainFields:['race']});
   await click('[data-act="srHold"]');
-  assert.match(await msg(),/保留しました：架空キャラ壱｜進化形態未確認（1／200件）/);
+  assert.match(await msg(),/保留しました：架空キャラ壱（1／200件）/);
   const p=await pend();assert.equal(p.length,1);
   assert.deepEqual({...p[0],id:'',at:''},{id:'',at:'',updatedAt:'',device:'',characterName:'架空キャラ壱',formName:'',monsterNo:'90001',race:'亜人',
     battleType:'バランス型',shotType:'反射',fruits:[{name:'同族の絆・加撃',grade:'特級L'},{name:'将命削り',grade:'特級L'}],
@@ -344,7 +531,7 @@ test('hold: 進化形態 null can be held without a device; nothing is registere
   assert.equal(await page.inputValue('#srText'),'');assert.equal(await page.locator('#srEdit').isVisible(),false);
   assert.equal(await pendRows().count(),1);
   const row=(await pendRows().first().textContent()).replace(/\s+/g,' ');
-  assert.match(row,/架空キャラ壱｜進化形態未確認.*端末未選択・実：同族の絆・加撃 特級L、将命削り 特級L・要確認/);
+  assert.match(row,/架空キャラ壱.*端末未選択・実：同族の絆・加撃 特級L、将命削り 特級L・要確認/);
   assert.match(await page.locator('#srPendingList').textContent(),/所持数やステージの所持判定には入りません/);
   await page.reload();assert.equal((await pend()).length,1,'kept after reload');
 });
@@ -354,16 +541,16 @@ test('resume → choose device + type 進化形態 → register: the pending ent
   await click('[data-act="view"][data-view="admin"]');
   assert.equal(await pendRows().count(),2);
   await click('[data-act="srResume"][data-id="p1"]');
-  assert.match(await msg(),/保留から再開しました：架空キャラ漆｜進化形態未確認/);
+  assert.match(await msg(),/保留から再開しました：架空キャラ漆。/);
   assert.equal(await page.locator('#srResumeNote').isVisible(),true);
   assert.equal(await val('srF_characterName'),'架空キャラ漆');assert.equal(await val('srDevice'),'');
   assert.deepEqual([await val('srFr1Name'),await val('srFr1Grade')],['加撃の実','特級M'],'held fruits come back as they were');
   assert.equal(await page.locator('#srNeedsReview').isChecked(),false);
   assert.equal(await page.locator('.pendRow.cur').getAttribute('data-pend'),'p1');
-  // まだ登録できない（進化形態なし）→ 保留は残る
-  await toConfirm('サブ3');assert.match(await result(),/進化形態が未確認です/);
+  // 確認画面を出しただけでは保留は消えない（進化形態は任意。ここでは分かったので入れて登録する）
+  await toConfirm('サブ3');assert.match(await result(),/登録前の確認 架空キャラ漆 登録先/);
   assert.equal((await pend()).length,2);
-  await page.fill('#srF_formName','架空の形態・極');await click('[data-act="srCheck"]');
+  await openMore();await page.fill('#srF_formName','架空の形態・極');await click('[data-act="srCheck"]');
   assert.match(await result(),/登録先：サブ3・個体1/);
   await click('[data-act="srApply"]');
   assert.match(await msg(),/登録しました：サブ3 架空キャラ漆｜架空の形態・極 個体1（確認済み）。この読み取りの保留を一覧から消しました/);
@@ -378,7 +565,7 @@ test('registration failure keeps the pending entry (blocked conflict and save fa
     units:[],pendingReadings:[P(1,{battleType:'バランス型'})]});
   await click('[data-act="view"][data-view="admin"]');
   await click('[data-act="srResume"][data-id="p1"]');
-  await page.fill('#srF_formName','架空形態');await toConfirm('メイン');
+  await openMore();await page.fill('#srF_formName','架空形態');await toConfirm('メイン');
   assert.match(await result(),/戦型が既存（パワー型）と違います/);assert.equal(await page.locator('#srApply').isDisabled(),true);
   assert.equal((await pend()).length,1);
   // 一致させて登録 → 保存に失敗 → 個体も保留も元のまま
@@ -398,7 +585,7 @@ test('re-edit: holding a resumed entry updates that entry only (no new entry)', 
   await click('[data-act="srResume"][data-id="p2"]');
   await page.selectOption('#srDevice','サブ5');await page.fill('#srF_race','架空族');await page.fill('#srFr1Name','後から入れた実');await page.selectOption('#srFr1Grade','特級');
   await click('[data-act="srHold"]');
-  assert.match(await msg(),/保留を更新しました：架空保留2｜進化形態未確認（2／200件）/);
+  assert.match(await msg(),/保留を更新しました：架空保留2（2／200件）/);
   const p=await pend();assert.deepEqual(p.map(x=>x.id),['p1','p2']);
   assert.equal(p[1].device,'サブ5');assert.equal(p[1].race,'架空族');assert.deepEqual(p[1].fruits,[{name:'後から入れた実',grade:'特級'}]);
   assert.equal(p[1].at,'2026-10-09T10:00:00.000Z','original hold time kept');assert.ok(p[1].updatedAt);
@@ -413,11 +600,11 @@ test('manual delete asks first; cancelling keeps it; registered data is never to
   const before=await snapshot();
   await page.evaluate(()=>{window.__c=window.confirm;window.confirm=m=>{window.__asked=m;return false}});
   await click('[data-act="srPendDel"][data-id="p1"]');
-  assert.match(await page.evaluate(()=>window.__asked),/保留中の「架空保留1｜進化形態未確認」を削除しますか？（登録済みの所持データは変わりません）/);
+  assert.match(await page.evaluate(()=>window.__asked),/保留中の「架空保留1」を削除しますか？（登録済みの所持データは変わりません）/);
   assert.equal((await pend()).length,2,'cancel keeps it');
   await page.evaluate(()=>{window.confirm=window.__c});
   await click('[data-act="srPendDel"][data-id="p1"]');
-  assert.match(await msg(),/保留を削除しました：架空保留1｜進化形態未確認/);
+  assert.match(await msg(),/保留を削除しました：架空保留1$/);
   const d=await snapshot();
   assert.deepEqual(d.pendingReadings.map(x=>x.id),['p2']);
   assert.deepEqual([d.master,d.units],[before.master,before.units],'characters / forms / units unchanged');
@@ -555,7 +742,7 @@ test('startup with more than 200 pending readings: all are kept (never truncated
   await click('[data-act="srResume"][data-id="p3"]');await page.fill('#srF_race','架空族');await click('[data-act="srHold"]');
   assert.match(await msg(),/保留を更新しました/);
   let s=await storedPend();assert.equal(s.length,206);assert.equal(s.find(x=>x.id==='p3').race,'架空族');
-  await click('[data-act="srResume"][data-id="p4"]');await page.fill('#srF_formName','架空の形態・保');await toConfirm('サブ1');await click('[data-act="srApply"]');
+  await click('[data-act="srResume"][data-id="p4"]');await openMore();await page.fill('#srF_formName','架空の形態・保');await toConfirm('サブ1');await click('[data-act="srApply"]');
   assert.match(await msg(),/登録しました：サブ1 架空保留4｜架空の形態・保/);
   s=await storedPend();assert.equal(s.length,205);assert.equal(s.some(x=>x.id==='p4'),false);
   await click('[data-act="srPendDel"][data-id="p206"]');

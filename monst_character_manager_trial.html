@@ -271,6 +271,14 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .vb.v-VERIFIED{background:#dcfce7;color:#166534}
 .vb.v-UNVERIFIED{background:#fef3c7;color:#92400e}
 .vb.v-NEEDS_REVIEW{background:#fee2e2;color:#991b1b}
+.vb.v-REF{background:#e2e8f0;color:#334155}
+.vb.v-PROV{background:#fef3c7;color:#92400e}
+.uCard.uProv{background:#fffbeb;border-color:#d97706}
+.uCard.uRef{background:#fff;border:1px dashed #94a3b8}
+.pRef{margin-top:6px}
+.pRefHead{font-size:11px;font-weight:800;color:#475569}
+.cnt.refCnt{background:#fff;border:1px dashed #94a3b8}
+.formNone{font-size:12px;font-weight:700;color:#94a3b8}
 .sSrc a{margin-left:6px}
 .fmt{font-size:10px;background:#f8fafc;border-radius:8px;padding:6px;white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0 0}
 @media(max-width:360px){.two{grid-template-columns:1fr}
@@ -543,11 +551,13 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div class="field" id="qrCharNameField"><label for="qrCharName">キャラ名（進化形態名は入れない）</label><input id="qrCharName" maxlength="40" placeholder="例：ネオ"></div>
     </fieldset>
     <fieldset class="basicInfo">
-      <legend>2. 進化形態</legend>
-      <div class="field"><label for="qrForm">進化形態</label><select id="qrForm"></select></div>
+      <legend>2. 種族・戦型・撃種（進化形態は任意）</legend>
+      <div class="field"><label for="qrForm">登録先</label><select id="qrForm"></select></div>
       <div id="qrFormNew">
+        <details id="qrFormNameMore"><summary class="small">進化形態名（任意・空欄なら「進化形態未確認」）</summary>
         <div class="field"><label for="qrFormName">正式な進化形態名</label><input id="qrFormName" maxlength="60" placeholder="例：ハローワールド・モード"></div>
         <div class="field"><label for="qrFormShort">短縮表示名（一覧用・空欄なら正式名）</label><input id="qrFormShort" maxlength="16" placeholder="例：ハロー"></div>
+        </details>
         <div class="field"><label for="qrRace">種族</label><select id="qrRace"></select></div>
         <div class="field" id="qrRaceCustomField" hidden><label for="qrRaceCustom">種族名（その他・新規）</label><input id="qrRaceCustom" maxlength="40"></div>
         <div class="two field">
@@ -870,8 +880,10 @@ function normV3(raw,d){
     const no=clean(f.monsterNo,10), full=clean(f.fullDisplayName,80);
     if(no) x.monsterNo=no;
     if(full) x.fullDisplayName=full;
+    // 進化形態未確認（名前が空でも捨てない印）。名前が入っていれば通常の形態として扱う
+    if(!x.name&&f.unknownForm===true) x.unknownForm=true;
     return x;
-  }).filter(f=>f.name&&once(f.id));
+  }).filter(f=>(f.name||f.unknownForm)&&once(f.id));
   d.units=(Array.isArray(raw.units)?raw.units:[]).filter(u=>u&&typeof u==='object').map(u=>{
     const no=parseInt(u.no,10);
     return {id:clean(u.id,40),formId:clean(u.formId,40),device:DEVICES.includes(u.device)?u.device:clean(u.device,20),
@@ -1127,11 +1139,11 @@ function renderStage(){
       return `<button type="button" class="dpBtn${on?' on':''}" role="checkbox" aria-checked="${on}" data-act="useDev" data-dev="${esc(d)}"><span class="dpBox">${on?SLOT_MARKS[use.indexOf(d)]:''}</span>${esc(devLabel(d))}</button>`}).join('')}</div>
     <div class="dpMsg" id="devPickMsg" role="status"></div>`;
   $('stageDevices').innerHTML=use.length?use.map((d,i)=>{
-    const n=candidatesFor(k,d).length;
+    const n=candidatesFor(k,d).length, r=refUnitsFor(k,d).length;
     return `
       <div class="dev pickDev" data-dev="${esc(d)}">
         <div class="devHead"><div class="devName"><span class="slotNo">${SLOT_MARKS[i]}</span>${devNameHtml(d)}</div>
-          <span class="cnt${n?' has':''}">候補${n}</span></div>
+          <span class="cnts"><span class="cnt${n?' has':''}">候補${n}</span>${r?`<span class="cnt refCnt">参考${r}</span>`:''}</span></div>
         ${pickBlock(k,d)}
       </div>`;
   }).join(''):`<div class="dev empty"><div class="devName">今回使う端末を選んでください</div><span class="none">上のチェックで最大${USE_MAX}台</span></div>`;
@@ -1422,11 +1434,24 @@ function paintRank(r){
 function charOf(id){return db.master.characters.find(c=>c.id===id)||null}
 function formOf(id){return db.master.forms.find(f=>f.id===id)||null}
 function formsOfChar(cid){return db.master.forms.filter(f=>f.characterId===cid)}
-function formShort(f){return f.short||f.name}
+// 進化形態未確認：キャラごとに1つ持てる、名前の無い形態（unknownForm:true）。所持個体を進化形態なしで登録するときに使う。
+// 適正の取り込みは名前の一致が必要なので、ここに適正が自動で付くことはない（不明な形態から適正を推測しない）
+const UNKNOWN_FORM_LABEL='進化形態未確認';
+function unknownFormOf(cid,forms=db.master.forms){return forms.find(f=>f.characterId===cid&&f.unknownForm)||null}
+function formName(f){return f?(f.unknownForm?UNKNOWN_FORM_LABEL:f.name):''}
+function formShort(f){return f.unknownForm?UNKNOWN_FORM_LABEL:(f.short||f.name)}
+function formNameParen(f){return f.unknownForm?'':`（${f.name}）`}
 function formLabel(f){
   if(!f) return '（形態不明・要確認）';
   const c=charOf(f.characterId);
-  return `${c?c.name:'（キャラ不明）'}｜${formShort(f)}`;
+  // 進化形態未確認はキャラ名だけ（一覧ではキャラ名を中心に見せる。形態の情報は内部に保持）
+  return `${c?c.name:'（キャラ不明）'}${f.unknownForm?'':`｜${formShort(f)}`}`;
+}
+// ステージの参考表示：適正のある形態のキャラと同名で、進化形態未確認の所持個体（候補ではない。適正は確定しない）
+function refUnitsFor(k,dev){
+  const ids=suitFormIds(k), cids=new Set([...ids].map(id=>formOf(id)?.characterId).filter(Boolean));
+  return db.units.filter(u=>{const f=formOf(u.formId);return u.device===dev&&f?.unknownForm&&!ids.has(u.formId)&&cids.has(f.characterId)})
+    .sort((a,b)=>sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId)))||(a.no||0)-(b.no||0));
 }
 function unitLabel(u){return `${formLabel(formOf(u.formId))} 個体${u.no??'?'}`}
 function fruitText(x){return `${x.kind?`[${x.kind}]`:''}${x.name||'名称未設定'}${x.grade?` ${x.grade}`:''}`}
@@ -1478,7 +1503,7 @@ function unitInfoHtml(u,mode){
       ...Array.from({length:Math.max(FRUIT_BASE,u.fruits.length)},(_,i)=>[`実${i+1}`,u.fruits[i]?fruitText(u.fruits[i]):''])];
     return `<dl class="pAll">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||'—')}</dd>`).join('')}</dl>`;
   }
-  return `<div class="pInfo"><span class="pForm">${esc(f?f.name:'形態不明・要確認')}</span></div>`;
+  return `<div class="pInfo"><span class="pForm">${esc(f?formName(f):'形態不明・要確認')}</span></div>`;
 }
 
 /* ---- ステージ画面：今回使う端末（最大4台）と、端末ごとの編成カード ---- */
@@ -1499,37 +1524,49 @@ function fruitShort(x){
   return n+(GRADE_SHORT[x.grade]||'');
 }
 // 編成カード：1行目 キャラ｜進化形態 個体番号 ／ 2行目 種族 戦型 撃種 ／ 3行目 実1〜3（4つ目があれば次の行）
-function unitCardHtml(u,unverified){
+// ref：'ref'＝参考表示（適正キャラと同名・進化形態未確認）、'prov'＝その参考の個体を仮選択した編成カード。
+// どちらも点線の枠と印で、進化形態まで一致する（適正確認済みの）個体と区別する
+function unitCardHtml(u,unverified,ref){
   const f=formOf(u.formId), c=f&&charOf(f.characterId);
   const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
-  return `<div class="uCard">
-    <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b><span class="uSep">｜</span><span class="uForm">${esc(f?formShort(f):'形態不明・要確認')}</span>
-      <span class="uNo">個体${u.no??'?'}</span>${unverified?'<span class="vb v-UNVERIFIED">未検証</span>':''}${u.verificationStatus==='NEEDS_REVIEW'?'<span class="vb v-NEEDS_REVIEW">個体要確認</span>':''}</div>
+  return `<div class="uCard${ref?' uRef':''}${ref==='prov'?' uProv':''}">
+    <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b>${f?.unknownForm?'':`<span class="uSep">｜</span><span class="uForm">${esc(f?formShort(f):'形態不明・要確認')}</span>`}
+      <span class="uNo">個体${u.no??'?'}</span>${ref==='prov'?'<span class="vb v-PROV">仮選択・適正未確定</span>':ref?'<span class="vb v-REF">参考</span>':''}${unverified?'<span class="vb v-UNVERIFIED">未検証</span>':''}${u.verificationStatus==='NEEDS_REVIEW'?'<span class="vb v-NEEDS_REVIEW">個体要確認</span>':''}</div>
     <div class="uL2">${[['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
     ${u.fruits.length?`<div class="uL3">${u.fruits.slice(0,FRUIT_BASE).map(chip).join('')}</div>${u.fruits.length>FRUIT_BASE?`<div class="uL3 uL4">${u.fruits.slice(FRUIT_BASE).map(chip).join('')}</div>`:''}`
       :'<div class="uL3"><span class="frNone">実なし</span></div>'}
   </div>`;
 }
+// 参考の個体（適正キャラと同名・進化形態未確認）も「仮選択」できる。保存は従来どおり picks に個体IDを入れるだけで、
+// 仮選択かどうかは表示のたびに判定する（適正データ・進化形態は変更せず、仮選択は適正の確定を意味しない）
 function pickBlock(k,d){
-  const cands=candidatesFor(k,d), sel=db.picks[k]?.[d]||'';
-  const unit=sel?db.units.find(u=>u.id===sel):null, stale=!!sel&&!cands.some(u=>u.id===sel);
+  const cands=candidatesFor(k,d), refs=refUnitsFor(k,d), sel=db.picks[k]?.[d]||'';
+  const unit=sel?db.units.find(u=>u.id===sel):null;
+  const prov=!!sel&&!cands.some(u=>u.id===sel)&&refs.some(u=>u.id===sel);
+  const stale=!!sel&&!cands.some(u=>u.id===sel)&&!prov;
+  const any=cands.length||refs.length;
   let reason='';
   if(!cands.length){
     const owned=db.units.filter(u=>u.device===d).length, suited=suitFormIds(k).size;
-    reason=!suited?'このステージの適正が未登録です':!owned?'この端末の所持個体が未登録です':'所持個体に、このステージの適正キャラがいません';
+    reason=!suited?'このステージの適正が未登録です':!owned?'この端末の所持個体が未登録です'
+      :refs.length?'進化形態まで一致する所持個体はありません（参考から仮選択できます）':'所持個体に、このステージの適正キャラがいません';
   }
   // 未検証の適正しかない形態の個体も候補には出すが、「（未検証）」と明示する
   const verified=verifiedFormIds(k), mark=u=>verified.has(u.formId)?'':'（未検証）';
-  const opts=[`<option value="">${cands.length?'— 使う個体を選ぶ —':'候補なし'}</option>`,
+  const opts=[`<option value="">${any?'— 使う個体を選ぶ —':'候補なし'}</option>`,
     stale?`<option value="${esc(sel)}" selected>${esc(unit?unitLabel(unit):'削除された個体')}（候補外）</option>`:'',
-    ...cands.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u)+mark(u))}</option>`)].join('');
-  return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!cands.length&&!stale?' disabled':''}>${opts}</select>`+
+    ...cands.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u)+mark(u))}</option>`),
+    refs.length?`<optgroup label="参考（進化形態未確認・仮選択）">${refs.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u))}（仮）</option>`).join('')}</optgroup>`:''].join('');
+  const restRefs=refs.filter(u=>u.id!==sel);
+  return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!any&&!stale?' disabled':''}>${opts}</select>`+
     (stale?'<div class="pWarn">選択中の個体は今の候補外です（適正・所持・形態を確認してください）</div>':'')+
     // 編成判断に必要な情報（形態・種族・戦型・撃種・実）は常時表示。下の「詳細」は補助（既定は表示なし）
-    (unit&&!stale?unitCardHtml(unit,!verified.has(unit.formId)):'')+
+    (unit&&!stale?unitCardHtml(unit,!prov&&!verified.has(unit.formId),prov?'prov':false):'')+
     (unit&&!stale&&db.ui.infoMode!=='none'?unitInfoHtml(unit,db.ui.infoMode):'')+
-    (cands.length&&!sel?'<div class="pNone">使う個体を選んでください</div>':'')+
-    (reason?`<div class="pNone">${esc(reason)}</div>`:'');
+    (any&&!sel?'<div class="pNone">使う個体を選んでください</div>':'')+
+    (reason?`<div class="pNone">${esc(reason)}</div>`:'')+
+    // 参考：仮選択していない参考の個体（適正・進化形態を推測して確定しない）
+    (restRefs.length?`<div class="pRef"><div class="pRefHead">参考：適正キャラと同名（進化形態未確認・適正は未確定）</div>${restRefs.map(u=>unitCardHtml(u,false,'ref')).join('')}</div>`:'');
 }
 // 補助の詳細表示（正式な形態名・実の正式名など）。押すと表示、もう一度押すと閉じる
 function renderInfoBar(){
@@ -1590,16 +1627,17 @@ function renderChara(){
     const flash=charaFlash&&units.some(u=>u.id===charaFlash.unitId)?charaFlash:null;
     const guide=!forms.length?'① 「＋ 進化形態」で進化形態を登録 → ② 「＋ 所持個体」で端末とわくわくの実を登録'
       :!units.length?'次に「＋ 所持個体」で、どの端末にいるかと、わくわくの実を登録してください':'';
-    const formRows=forms.map(f=>`<div class="row"><div class="rowMain"><div class="cname">${esc(formShort(f))}<span class="x">${esc(f.name)}${f.monsterNo?` No.${esc(f.monsterNo)}`:''}</span></div>
+    // 進化形態未確認の行は小さく「形態指定なし」（種族・戦型・撃種・図鑑No.と編集ボタンは同じように使える）
+    const formRows=forms.map(f=>`<div class="row"><div class="rowMain"><div class="cname">${f.unknownForm?'<span class="formNone">形態指定なし</span>':esc(formShort(f))}<span class="x">${esc(f.name)}${f.monsterNo?` No.${esc(f.monsterNo)}`:''}</span></div>
       <div class="badges">${typeChips(f)}</div></div><button class="mini" data-act="formEdit" data-id="${esc(f.id)}">編集</button></div>`).join('')
       ||'<div class="small">進化形態が未登録です</div>';
     const unitRows=DEVICES.map(d=>{
       const us=units.filter(u=>u.device===d).sort((a,b)=>(a.no||0)-(b.no||0));
       if(!us.length) return '';
       return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>`<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
-        <div class="cname">個体${u.no??'?'}<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span>${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}</div>
+        <div class="cname">個体${u.no??'?'}${formOf(u.formId)?.unknownForm?'':`<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span>`}${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}</div>
         <div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}
-        <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:'ステージ適正 未登録（ステージ画面の候補には出ません）'}</div></div>
+        <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:formOf(u.formId)?.unknownForm?'ステージ画面では、適正キャラと同名なら参考として表示':'ステージ適正 未登録（ステージ画面の候補には出ません）'}</div></div>
         <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></div>`).join('');
     }).join('')||'<div class="small">所持個体が未登録です</div>';
     const suitRows=suits.length?`<div class="badges">${suits.sort((a,b)=>sortJa(a.stageKey,b.stageKey)).map(s=>
@@ -1640,7 +1678,7 @@ function renderMigration(){
     const forms=db.master.forms.filter(f=>charOf(f.characterId)?.name===x.name);
     return `<div class="row mig"><div class="rowMain">${head}
       ${forms.length?`<div class="two" style="margin-top:6px">
-        <select data-mig-form="${esc(id)}" aria-label="取り込む進化形態"><option value="">進化形態を選ぶ</option>${forms.map(f=>`<option value="${esc(f.id)}">${esc(formLabel(f))}（${esc(f.name)}）</option>`).join('')}</select>
+        <select data-mig-form="${esc(id)}" aria-label="取り込む進化形態"><option value="">進化形態を選ぶ</option>${forms.map(f=>`<option value="${esc(f.id)}">${esc(formLabel(f))}${esc(formNameParen(f))}</option>`).join('')}</select>
         <select data-mig-src="${esc(id)}" aria-label="出典"><option value="">出典を選ぶ</option>${Object.entries(SOURCES).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('')}</select></div>
         <div class="tools"><button class="tool" data-act="migrate" data-id="${esc(id)}">この順位を取り込む</button></div>`
       :`<div class="badges"><span class="b out">未変換・要確認：「${esc(x.name)}」のキャラ・進化形態が未登録です（キャラタブで登録すると選べます）</span></div>`}
@@ -1813,6 +1851,7 @@ function saveForm(next){
   const b=normFormBasic({battleType:$('fmBattle').value,shotType:$('fmShot').value});
   // 図鑑No.・表示名（取り込みで入った値）は編集画面に欄が無いのでそのまま引き継ぐ
   const item={...(old||{}),id:old?old.id:uid(),characterId:mEdit.charId,name,short:clean($('fmShort').value,16),race,battleType:b.battleType,shotType:b.shotType};
+  delete item.unknownForm; // 進化形態未確認に名前を付けたら通常の形態になる（個体はそのまま）
   db.master.forms=old?db.master.forms.map(f=>f.id===old.id?item:f):[...db.master.forms,item];
   db.ui.charaOpen=item.characterId;
   persist();closeModals();render();
@@ -1820,7 +1859,7 @@ function saveForm(next){
 }
 function deleteForm(){
   const f=formOf(mEdit?.id);if(!f||db.units.some(u=>u.formId===f.id)||db.suits.some(s=>s.formId===f.id))return;
-  if(!confirm(`進化形態「${f.name}」を削除しますか？`))return;
+  if(!confirm(`進化形態「${formName(f)}」を削除しますか？`))return;
   db.master.forms=db.master.forms.filter(x=>x.id!==f.id);
   persist();closeModals();render();
 }
@@ -1915,7 +1954,7 @@ function syncQrChar(){
   const cid=$('qrChar').value, isNew=cid===NEW;
   $('qrCharNameField').hidden=!isNew;
   const forms=isNew?[]:formsOfChar(cid);
-  $('qrForm').innerHTML=`<option value="${NEW}">＋ 新しい進化形態</option>`+forms.map(f=>`<option value="${esc(f.id)}">${esc(formShort(f))}（${esc(f.name)}）</option>`).join('');
+  $('qrForm').innerHTML=`<option value="${NEW}">＋ 新しく登録（進化形態は任意）</option>`+forms.map(f=>`<option value="${esc(f.id)}">${esc(formShort(f))}${esc(formNameParen(f))}</option>`).join('');
   $('qrForm').value=forms[0]?.id||NEW;
   syncQrForm();
 }
@@ -1954,14 +1993,21 @@ function saveQuickReg(){
     newChar={id:uid(),name};charId=newChar.id;
   }else if(!charOf(charId)) return err('キャラを選んでください');
   let formId=$('qrForm').value, newForm=null;
+  let formPatch=null;
   if(formId===NEW){
     const name=clean($('qrFormName').value,60);
-    if(!name) return err('正式な進化形態名を入力してください');
-    if(!newChar&&formsOfChar(charId).some(f=>f.name===name)) return err('同じ名前の進化形態が既にあります（一覧から選んでください）');
+    if(name&&!newChar&&formsOfChar(charId).some(f=>!f.unknownForm&&f.name===name)) return err('同じ名前の進化形態が既にあります（一覧から選んでください）');
     const custom=$('qrRaceCustom').value, b=normFormBasic({battleType:$('qrBattle').value,shotType:$('qrShot').value});
-    newForm={id:uid(),characterId:charId,name,short:clean($('qrFormShort').value,16),
-      race:$('qrRace').value===CUSTOM_RACE?clean(custom,40):$('qrRace').value,battleType:b.battleType,shotType:b.shotType};
-    formId=newForm.id;
+    const basic={race:$('qrRace').value===CUSTOM_RACE?clean(custom,40):$('qrRace').value,battleType:b.battleType,shotType:b.shotType};
+    // 進化形態名が空なら「進化形態未確認」に登録する（キャラごとに1つ。既にあれば使い、空欄だけ補う）
+    const unk=!name&&!newChar?unknownFormOf(charId):null;
+    if(unk){
+      formId=unk.id;
+      formPatch=Object.fromEntries(Object.entries(basic).filter(([k,v])=>v&&!unk[k]));
+    }else{
+      newForm={id:uid(),characterId:charId,name,short:name?clean($('qrFormShort').value,16):'',...basic,...(name?{}:{unknownForm:true})};
+      formId=newForm.id;
+    }
   }else if(formOf(formId)?.characterId!==charId) return err('進化形態を選んでください');
   const device=$('qrDevice').value;
   if(!DEVICES.includes(device)) return err('端末を選んでください');
@@ -1984,6 +2030,7 @@ function saveQuickReg(){
   try{
     if(newChar) db.master.characters.push(newChar);
     if(newForm) db.master.forms.push(newForm);
+    if(formPatch&&Object.keys(formPatch).length) Object.assign(formOf(formId),formPatch);
     const unit={id:uid(),formId,device,no:noIn>=1&&noIn<=99?noIn:nextUnitNo(formId,device),fruits,memo:''};
     db.units.push(unit);
     let suitNote='';
@@ -2011,7 +2058,7 @@ function openSuit(s=null){
   $('stTitle').textContent=`${stageLabel(k)}：${s?'適正を編集':'適正を追加'}`;
   $('stForm').innerHTML='<option value="">進化形態を選ぶ</option>'+[...db.master.characters].sort((a,b)=>sortJa(a.name,b.name)).map(c=>{
     const fs=formsOfChar(c.id);
-    return fs.length?`<optgroup label="${esc(c.name)}">${fs.map(f=>`<option value="${esc(f.id)}">${esc(formLabel(f))}（${esc(f.name)}）</option>`).join('')}</optgroup>`:'';
+    return fs.length?`<optgroup label="${esc(c.name)}">${fs.map(f=>`<option value="${esc(f.id)}">${esc(formLabel(f))}${esc(formNameParen(f))}</option>`).join('')}</optgroup>`:'';
   }).join('');
   $('stForm').value=s?s.formId:'';
   $('stSource').innerHTML=Object.entries(SOURCES).map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');
@@ -2247,7 +2294,8 @@ function parseInventory(text){
 }
 function fruitsSame(a,b){return JSON.stringify(a.map(x=>[x.name,x.grade,x.kind||'']))===JSON.stringify(b.map(x=>[x.name,x.grade,x.kind||'']))}
 // 取り込み計画を作るだけ（db は変更しない）。コピーの上で順に照合するので、同じJSON内の同じキャラも1件にまとまる
-function planInventory(j){
+// opts.allowUnknownForm：進化形態名が空の行を、そのキャラの「進化形態未確認」に登録する（スクショ読取の取り込みだけで使う）
+function planInventory(j,opts={}){
   const dev=j.device, src=j.schema;
   const chars=JSON.parse(JSON.stringify(db.master.characters)), forms=JSON.parse(JSON.stringify(db.master.forms)), units=JSON.parse(JSON.stringify(db.units));
   const charName=f=>chars.find(c=>c.id===f.characterId)?.name||'';
@@ -2257,7 +2305,7 @@ function planInventory(j){
       unitNo:u.unitNo,vs:u.verificationStatus,note:invText(u.note,100),cls:'ok',reasons:[],actions:[],same:false};
     const fail=(cls,m)=>{r.cls=cls;r.reasons.push(m);return r};
     if(!r.characterName) return fail('reject','キャラ名が空のため識別できません');
-    if(!r.formName) return fail('reject','進化形態名が空のため識別できません（所持確認の記録としては残ります）');
+    if(!r.formName&&!opts.allowUnknownForm) return fail('reject','進化形態名が空のため識別できません（所持確認の記録としては残ります）');
     if(!VERIFY[r.vs]) r.reasons.push('verificationStatus が無い／不明のため「要確認」として扱います');
     const no=Number.isInteger(u.unitNo)&&u.unitNo>=1&&u.unitNo<=99?u.unitNo:null;
     if(no==null) r.reasons.push('個体番号（unitNo）が無い／不正のため、自動で番号を付けます');
@@ -2279,10 +2327,11 @@ function planInventory(j){
     const cs=chars.filter(c=>c.name===r.characterName);
     if(cs.length>1) return fail('conflict','同じ名前のキャラが複数登録されています');
     if(inc.monsterNo){
-      const other=forms.find(x=>x.monsterNo===inc.monsterNo&&!(charName(x)===r.characterName&&x.name===r.formName));
+      // 同じキャラの中で、どちらかが進化形態未確認なら食い違いとはしない（同じ形態かもしれないが、統合もしない）
+      const other=forms.find(x=>x.monsterNo===inc.monsterNo&&!(charName(x)===r.characterName&&(x.name===r.formName||x.unknownForm||!r.formName)));
       if(other) return fail('conflict',`図鑑No.${inc.monsterNo} が既存の「${charName(other)}｜${other.name}」と同じです（名前が違うため自動では直しません）`);
     }
-    let ch=cs[0], fm=ch?forms.find(x=>x.characterId===ch.id&&x.name===r.formName):null;
+    let ch=cs[0], fm=ch?(r.formName?forms.find(x=>x.characterId===ch.id&&!x.unknownForm&&x.name===r.formName):unknownFormOf(ch.id,forms)):null;
     const patch={};
     if(fm){
       for(const [k,label] of INV_FIELDS){
@@ -2309,7 +2358,7 @@ function planInventory(j){
     // ここまで矛盾なし → コピーへ反映
     if(!ch){ch={id:uid(),name:r.characterName};chars.push(ch);r.actions.push('キャラを新規登録')}
     if(!fm){
-      fm={id:uid(),characterId:ch.id,name:r.formName,short:'',race:inc.race,battleType:inc.battleType,shotType:inc.shotType};
+      fm={id:uid(),characterId:ch.id,name:r.formName,short:'',race:inc.race,battleType:inc.battleType,shotType:inc.shotType,...(r.formName?{}:{unknownForm:true})};
       if(inc.monsterNo) fm.monsterNo=inc.monsterNo;
       if(r.fullDisplayName) fm.fullDisplayName=r.fullDisplayName;
       forms.push(fm);r.actions.push('進化形態を新規登録');
@@ -2481,7 +2530,6 @@ function renderSrEdit(){
   const pick=(k,list,label)=>{const v=r[k];if(v&&!list.includes(v)){warns.push(`${label}「${v}」は登録済みの表記と違うため空欄（未確認）にしました。画像で確認して選んでください`);return ''}return v};
   const bt=pick('battleType',FORM_BATTLE_TYPES,'戦型'), st=pick('shotType',SHOT_TYPES,'撃種');
   if(!r.characterName) warns.push('キャラ名が読み取れていません。画像で確認して入力してください');
-  if(!r.formName) warns.push('進化形態が未確認です（推測では補いません）。画像で確認して入力しないと登録できません');
   const infos=[];
   // 保留から再開したときは、保留した時点の実（名前・等級）をそのまま使う（もう一度変換・分割はしない）
   const fr=pre?[0,1,2].map(i=>({name:pre.fruits[i]?.name||'',grade:pre.fruits[i]?.grade||''})):[1,2,3].map(i=>{
@@ -2499,8 +2547,10 @@ function renderSrEdit(){
     ${warns.length?`<div class="note" id="srWarn">${warns.map(esc).join('<br>')}</div>`:''}
     <label for="srDevice">登録先の端末</label><select id="srDevice"></select>
     ${field('characterName','キャラ名',text('characterName',40))}
+    <details id="srMore"${r.formName?' open':''}><summary class="small">進化形態・図鑑No.（任意）</summary>
     ${field('formName','進化形態',text('formName',60))}
     ${field('monsterNo','図鑑No.',text('monsterNo',10))}
+    </details>
     ${field('race','種族',`<input id="srF_race" maxlength="40" placeholder="未確認（空欄）" list="srRaceList"><datalist id="srRaceList">${RACES.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}
     ${field('battleType','戦型',`<select id="srF_battleType">${srOptions(FORM_BATTLE_TYPES,bt,'未確認')}</select>`)}
     ${field('shotType','撃種',`<select id="srF_shotType">${srOptions(SHOT_TYPES,st,'未確認')}</select>`)}
@@ -2525,7 +2575,7 @@ function srDuplicates(c){
   const ids=new Set(db.master.characters.filter(x=>x.name===c.characterName).map(x=>x.id));
   const key=a=>JSON.stringify(a.map(x=>[x.name,x.grade]));
   return db.units.filter(u=>u.device===c.device&&ids.has(formOf(u.formId)?.characterId))
-    .map(u=>({no:u.no,formName:formOf(u.formId)?.name||'',sameForm:formOf(u.formId)?.name===c.formName,sameFruits:key(u.fruits)===key(c.fruits),fruits:u.fruits}));
+    .map(u=>({no:u.no,formName:formName(formOf(u.formId)),unknown:!!formOf(u.formId)?.unknownForm,sameForm:!!c.formName&&!formOf(u.formId)?.unknownForm&&formOf(u.formId)?.name===c.formName,sameFruits:key(u.fruits)===key(c.fruits),fruits:u.fruits}));
 }
 function srFruitText(fr){return fr.length?fr.map(x=>`${x.name||'（名前なし）'} ${x.grade||'等級未確認'}`).join('、'):'なし'}
 function checkScreenshot(){
@@ -2534,18 +2584,17 @@ function checkScreenshot(){
   const c=srCollect(), errs=[];
   if(!DEVICES.includes(c.device)) errs.push('登録先の端末を選んでください');
   if(!c.characterName) errs.push('キャラ名が空です。画像で確認して入力してください');
-  if(!c.formName) errs.push('進化形態が未確認です。推測では補わないため、画像で確認して入力してから登録してください');
   if(c.fruits.some(x=>!x.name)) errs.push('名前が空の実があります（等級だけの実は登録できません）');
   if(errs.length){$('srResult').innerHTML=`<div class="note">まだ登録できません：<br>${errs.map(esc).join('<br>')}</div>`;return}
   const j={schema:SR_FORMAT,device:c.device,scope:'',ownershipChecks:[],
     units:[{characterName:c.characterName,formName:c.formName,monsterNo:c.monsterNo,race:c.race,battleType:c.battleType,shotType:c.shotType,
       fruits:c.fruits,verificationStatus:c.needsReview?'NEEDS_REVIEW':'VERIFIED'}]};
-  const plan=planInventory(j), row=plan.rows[0], dups=srDuplicates(c);
+  const plan=planInventory(j,{allowUnknownForm:true}), row=plan.rows[0], dups=srDuplicates(c);
   const blocked=row.cls==='conflict'||row.cls==='reject';
   const a=row.formAfter||{}, reasons=row.reasons.filter(m=>!/個体番号（unitNo）/.test(m));
   $('srResult').innerHTML=`<div class="invSec">登録前の確認</div>
     <div class="invRow inv-${blocked?row.cls:reasons.length||c.needsReview?'review':'ok'}">
-      <div class="cname">${esc(c.characterName)}｜${esc(c.formName)}</div>
+      <div class="cname">${esc(c.characterName)}${c.formName?`｜${esc(c.formName)}`:''}</div>
       ${blocked?'':`<div class="meta">登録先：${esc(devLabel(c.device))}・個体${esc(String(row.unitNo??'?'))}（新しい個体として追加）</div>
       <div class="meta">図鑑No.${esc(a.monsterNo||'未確認')}・${[a.race,a.battleType,a.shotType].map(v=>esc(v||'未確認')).join(' / ')}</div>
       <div class="meta">わくわくの実：${esc(srFruitText(c.fruits))}</div>
@@ -2555,7 +2604,7 @@ function checkScreenshot(){
     </div>
     ${blocked?'<div class="note">既存データと食い違うか、識別できないため登録できません（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください。</div>':''}
     ${!blocked&&dups.length?`<div class="note" id="srDupNote">${esc(devLabel(c.device))}には「${esc(c.characterName)}」の個体がすでにあります（自動では上書き・統合しません）：<br>${dups.map(d=>
-      `個体${esc(String(d.no))}｜${esc(d.formName)}・実：${esc(srFruitText(d.fruits))}${d.sameForm?'（同じ進化形態）':''}${d.sameFruits?'<b>（実も同じ＝同じ個体の可能性が高い）</b>':''}`).join('<br>')}
+      `個体${esc(String(d.no))}${d.unknown?'':`｜${esc(d.formName)}`}・実：${esc(srFruitText(d.fruits))}${d.sameForm?'（同じ進化形態）':''}${d.sameFruits?'<b>（実も同じ＝同じ個体の可能性が高い）</b>':''}`).join('<br>')}
       <label class="srChk"><input type="checkbox" id="srDupOk"> 既存の個体とは別の個体として追加する（既存の個体は変更しません）</label></div>`:''}`;
   if(blocked) return;
   srPending={sig:srSig(),c,j,dups:dups.length};
@@ -2567,7 +2616,7 @@ function applyScreenshot(){
   if(!p||p.sig!==srSig()){srPending=null;$('srApply').disabled=true;$('srMsg').textContent='内容が変わったため、もう一度「確認画面へ」を押してください';return}
   if(p.dups&&!$('srDupOk')?.checked){$('srMsg').textContent='同じキャラの個体がすでにあります。別の個体として追加する場合は、チェックを入れてから「登録する」を押してください';return}
   // 確認後にデータが変わっていても安全なように、保存直前に照合し直す
-  const plan=planInventory(p.j), row=plan.rows[0];
+  const plan=planInventory(p.j,{allowUnknownForm:true}), row=plan.rows[0];
   if(row.cls==='conflict'||row.cls==='reject'||srDuplicates(p.c).length!==p.dups){srPending=null;$('srApply').disabled=true;$('srMsg').textContent='登録前にデータが変わりました。もう一度「確認画面へ」を押してください';return}
   // 保留から再開した登録なら、登録と同じ保存の中でその保留だけを消す（失敗したら保留も元に戻す）
   const pid=srState?.pendingId&&db.pendingReadings.some(x=>x.id===srState.pendingId)?srState.pendingId:'';
@@ -2584,7 +2633,7 @@ function applyScreenshot(){
   srPending=null;$('srApply').disabled=true;
   if(pid){srState=null;$('srEdit').hidden=true;$('srTools').hidden=true}
   render();
-  $('srMsg').textContent=`登録しました：${devLabel(p.c.device)} ${p.c.characterName}｜${p.c.formName} 個体${row.unitNo}（${VERIFY[p.c.needsReview?'NEEDS_REVIEW':'VERIFIED']}）`
+  $('srMsg').textContent=`登録しました：${devLabel(p.c.device)} ${p.c.characterName}${p.c.formName?`｜${p.c.formName}`:''} 個体${row.unitNo}（${VERIFY[p.c.needsReview?'NEEDS_REVIEW':'VERIFIED']}）`
     +(pid?'。この読み取りの保留を一覧から消しました':'');
 }
 /* ---- スクショ読取の保留（pendingReadings） ----
@@ -2594,7 +2643,7 @@ function applyScreenshot(){
    ・同じキャラの保留がすでにあれば知らせ、もう一度押したときだけ別の保留として追加する（統合・上書きしない）
    ・保留から再開した内容をもう一度「保留に入れる」と、その保留だけを今の内容で更新する */
 let srHoldDupSig='';
-function pendingLabel(x){return `${x.characterName||'（キャラ名なし）'}｜${x.formName||'進化形態未確認'}`}
+function pendingLabel(x){return `${x.characterName||'（キャラ名なし）'}${x.formName?`｜${x.formName}`:''}`}
 function holdScreenshot(){
   $('srMsg').textContent='';
   if(!srState||srState.text!==$('srText').value){$('srMsg').textContent='先に「内容を確認」を押してください';return}
@@ -2634,7 +2683,7 @@ function resumePending(id){
     reading:{characterName:x.characterName,formName:x.formName,monsterNo:x.monsterNo,race:x.race,battleType:x.battleType,shotType:x.shotType,
       fruit1:'',fruit2:'',fruit3:'',confidence:x.confidence,needsReview:x.needsReview,reviewNotes:x.reviewNotes,uncertainFields:x.uncertainFields}};
   renderSrEdit();renderPending();
-  $('srMsg').textContent=`保留から再開しました：${pendingLabel(x)}。進化形態と登録先の端末を確認して「確認画面へ」を押してください`;
+  $('srMsg').textContent=`保留から再開しました：${pendingLabel(x)}。登録先の端末を確認して「確認画面へ」を押してください`;
   $('srPanel').scrollIntoView({block:'start'});
 }
 function deletePending(id){
