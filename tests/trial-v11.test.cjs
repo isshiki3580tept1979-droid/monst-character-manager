@@ -125,6 +125,8 @@ test('reader from キャラ登録: 「スクショから登録」 keeps the chos
   await click('[data-act="qrFromShot"]');
   assert.match(await page.locator('#qrMsg').textContent(),/読取アプリを開きました/);
   const nonce=await pendingNonce();
+  const ou=new URL((await opened())[0][0]);
+  assert.deepEqual([...ou.searchParams.keys()],['return','nonce','device']);assert.equal(ou.searchParams.get('device'),'サブ3','device is passed so the reader can start with the camera');
   await send({type:'msr-reading',nonce,reading:READING});
   assert.equal(await page.locator('#qrModal.open').count(),0,'dialog closed');
   assert.equal(await page.locator('#view-admin').isVisible(),true);

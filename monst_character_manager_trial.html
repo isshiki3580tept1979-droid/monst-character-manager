@@ -369,7 +369,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div class="ptitle">スクショ読取の取り込み（1キャラ）</div>
       <div class="small">「モンスト スクショ読取」でコピーしたJSON（1キャラ分）を貼り付け、「内容を確認」を押してください。読み取り結果は確定値ではありません。項目を画像と見比べて確認・修正し、登録先の端末を選んで「確認画面へ」→「登録する」の順に進みます。空欄は推測で補わず「未確認」のままにします。既存の所持個体は上書き・削除しません。このアプリから外部（Gemini など）へは通信しません。</div>
       <div class="tools"><button class="tool main" data-act="srReader">📷 スクショから読み取る</button></div>
-      <div class="small">読取アプリが別のタブで開きます。同じキャラのスクショを2枚選んで読み取り、「管理アプリへ送る」を押すと、ここに確認画面が開きます。</div>
+      <div class="small">読取アプリが別のタブで開きます。同じキャラのスクショを2枚選ぶか、カメラで2枚撮影して読み取り、「管理アプリへ送る」を押すと、ここに確認画面が開きます（登録先がサブ1〜サブ5ならカメラ撮影から始まります）。</div>
       <textarea id="srText" style="margin-top:6px" placeholder="（読取アプリで「JSONをコピー」した場合は、ここに貼り付け）"></textarea>
       <div class="tools"><button class="tool" data-act="srPreview">内容を確認</button></div>
       <div id="srEdit" hidden></div>
@@ -2664,9 +2664,10 @@ function openReader(device){
   const nonce=uid()+uid()+uid();
   setReaderPending({nonce,device:DEVICES.includes(device)?device:'',at:Date.now()});
   let w=null;
-  try{w=window.open(`${SR_READER_URL}?return=manager&nonce=${encodeURIComponent(nonce)}`,'_blank')}catch(e){w=null}
+  const dev=DEVICES.includes(device)?`&device=${encodeURIComponent(device)}`:''; // 登録先（読取アプリが最初の読取方法を選ぶため）
+  try{w=window.open(`${SR_READER_URL}?return=manager&nonce=${encodeURIComponent(nonce)}${dev}`,'_blank')}catch(e){w=null}
   return w
-    ?'読取アプリを開きました。同じキャラのスクショを2枚選んで読み取り、「管理アプリへ送る」を押してください（このタブに確認画面が開きます）'
+    ?'読取アプリを開きました。スクショを2枚選ぶか、カメラで2枚撮影して読み取り、「管理アプリへ送る」を押してください（このタブに確認画面が開きます）'
     :'読取アプリを開けませんでした（ポップアップがブロックされた可能性があります）。もう一度押すか、ブラウザの設定を確認してください';
 }
 // 読取アプリからの結果を受け取る（送り元と合言葉を確かめる。合言葉は1回だけ使える）
