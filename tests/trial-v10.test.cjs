@@ -320,8 +320,9 @@ test('stage cards: a same-name unit of 進化形態未確認 is shown as 参考 
     useDevs:{[K]:['メイン','サブ1']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
   const main=page.locator('.pickDev[data-dev="メイン"]'), sub=page.locator('.pickDev[data-dev="サブ1"]');
   // 選択肢：進化形態まで一致する候補の下に、参考（進化形態未確認）を「（仮）」として別グループで出す
-  assert.deepEqual(await main.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ拾壱｜架空の形態B 個体1','架空キャラ玖 個体1（仮）']);
-  assert.equal(await main.locator('.pickSel optgroup').getAttribute('label'),'参考（進化形態未確認・仮選択）');
+  // （その下に、適正の無い所持キャラも「所持キャラ」グループとして出る：trial-v11）
+  assert.deepEqual(await main.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ拾壱｜架空の形態B 個体1','架空キャラ玖 個体1（仮）','適正なしの架空キャラ 個体1（仮）']);
+  assert.equal(await main.locator('.pickSel optgroup').first().getAttribute('label'),'参考（進化形態未確認・仮選択）');
   assert.match(await main.locator('.devHead').textContent(),/候補1/);assert.match(await main.locator('.devHead').textContent(),/参考1/);
   // 参考：同名キャラ（進化形態未確認）。キャラ名・種族・戦型・撃種・実を表示し、点線の別枠＋「参考」で区別
   const ref=main.locator('.pRef');
@@ -366,7 +367,7 @@ test('stage cards: a same-name unit of 進化形態未確認 is shown as 参考 
   assert.deepEqual((await snapshot()).picks,{'禁忌の獄::一ノ獄':{'サブ1':'uRef2'}});
 });
 
-test('provisional pick becomes 候補外 if the unit is no longer a 参考 (e.g. its form was named later); nothing is auto-confirmed', async()=>{
+test('a provisional pick stays provisional (所持キャラ) if the unit is no longer a 参考 (e.g. its form was named later); nothing is auto-confirmed', async()=>{
   const K='禁忌の獄::一ノ獄';
   await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ玖'}],
       forms:[{id:'f1',characterId:'c1',name:'架空の既知形態',short:'',race:'',battleType:'',shotType:''},{id:'fu',characterId:'c1',name:'',unknownForm:true,short:'',race:'',battleType:'',shotType:''}]},
@@ -374,9 +375,11 @@ test('provisional pick becomes 候補外 if the unit is no longer a 参考 (e.g.
     suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],
     picks:{[K]:{'メイン':'uRef'}},useDevs:{[K]:['メイン']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
   assert.equal(await page.locator('.uCard.uProv').count(),1);
-  // 形態に別の名前を付けると、その形態には適正が無いので参考でも候補でもなくなる → 候補外として知らせる（自動で確定しない）
+  // 形態に別の名前を付けると、その形態には適正が無いので参考でも候補でもなくなる → 所持キャラからの仮選択として残す（自動で確定しない）
   await page.evaluate(()=>{const f=formOf('fu');f.name='架空の別形態';delete f.unknownForm;persist();render()});
-  assert.match(await page.locator('.pickDev[data-dev="メイン"]').textContent(),/候補外/);
+  const t=await page.locator('.pickDev[data-dev="メイン"]').textContent();
+  assert.match(t,/仮選択・適正未確定/);assert.doesNotMatch(t,/候補外/);
+  assert.deepEqual((await snapshot()).picks,{[K]:{'メイン':'uRef'}});
   assert.deepEqual((await snapshot()).suits.map(s=>s.formId),['f1']);
 });
 

@@ -45,7 +45,7 @@ const click=async selector=>page.locator(selector).first().click();
 const snapshot=()=>page.evaluate(()=>JSON.parse(JSON.stringify(db)));
 async function seed(raw){await page.evaluate(({key,raw})=>localStorage.setItem(key,JSON.stringify(raw)),{key:KEY,raw});await page.reload()}
 const pickSel=dev=>page.locator(`.pickSel[data-pick-dev="${dev}"]`);
-const optionTexts=dev=>pickSel(dev).locator('option').allTextContents();
+const optionTexts=dev=>pickSel(dev).locator(':scope > option').allTextContents(); // 候補（optgroup の参考・所持キャラの仮選択は除く）
 const devRow=dev=>page.locator(`.pickDev[data-dev="${dev}"]`);
 
 // A seeded world: ネオ has two forms; main owns two ネオ units with different forms and fruits.
@@ -98,7 +98,8 @@ test('UI: register character, two forms, two units on one device, suitability; c
   // suitability for the ハロー form only (GAME_CLEAR_MONSTERS, rank 2)
   await click('[data-act="view"][data-view="stage"]');
   assert.equal(await page.locator('.pickDev').count(),0);await click('[data-act="useDev"][data-dev="メイン"]');
-  assert.equal(await pickSel('メイン').isDisabled(),true);
+  // 適正が未登録でも、この端末の所持キャラから仮選択はできる（候補は0）
+  assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
   await click('[data-act="suitAdd"]');await page.selectOption('#stForm',formIds[0]);await page.fill('#stRank','2');await click('[data-act="saveSuit"]');
   assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）']);
   await click('[data-act="suitVerify"]');
@@ -125,7 +126,9 @@ test('candidates: only owned AND suitable units per device, per-unit (not per-ch
   assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','ネオ｜リバース 個体1','リンネ｜リンネ（獣神化） 個体1']);
   // another stage with no suitability
   await click('[data-act="stage"][data-stage="二ノ獄"]');
-  assert.equal(await pickSel('メイン').isDisabled(),true);assert.match(await devRow('メイン').textContent(),/このステージの適正が未登録です/);
+  // 候補は0だが、所持キャラから仮選択はできる（理由も表示）
+  assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
+  assert.match(await devRow('メイン').textContent(),/このステージの適正が未登録です（所持キャラから仮選択できます）/);
   // form ownership status helper (bright / dark+！ / dark) per device
   assert.deepEqual(await page.evaluate(()=>[formStatus('f-hello','メイン'),formStatus('f-hello','サブ1'),formStatus('f-hello','サブ2'),formStatus('f-el','メイン')]),['owned','alt-form','not-owned','not-owned']);
 });
@@ -184,9 +187,11 @@ test('stale pick after suitability removal is shown as 候補外, not silently c
   await seed(world({picks:{[STAGE]:{'メイン':'u-neo1'}}}));
   assert.equal(await pickSel('メイン').inputValue(),'u-neo1');
   await click('[data-act="suitEdit"][data-id="s2"]');await click('[data-act="deleteSuit"]');
-  assert.match(await devRow('メイン').textContent(),/（候補外）/);assert.match(await devRow('メイン').textContent(),/今の候補外です/);
-  assert.equal((await snapshot()).picks[STAGE]['メイン'],'u-neo1');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（候補外）','ルシファー｜獣神化改 個体1']);
+  // 所持はしているので、自動で外さず「仮選択・適正未確定」として残す（適正は作らない）
+  assert.match(await devRow('メイン').textContent(),/仮選択・適正未確定/);assert.equal(await pickSel('メイン').inputValue(),'u-neo1');
+  assert.match(await pickSel('メイン').locator('option:checked').textContent(),/ネオ｜ハロー 個体1（仮）/);
+  assert.equal((await snapshot()).picks[STAGE]['メイン'],'u-neo1');assert.equal((await snapshot()).suits.some(s=>s.formId==='f-hello'),false);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ルシファー｜獣神化改 個体1']);
 });
 
 test('old data: read without writes, nothing auto-converted, explicit migration keeps old data and records 要確認',async()=>{

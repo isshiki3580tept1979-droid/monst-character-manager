@@ -368,7 +368,9 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
     <div class="panel" id="srPanel">
       <div class="ptitle">スクショ読取の取り込み（1キャラ）</div>
       <div class="small">「モンスト スクショ読取」でコピーしたJSON（1キャラ分）を貼り付け、「内容を確認」を押してください。読み取り結果は確定値ではありません。項目を画像と見比べて確認・修正し、登録先の端末を選んで「確認画面へ」→「登録する」の順に進みます。空欄は推測で補わず「未確認」のままにします。既存の所持個体は上書き・削除しません。このアプリから外部（Gemini など）へは通信しません。</div>
-      <textarea id="srText" style="margin-top:6px" placeholder="スクショ読取のJSONを貼り付け"></textarea>
+      <div class="tools"><button class="tool main" data-act="srReader">📷 スクショから読み取る</button></div>
+      <div class="small">読取アプリが別のタブで開きます。同じキャラのスクショを2枚選んで読み取り、「管理アプリへ送る」を押すと、ここに確認画面が開きます。</div>
+      <textarea id="srText" style="margin-top:6px" placeholder="（読取アプリで「JSONをコピー」した場合は、ここに貼り付け）"></textarea>
       <div class="tools"><button class="tool" data-act="srPreview">内容を確認</button></div>
       <div id="srEdit" hidden></div>
       <div id="srResult" style="margin-top:6px"></div>
@@ -545,6 +547,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
   <div class="modal">
     <h2 id="qrTitle">キャラ登録</h2>
     <div class="small" id="qrStageNote"></div>
+    <div class="tools"><button class="tool main" type="button" data-act="qrFromShot">📷 スクショから登録</button></div>
     <fieldset class="basicInfo">
       <legend>1. キャラ</legend>
       <div class="field"><label for="qrChar">キャラ</label><select id="qrChar"></select></div>
@@ -1537,26 +1540,34 @@ function unitCardHtml(u,unverified,ref){
       :'<div class="uL3"><span class="frNone">実なし</span></div>'}
   </div>`;
 }
-// 参考の個体（適正キャラと同名・進化形態未確認）も「仮選択」できる。保存は従来どおり picks に個体IDを入れるだけで、
-// 仮選択かどうかは表示のたびに判定する（適正データ・進化形態は変更せず、仮選択は適正の確定を意味しない）
+// ステージ編成の選択肢は3段：①適正確認済みの候補（通常）②参考（適正キャラと同名・進化形態未確認）③その端末のそれ以外の所持キャラ。
+// ②③は「仮選択」。保存は従来どおり picks に個体IDを入れるだけで、仮選択かどうかは表示のたびに判定する
+// （適正データ・進化形態は変更せず、仮選択は適正の確定を意味しない）
+function ownUnitsFor(k,dev,exclude){
+  return db.units.filter(u=>u.device===dev&&formOf(u.formId)&&!exclude.has(u.id))
+    .sort((a,b)=>sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId)))||(a.no||0)-(b.no||0));
+}
 function pickBlock(k,d){
   const cands=candidatesFor(k,d), refs=refUnitsFor(k,d), sel=db.picks[k]?.[d]||'';
+  const owns=ownUnitsFor(k,d,new Set(cands.concat(refs).map(u=>u.id)));
   const unit=sel?db.units.find(u=>u.id===sel):null;
-  const prov=!!sel&&!cands.some(u=>u.id===sel)&&refs.some(u=>u.id===sel);
-  const stale=!!sel&&!cands.some(u=>u.id===sel)&&!prov;
-  const any=cands.length||refs.length;
+  const inCand=cands.some(u=>u.id===sel), prov=!!sel&&!inCand&&(refs.some(u=>u.id===sel)||owns.some(u=>u.id===sel));
+  const stale=!!sel&&!inCand&&!prov;
+  const any=cands.length||refs.length||owns.length;
   let reason='';
   if(!cands.length){
     const owned=db.units.filter(u=>u.device===d).length, suited=suitFormIds(k).size;
-    reason=!suited?'このステージの適正が未登録です':!owned?'この端末の所持個体が未登録です'
-      :refs.length?'進化形態まで一致する所持個体はありません（参考から仮選択できます）':'所持個体に、このステージの適正キャラがいません';
+    reason=!owned?'この端末の所持個体が未登録です'
+      :!suited?'このステージの適正が未登録です（所持キャラから仮選択できます）'
+      :refs.length?'進化形態まで一致する所持個体はありません（参考から仮選択できます）':'適正確認済みの所持個体はありません（所持キャラから仮選択できます）';
   }
   // 未検証の適正しかない形態の個体も候補には出すが、「（未検証）」と明示する
   const verified=verifiedFormIds(k), mark=u=>verified.has(u.formId)?'':'（未検証）';
+  const group=(label,list)=>list.length?`<optgroup label="${esc(label)}">${list.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u))}（仮）</option>`).join('')}</optgroup>`:'';
   const opts=[`<option value="">${any?'— 使う個体を選ぶ —':'候補なし'}</option>`,
     stale?`<option value="${esc(sel)}" selected>${esc(unit?unitLabel(unit):'削除された個体')}（候補外）</option>`:'',
     ...cands.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u)+mark(u))}</option>`),
-    refs.length?`<optgroup label="参考（進化形態未確認・仮選択）">${refs.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u))}（仮）</option>`).join('')}</optgroup>`:''].join('');
+    group('参考（進化形態未確認・仮選択）',refs),group('所持キャラ（適正未登録・仮選択）',owns)].join('');
   const restRefs=refs.filter(u=>u.id!==sel);
   return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!any&&!stale?' disabled':''}>${opts}</select>`+
     (stale?'<div class="pWarn">選択中の個体は今の候補外です（適正・所持・形態を確認してください）</div>':'')+
@@ -1637,7 +1648,7 @@ function renderChara(){
       return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>`<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
         <div class="cname">個体${u.no??'?'}${formOf(u.formId)?.unknownForm?'':`<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span>`}${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}</div>
         <div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}
-        <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:formOf(u.formId)?.unknownForm?'ステージ画面では、適正キャラと同名なら参考として表示':'ステージ適正 未登録（ステージ画面の候補には出ません）'}</div></div>
+        <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:formOf(u.formId)?.unknownForm?'ステージ画面では、適正キャラと同名なら参考として表示':'ステージ適正 未登録（ステージ画面の候補には出ません。仮選択はできます）'}</div></div>
         <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></div>`).join('');
     }).join('')||'<div class="small">所持個体が未登録です</div>';
     const suitRows=suits.length?`<div class="badges">${suits.sort((a,b)=>sortJa(a.stageKey,b.stageKey)).map(s=>
@@ -2045,7 +2056,7 @@ function saveQuickReg(){
     $('devPickMsg').textContent=cand
       ?(use.includes(device)?`${label}を登録しました。${SLOT_MARKS[use.indexOf(device)]} ${device}の候補に追加されました${suitNote}`
         :`${label}を登録しました。${device}は今回使う端末に入っていません（上のチェックで選ぶと候補に出ます）${suitNote}`)
-      :`${label}を登録しました。このステージの適正が無いため、候補には出ません`;
+      :`${label}を登録しました。このステージの適正が無いため、候補には出ません（「所持キャラ」から仮選択はできます）`;
   }catch(e){
     const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.suits=b.suits;
     err('保存に失敗したため、登録前の状態に戻しました');
@@ -2636,6 +2647,47 @@ function applyScreenshot(){
   $('srMsg').textContent=`登録しました：${devLabel(p.c.device)} ${p.c.characterName}${p.c.formName?`｜${p.c.formName}`:''} 個体${row.unitNo}（${VERIFY[p.c.needsReview?'NEEDS_REVIEW':'VERIFIED']}）`
     +(pid?'。この読み取りの保留を一覧から消しました':'');
 }
+/* ---- スクショ読取 Ver.2 との連携（アプリ内でスクショ → 読み取り → 確認画面） ----
+   ・読み取りは既存の Apps Script（Gemini の APIキーはサーバー側の Script Properties だけ）。このアプリはキーを持たず、Gemini とも通信しない
+   ・読取アプリ（アクセスは「自分のみ」）を別タブで開き、Googleのログイン状態をそのまま使う。結果は postMessage で受け取る
+   ・受け取るのは Apps Script の画面（*-script.googleusercontent.com）から、こちらが渡した使い捨ての合言葉（nonce）付きのものだけ
+   ・受け取った結果は、貼り付けと同じ検証・確認画面（parseScreenshotReading → renderSrEdit）に流す。自動では登録しない */
+const SR_READER_URL='https://script.google.com/macros/s/AKfycbzoEPUY4X8u7soyjPITBW1rEa5UJnXsrT89nbmeLAZes7ecCctaGejQImPJ0C5Hre0n/exec';
+const SR_READER_ORIGIN=/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+const SR_READER_TTL=60*60*1000; // 合言葉の有効時間（1時間）
+// 合言葉はこのタブの sessionStorage にも控える（スマホで別タブに切り替えている間に、このタブが再読み込みされても受け取れるように）。
+// 試作版の保存データ（localStorage）には入れない
+const SR_READER_SESSION='monst-trial-reader-pending';
+let srReader=(()=>{try{const x=JSON.parse(sessionStorage.getItem(SR_READER_SESSION)||'null');return x&&typeof x.nonce==='string'?x:null}catch(e){return null}})();
+function setReaderPending(x){srReader=x;try{if(x)sessionStorage.setItem(SR_READER_SESSION,JSON.stringify(x));else sessionStorage.removeItem(SR_READER_SESSION)}catch(e){}}
+function openReader(device){
+  const nonce=uid()+uid()+uid();
+  setReaderPending({nonce,device:DEVICES.includes(device)?device:'',at:Date.now()});
+  let w=null;
+  try{w=window.open(`${SR_READER_URL}?return=manager&nonce=${encodeURIComponent(nonce)}`,'_blank')}catch(e){w=null}
+  return w
+    ?'読取アプリを開きました。同じキャラのスクショを2枚選んで読み取り、「管理アプリへ送る」を押してください（このタブに確認画面が開きます）'
+    :'読取アプリを開けませんでした（ポップアップがブロックされた可能性があります）。もう一度押すか、ブラウザの設定を確認してください';
+}
+// 読取アプリからの結果を受け取る（送り元と合言葉を確かめる。合言葉は1回だけ使える）
+function onReaderMessage(e){
+  if(!srReader||!SR_READER_ORIGIN.test(String(e.origin||''))) return;
+  const m=e.data;
+  if(!m||typeof m!=='object'||m.type!=='msr-reading'||typeof m.nonce!=='string'||m.nonce!==srReader.nonce) return;
+  const dev=srReader.device, fresh=Date.now()-srReader.at<=SR_READER_TTL;
+  setReaderPending(null);
+  if(!fresh){$('srMsg').textContent='読取アプリの結果を受け取りましたが、時間が経ちすぎたため使いませんでした。もう一度「スクショから読み取る」から始めてください';return}
+  let text='';
+  try{text=JSON.stringify(m.reading)}catch(err){text=''}
+  if(!$('srPanel')) return;
+  closeModals();db.ui.view='admin';render();
+  $('srText').value=text||'';
+  previewScreenshot(); // 貼り付けと同じ検証。形式が違えば「取り込めません」と出て、何も変更しない
+  if(srState&&dev) $('srDevice').value=dev;
+  if(srState) $('srMsg').textContent='読取アプリから受け取りました。内容を画像と見比べて確認・修正し、「確認画面へ」→「登録する」を押してください';
+  $('srPanel').scrollIntoView({block:'start'});
+}
+window.addEventListener('message',onReaderMessage);
 /* ---- スクショ読取の保留（pendingReadings） ----
    ・進化形態が分からないなど、すぐ登録できない読み取り結果を、入力欄の内容のまま保留する（端末は未選択でもよい）
    ・保留はキャラ・進化形態・所持個体を作らない（所持数・ステージの所持判定に入らない）。画像は保存しない
@@ -2932,6 +2984,8 @@ document.addEventListener('click',e=>{
     case 'srCheck':checkScreenshot();break;
     case 'srApply':applyScreenshot();break;
     case 'srHold':holdScreenshot();break;
+    case 'srReader':$('srMsg').textContent=openReader($('srDevice')?.value||'');break;
+    case 'qrFromShot':$('qrMsg').textContent=openReader($('qrDevice').value);break;
     case 'srResume':resumePending(b.dataset.id);break;
     case 'srPendDel':deletePending(b.dataset.id);break;
     case 'issueDone':db.importIssues=db.importIssues.filter(x=>x.id!==b.dataset.id);persist();render();break;

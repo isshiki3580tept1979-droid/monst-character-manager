@@ -122,8 +122,9 @@ test('device picker: without a saved selection, devices that already have a pick
 test('cards: candidates per device unchanged; card always shows キャラ｜形態 個体N / 種族 戦型 撃種 / short fruits; follows unit change', async()=>{
   await seed(world({useDevs:{[STAGE]:['メイン','サブ1','サブ3','サブ5']}}));
   // owned AND suitable only (アーサー owned but not suitable; other devices' units never listed)
-  assert.deepEqual(await pickSel('メイン').locator('option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2']);
-  assert.deepEqual(await pickSel('サブ3').locator('option').allTextContents(),['— 使う個体を選ぶ —','ヤクモ｜大荒神武装 個体1','ヤクモ｜巫女姫霊装 個体2（未検証）']);
+  assert.deepEqual(await pickSel('メイン').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2']);
+  assert.deepEqual(await pickSel('メイン').locator('optgroup option').allTextContents(),['アーサー｜アーサー（獣神化） 個体1（仮）'],'others only as provisional');
+  assert.deepEqual(await pickSel('サブ3').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ヤクモ｜大荒神武装 個体1','ヤクモ｜巫女姫霊装 個体2（未検証）']);
   assert.match(await card('メイン').textContent(),/使う個体を選んでください/);
   await pickSel('メイン').selectOption('u-neo1');
   const lines=dev=>card(dev).locator('.uCard').evaluate(c=>({
@@ -205,7 +206,7 @@ test('picks are kept when a device is removed and reused when it is added back; 
   await click('[data-act="useDev"][data-dev="サブ3"]');
   await page.evaluate(()=>{db.suits=db.suits.filter(s=>s.formId!=='f-yk1');persist();render()});
   await click('[data-act="useDev"][data-dev="サブ3"]');
-  assert.match(await card('サブ3').textContent(),/今の候補外です/);assert.match(await pickSel('サブ3').locator('option:checked').textContent(),/（候補外）/);
+  assert.match(await card('サブ3').textContent(),/仮選択・適正未確定/);assert.match(await pickSel('サブ3').locator('option:checked').textContent(),/（仮）/);
   assert.equal((await snapshot()).picks[STAGE]['サブ3'],'u-yk1');
 });
 

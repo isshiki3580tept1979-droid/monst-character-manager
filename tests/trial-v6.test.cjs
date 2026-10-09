@@ -161,8 +161,9 @@ test('source / rank / grade / verification kept as entered; unverified shows （
   await openReg();await page.fill('#qrCharName','ヤクモ');await page.fill('#qrFormName','大荒神武装');await page.selectOption('#qrDevice','サブ1');
   await page.uncheck('#qrSuitOn');assert.equal(await page.locator('#qrSuitFields').isVisible(),false);await click('[data-act="qrSave"]');
   const d=await snapshot();assert.equal(d.units.length,3);assert.equal(d.suits.length,2);
-  assert.match(await page.locator('#devPickMsg').textContent(),/このステージの適正が無いため、候補には出ません/);
-  assert.equal((await pickSel('サブ1').locator('option').allTextContents()).some(t=>t.includes('ヤクモ')),false);
+  assert.match(await page.locator('#devPickMsg').textContent(),/このステージの適正が無いため、候補には出ません（「所持キャラ」から仮選択はできます）/);
+  assert.equal((await pickSel('サブ1').locator(':scope > option').allTextContents()).some(t=>t.includes('ヤクモ')),false);
+  assert.deepEqual((await pickSel('サブ1').locator('optgroup option').allTextContents()).filter(t=>t.includes('ヤクモ')),['ヤクモ｜大荒神武装 個体1（仮）']);
   // device not among this stage's chosen devices: saved, message points to the checkbox
   await openReg();await page.selectOption('#qrChar',{label:'リンネ'});await page.selectOption('#qrDevice','サブ4');await page.selectOption('#qrSource','MANUAL');await click('[data-act="qrSave"]');
   assert.match(await page.locator('#devPickMsg').textContent(),/サブ4は今回使う端末に入っていません/);
