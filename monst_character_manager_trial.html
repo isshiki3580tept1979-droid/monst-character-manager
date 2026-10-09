@@ -184,6 +184,16 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .invRow.inv-conflict{border-left-color:#dc2626;background:#fef2f2}
 .invRow.inv-reject{border-left-color:#64748b;background:#f1f5f9}
 .invRow .warn{color:#92400e;font-weight:700}
+#srPanel [hidden]{display:none!important}
+#srPendingList .pendRow{border-radius:10px;padding:6px 8px;margin-bottom:4px;background:#f8fafc;border-left:4px solid #64748b;overflow-wrap:anywhere}
+#srPendingList .pendRow.cur{border-left-color:#2563eb;background:#eff6ff}
+#srPendingList .pendBtns{display:flex;gap:6px;margin-top:4px}
+#srEdit label{margin-top:6px}
+#srEdit .srUnc input,#srEdit .srUnc select{border:2px solid #d97706;background:#fffbeb}
+#srEdit .srUnc label span::after{content:"（読取で自信なし）";color:#b45309;font-size:11px}
+#srEdit .srFr{display:grid;grid-template-columns:minmax(0,1fr) 7.5em;gap:6px}
+#srEdit .srChk{display:flex;gap:6px;align-items:center;margin-top:8px}
+#srEdit .srChk input{width:auto}
 .invChecks{margin-top:8px}
 .invChecks summary,#invChecksSaved summary{font-size:12px;font-weight:800;color:#475569;min-height:32px;display:flex;align-items:center}
 /* わくわくの実の入力ブロック（1枠＝実名＋等級＋系統） */
@@ -346,6 +356,21 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
         <button class="tool main" data-act="addStage">追加</button>
       </div>
       <div class="msg" id="exMsg"></div>
+    </div>
+    <div class="panel" id="srPanel">
+      <div class="ptitle">スクショ読取の取り込み（1キャラ）</div>
+      <div class="small">「モンスト スクショ読取」でコピーしたJSON（1キャラ分）を貼り付け、「内容を確認」を押してください。読み取り結果は確定値ではありません。項目を画像と見比べて確認・修正し、登録先の端末を選んで「確認画面へ」→「登録する」の順に進みます。空欄は推測で補わず「未確認」のままにします。既存の所持個体は上書き・削除しません。このアプリから外部（Gemini など）へは通信しません。</div>
+      <textarea id="srText" style="margin-top:6px" placeholder="スクショ読取のJSONを貼り付け"></textarea>
+      <div class="tools"><button class="tool" data-act="srPreview">内容を確認</button></div>
+      <div id="srEdit" hidden></div>
+      <div id="srResult" style="margin-top:6px"></div>
+      <div class="tools" id="srTools" hidden>
+        <button class="tool" id="srCheck" data-act="srCheck">確認画面へ</button>
+        <button class="tool main" id="srApply" data-act="srApply" disabled>登録する</button>
+        <button class="tool" id="srHold" data-act="srHold">保留に入れる</button>
+      </div>
+      <div class="msg" id="srMsg"></div>
+      <div id="srPendingList"></div>
     </div>
     <div class="panel">
       <div class="ptitle">所持データの取り込み（JSON）</div>
@@ -794,6 +819,20 @@ const IMPORT_SOURCES=['GAME_CLEAR_MONSTERS','GAMEWITH','ALTEMA','OTHER_SITE'];
 const EVAL_TYPES={RANK:'順位',GRADE:'ランク',CANDIDATE:'候補'};
 const VERIFY={VERIFIED:'確認済み',UNVERIFIED:'未検証',NEEDS_REVIEW:'要確認'};
 const OWN_CHECK={OWNED_EXACT:'所持',OWNED_OTHER_FORM:'別形態で所持',NOT_OWNED:'未所持',NEEDS_REVIEW:'要確認'};
+// スクショ読取の「保留中の読み取り」（pendingReadings）。キャラ・進化形態・所持個体は作らないので、所持数・ステージの所持判定には入らない。画像は持たない
+const PENDING_MAX=200, PENDING_FRUITS=3;
+const PENDING_FIELD_KEYS=['characterName','formName','monsterNo','race','battleType','shotType','fruit1','fruit2','fruit3'];
+const READ_CONFIDENCE=['HIGH','MEDIUM','LOW'];
+function normPending(x){
+  return {id:clean(x.id,40)||uid(),at:clean(x.at,40),updatedAt:clean(x.updatedAt,40),device:DEVICES.includes(x.device)?x.device:'',
+    characterName:clean(x.characterName,40),formName:clean(x.formName,60),monsterNo:clean(x.monsterNo,10),race:clean(x.race,40),
+    battleType:FORM_BATTLE_TYPES.includes(x.battleType)?x.battleType:'',shotType:SHOT_TYPES.includes(x.shotType)?x.shotType:'',
+    fruits:(Array.isArray(x.fruits)?x.fruits:[]).filter(f=>f&&typeof f==='object').map(f=>({name:clean(f.name,20),grade:GRADES.includes(f.grade)?f.grade:''}))
+      .filter(f=>f.name||f.grade).slice(0,PENDING_FRUITS),
+    needsReview:x.needsReview!==false,confidence:READ_CONFIDENCE.includes(x.confidence)?x.confidence:'LOW',
+    reviewNotes:(Array.isArray(x.reviewNotes)?x.reviewNotes:[]).map(n=>clean(n,200)).filter(Boolean).slice(0,20),
+    uncertainFields:(Array.isArray(x.uncertainFields)?x.uncertainFields:[]).filter(k=>PENDING_FIELD_KEYS.includes(k))};
+}
 const INFO_MODES=[['form','進化形態'],['type','種族・戦型・撃種'],['fruit','実'],['all','全部']];
 function normFruits(a){
   if(!Array.isArray(a)) return [];
@@ -846,6 +885,11 @@ function normV3(raw,d){
     requestedFormName:clean(x.requestedFormName,60),scope:clean(x.scope,20),stage:clean(x.stage,40),stageKey:isStageKey(x.stageKey)?x.stageKey:'',
     status:x.status,checkedAt:clean(x.checkedAt,40),importedAt:clean(x.importedAt,40),source:clean(x.source,60)
   })).filter(x=>x.characterName&&once(x.id));
+  // スクショ読取の保留中の読み取り。古いデータ（この項目が無い）は空の一覧になる。
+  // 上限（PENDING_MAX）を超えていても切り捨てない（切り捨てた状態で保存すると、保留が黙って消えるため）。
+  // 上限超過は、復元では中止、起動時は警告して新しい保留だけを止める
+  d.pendingReadings=(Array.isArray(raw.pendingReadings)?raw.pendingReadings:[]).filter(x=>x&&typeof x==='object')
+    .map(normPending).filter(x=>once(x.id));
   d.suits=(Array.isArray(raw.suits)?raw.suits:[]).filter(s=>s&&typeof s==='object'&&SOURCES[s.source]&&isStageKey(s.stageKey))
     .map(normSuit).filter(s=>once(s.id));
   // ステージごとの「今回使う端末」（最大4台・選んだ順＝①〜④の編成順で保持）
@@ -876,7 +920,7 @@ function blank(){
   return {app:APP,version:1,deviceNames:{},characters:[],
     extraStages:Object.fromEntries(QUESTS.filter(q=>q.canAdd).map(q=>[q.id,[]])),
     rankings:{},ownership:{},
-    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],ownershipChecks:[],
+    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],ownershipChecks:[],pendingReadings:[],
     ui:{view:'stage',quest:QUESTS[0].id,stage:{},rankDevice:DEVICES[0],infoMode:'none',charaOpen:null}};
 }
 function normalize(raw){
@@ -1607,7 +1651,7 @@ function renderMigration(){
 function render(){
   VIEWS.forEach(v=>$('view-'+v).classList.toggle('active',v===db.ui.view));
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===db.ui.view));
-  renderStage();renderInfoBar();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();renderOwnershipChecks();
+  renderStage();renderInfoBar();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();renderOwnershipChecks();renderPending();
 }
 function scrollActiveChip(){
   const a=document.querySelector('#stageChips .chip.active');
@@ -2361,6 +2405,257 @@ function confirmInventory(){
   pendingInv=null;$('invApply').disabled=true;render();
   $('invMsg').textContent=`取り込みました（取り込み可能 ${n('ok')}件・要確認 ${n('review')}件・所持確認 ${plan.checks.length}件。矛盾 ${n('conflict')}件と取り込み不可 ${n('reject')}件は取り込んでいません）`;
 }
+/* ---- スクショ読取（monst-screenshot-reading-v1）の取り込み：1キャラ分を1端末の所持個体として登録 ----
+   ・「モンスト スクショ読取」がコピーするJSONをそのまま貼る。このアプリから Gemini・外部へは通信しない（APIキーも持たない）
+   ・読み取り結果は確定値ではないので、項目を画面で確認・修正してから登録する（内容を確認 → 確認画面へ → 登録する）
+   ・推測しない：空欄は未確認のまま。進化形態が空なら登録できない（所持個体は進化形態に属するため）。実の等級は登録済みの表記と完全一致したときだけ取り込む
+   ・照合・補完・矛盾判定は所持データの取り込み（planInventory）をそのまま使う。既存の進化形態の値・所持個体は上書き・削除しない
+   ・登録先の端末に同じキャラの個体が既にあるときは、別の個体として追加することを明示的に選んでもらう */
+const SR_FORMAT='monst-screenshot-reading-v1';
+const SR_TEXT=[['characterName','キャラ名',40],['formName','進化形態',60],['monsterNo','図鑑No.',10],['race','種族',40],['battleType','戦型',20],['shotType','撃種',20],['fruit1','わくわくの実1',40],['fruit2','わくわくの実2',40],['fruit3','わくわくの実3',40]];
+const SR_FRUITS=3;
+let srState=null;   // 内容を確認した読み取り結果 {text, reading}。保留から再開したときは pendingId と preset（端末・実・要確認）も持つ
+let srPending=null; // 確認画面の内容 {sig, c, j, dups}
+function parseScreenshotReading(text){
+  if(String(text||'').length>20000) return {errors:['JSONが長すぎます（1キャラ分のスクショ読取JSONを貼り付けてください）']};
+  let j;
+  try{j=JSON.parse(text)}catch{return {errors:['JSONとして読み取れません']}}
+  if(!j||typeof j!=='object'||Array.isArray(j)) return {errors:['データの形式が正しくありません']};
+  const err=[], r={};
+  if(j.format!==SR_FORMAT) err.push(`format が「${SR_FORMAT}」ではありません（スクショ読取でコピーしたJSONを貼り付けてください）`);
+  for(const [k,label,max] of SR_TEXT){
+    const v=j[k];
+    if(v==null){r[k]='';continue}
+    if(typeof v!=='string'&&!(k==='monsterNo'&&typeof v==='number')){err.push(`${label}（${k}）の形式が正しくありません`);continue}
+    r[k]=clean(String(v),max);
+    if(r[k].toLowerCase()==='null') r[k]='';
+  }
+  if(!['HIGH','MEDIUM','LOW'].includes(j.confidence)) err.push('confidence が HIGH / MEDIUM / LOW ではありません');
+  if(typeof j.needsReview!=='boolean') err.push('needsReview が true / false ではありません');
+  if(j.reviewNotes!=null&&(!Array.isArray(j.reviewNotes)||j.reviewNotes.some(n=>typeof n!=='string'))) err.push('reviewNotes が文字列の配列ではありません');
+  if(j.uncertainFields!=null&&!Array.isArray(j.uncertainFields)) err.push('uncertainFields が配列ではありません');
+  if(err.length) return {errors:err};
+  r.confidence=j.confidence;r.needsReview=j.needsReview;
+  r.reviewNotes=(j.reviewNotes||[]).map(n=>clean(n,200)).filter(Boolean).slice(0,20);
+  r.uncertainFields=(j.uncertainFields||[]).filter(k=>SR_TEXT.some(([x])=>x===k));
+  return {errors:[],data:r};
+}
+// ゲーム画面の略記 → このアプリの等級表記。対応がはっきりしている表記だけを並べる（ここに無い表記は変換しない）
+const SR_GRADE_ALIASES={'特L':'特級L','特M':'特級M','特EL':'特級EL'};
+// 等級の表記を、このアプリの表記に直す。登録済みの表記はそのまま、略記は対応表どおりに変換、それ以外は null（推測しない）。
+// 全角英字（例「特Ｌ」）は半角と同じ文字として扱う
+function srGrade(token){
+  const t=String(token||'').normalize('NFKC');
+  if(GRADES.includes(t)) return t;
+  return Object.prototype.hasOwnProperty.call(SR_GRADE_ALIASES,t)?SR_GRADE_ALIASES[t]:null;
+}
+// 実の文字列（例「同族の絆・加撃 特L」）を名前と等級に分ける。末尾の語が等級として読めたときだけ等級とし（略記は変換）、
+// それ以外は変換せず、文字列全体を名前欄に入れて利用者に直してもらう。converted は変換前の表記（変換したときだけ）
+function splitFruit(s){
+  s=clean(s,40);
+  const m=s.match(/^(.*\S)\s+(\S+)$/), g=m?srGrade(m[2]):null;
+  if(g) return {name:clean(m[1],20),grade:g,exact:true,converted:g!==m[2]?m[2]:''};
+  return {name:clean(s,20),grade:'',exact:!s,converted:''};
+}
+function srOptions(list,cur,blank){return `<option value="">${esc(blank)}</option>`+list.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('')}
+function fillSrDevices(){
+  const sel=$('srDevice');if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML=`<option value="">選んでください</option>`+DEVICES.map(d=>`<option value="${esc(d)}"${d===cur?' selected':''}>${esc(devLabel(d))}</option>`).join('');
+}
+function previewScreenshot(){
+  srState=null;srPending=null;$('srApply').disabled=true;$('srMsg').textContent='';$('srResult').innerHTML='';
+  $('srEdit').hidden=true;$('srTools').hidden=true;
+  const text=$('srText').value, p=parseScreenshotReading(text);
+  if(p.errors.length){$('srResult').innerHTML=`<div class="note">取り込めません（何も変更していません）：<br>${p.errors.map(esc).join('<br>')}</div>`;return}
+  srState={text,reading:p.data};
+  renderSrEdit();
+}
+// 読み取り結果を、確認・修正できる入力欄として表示する（Gemini の文字は value / textContent でだけ扱う）
+function renderSrEdit(){
+  const r=srState.reading, pre=srState.preset, unc=k=>r.uncertainFields.includes(k)?' srUnc':'';
+  const warns=[];
+  const pick=(k,list,label)=>{const v=r[k];if(v&&!list.includes(v)){warns.push(`${label}「${v}」は登録済みの表記と違うため空欄（未確認）にしました。画像で確認して選んでください`);return ''}return v};
+  const bt=pick('battleType',FORM_BATTLE_TYPES,'戦型'), st=pick('shotType',SHOT_TYPES,'撃種');
+  if(!r.characterName) warns.push('キャラ名が読み取れていません。画像で確認して入力してください');
+  if(!r.formName) warns.push('進化形態が未確認です（推測では補いません）。画像で確認して入力しないと登録できません');
+  const infos=[];
+  // 保留から再開したときは、保留した時点の実（名前・等級）をそのまま使う（もう一度変換・分割はしない）
+  const fr=pre?[0,1,2].map(i=>({name:pre.fruits[i]?.name||'',grade:pre.fruits[i]?.grade||''})):[1,2,3].map(i=>{
+    const f=splitFruit(r['fruit'+i]);
+    if(!f.exact) warns.push(`わくわくの実${i}「${r['fruit'+i]}」の等級が分からない表記のため、等級は空欄です（推測で変換しません）。名前と等級を確認してください`);
+    if(f.converted) infos.push(`わくわくの実${i}の等級「${f.converted}」を「${f.grade}」に変換しました`);
+    return f;
+  });
+  const field=(k,label,input)=>`<div class="srField${unc(k)}"><label for="srF_${k}"><span>${label}</span></label>${input}</div>`;
+  const text=(k,max)=>`<input id="srF_${k}" maxlength="${max}" placeholder="未確認（空欄）">`;
+  $('srEdit').innerHTML=`${pre?`<div class="note" id="srResumeNote">保留から再開しています（保留：${esc(pre.at.slice(0,16).replace('T',' '))}）。登録に成功したときだけ、この保留を一覧から消します。「保留に入れる」を押すと、この保留を今の内容で更新します。</div>`:''}
+    <div class="small">確信度：<b>${esc(r.confidence)}</b>${r.needsReview?'・<b>読取時に要確認の印あり</b>':''}</div>
+    ${r.reviewNotes.length?`<div class="note">読取時の確認メモ：<br>${r.reviewNotes.map(esc).join('<br>')}</div>`:''}
+    ${infos.length?`<div class="small" id="srInfo">${infos.map(esc).join('<br>')}</div>`:''}
+    ${warns.length?`<div class="note" id="srWarn">${warns.map(esc).join('<br>')}</div>`:''}
+    <label for="srDevice">登録先の端末</label><select id="srDevice"></select>
+    ${field('characterName','キャラ名',text('characterName',40))}
+    ${field('formName','進化形態',text('formName',60))}
+    ${field('monsterNo','図鑑No.',text('monsterNo',10))}
+    ${field('race','種族',`<input id="srF_race" maxlength="40" placeholder="未確認（空欄）" list="srRaceList"><datalist id="srRaceList">${RACES.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}
+    ${field('battleType','戦型',`<select id="srF_battleType">${srOptions(FORM_BATTLE_TYPES,bt,'未確認')}</select>`)}
+    ${field('shotType','撃種',`<select id="srF_shotType">${srOptions(SHOT_TYPES,st,'未確認')}</select>`)}
+    ${[1,2,3].map(i=>`<div class="srField${unc('fruit'+i)}"><label for="srFr${i}Name"><span>わくわくの実${i}</span></label>
+      <div class="srFr"><input id="srFr${i}Name" maxlength="20" placeholder="実の名前（無ければ空欄）"><select id="srFr${i}Grade" aria-label="わくわくの実${i}の等級">${srOptions(GRADES,fr[i-1].grade,'等級未確認')}</select></div></div>`).join('')}
+    <label class="srChk"><input type="checkbox" id="srNeedsReview"${(pre?pre.needsReview:r.needsReview||r.confidence!=='HIGH')?' checked':''}> 「要確認」として登録する</label>`;
+  for(const k of ['characterName','formName','monsterNo','race']) $('srF_'+k).value=r[k];
+  fr.forEach((f,i)=>{$('srFr'+(i+1)+'Name').value=f.name});
+  fillSrDevices();
+  if(pre&&pre.device) $('srDevice').value=pre.device;
+  $('srEdit').hidden=false;$('srTools').hidden=false;
+}
+function srCollect(){
+  const v=(id,max)=>clean($(id).value,max);
+  const fruits=[1,2,3].map(i=>({name:v('srFr'+i+'Name',20),grade:GRADES.includes($('srFr'+i+'Grade').value)?$('srFr'+i+'Grade').value:''})).filter(x=>x.name||x.grade);
+  return {device:$('srDevice').value,characterName:v('srF_characterName',40),formName:v('srF_formName',60),monsterNo:v('srF_monsterNo',10),race:v('srF_race',40),
+    battleType:$('srF_battleType').value,shotType:$('srF_shotType').value,fruits,needsReview:$('srNeedsReview').checked};
+}
+function srSig(){return srState?JSON.stringify([srState.text,srCollect()]):''}
+// 登録先の端末に、同じキャラの個体がすでにあるか（進化形態が違っても、同じ個体を進化させた可能性があるため知らせる）
+function srDuplicates(c){
+  const ids=new Set(db.master.characters.filter(x=>x.name===c.characterName).map(x=>x.id));
+  const key=a=>JSON.stringify(a.map(x=>[x.name,x.grade]));
+  return db.units.filter(u=>u.device===c.device&&ids.has(formOf(u.formId)?.characterId))
+    .map(u=>({no:u.no,formName:formOf(u.formId)?.name||'',sameForm:formOf(u.formId)?.name===c.formName,sameFruits:key(u.fruits)===key(c.fruits),fruits:u.fruits}));
+}
+function srFruitText(fr){return fr.length?fr.map(x=>`${x.name||'（名前なし）'} ${x.grade||'等級未確認'}`).join('、'):'なし'}
+function checkScreenshot(){
+  srPending=null;$('srApply').disabled=true;$('srMsg').textContent='';
+  if(!srState||srState.text!==$('srText').value){$('srResult').innerHTML='<div class="note">先に「内容を確認」を押してください</div>';return}
+  const c=srCollect(), errs=[];
+  if(!DEVICES.includes(c.device)) errs.push('登録先の端末を選んでください');
+  if(!c.characterName) errs.push('キャラ名が空です。画像で確認して入力してください');
+  if(!c.formName) errs.push('進化形態が未確認です。推測では補わないため、画像で確認して入力してから登録してください');
+  if(c.fruits.some(x=>!x.name)) errs.push('名前が空の実があります（等級だけの実は登録できません）');
+  if(errs.length){$('srResult').innerHTML=`<div class="note">まだ登録できません：<br>${errs.map(esc).join('<br>')}</div>`;return}
+  const j={schema:SR_FORMAT,device:c.device,scope:'',ownershipChecks:[],
+    units:[{characterName:c.characterName,formName:c.formName,monsterNo:c.monsterNo,race:c.race,battleType:c.battleType,shotType:c.shotType,
+      fruits:c.fruits,verificationStatus:c.needsReview?'NEEDS_REVIEW':'VERIFIED'}]};
+  const plan=planInventory(j), row=plan.rows[0], dups=srDuplicates(c);
+  const blocked=row.cls==='conflict'||row.cls==='reject';
+  const a=row.formAfter||{}, reasons=row.reasons.filter(m=>!/個体番号（unitNo）/.test(m));
+  $('srResult').innerHTML=`<div class="invSec">登録前の確認</div>
+    <div class="invRow inv-${blocked?row.cls:reasons.length||c.needsReview?'review':'ok'}">
+      <div class="cname">${esc(c.characterName)}｜${esc(c.formName)}</div>
+      ${blocked?'':`<div class="meta">登録先：${esc(devLabel(c.device))}・個体${esc(String(row.unitNo??'?'))}（新しい個体として追加）</div>
+      <div class="meta">図鑑No.${esc(a.monsterNo||'未確認')}・${[a.race,a.battleType,a.shotType].map(v=>esc(v||'未確認')).join(' / ')}</div>
+      <div class="meta">わくわくの実：${esc(srFruitText(c.fruits))}</div>
+      <div class="meta">確認状態：${esc(VERIFY[c.needsReview?'NEEDS_REVIEW':'VERIFIED'])}</div>`}
+      ${row.actions.length&&!blocked?`<div class="meta">${esc(row.actions.join('／'))}</div>`:''}
+      ${reasons.map(m=>`<div class="meta warn">${esc(m)}</div>`).join('')}
+    </div>
+    ${blocked?'<div class="note">既存データと食い違うか、識別できないため登録できません（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください。</div>':''}
+    ${!blocked&&dups.length?`<div class="note" id="srDupNote">${esc(devLabel(c.device))}には「${esc(c.characterName)}」の個体がすでにあります（自動では上書き・統合しません）：<br>${dups.map(d=>
+      `個体${esc(String(d.no))}｜${esc(d.formName)}・実：${esc(srFruitText(d.fruits))}${d.sameForm?'（同じ進化形態）':''}${d.sameFruits?'<b>（実も同じ＝同じ個体の可能性が高い）</b>':''}`).join('<br>')}
+      <label class="srChk"><input type="checkbox" id="srDupOk"> 既存の個体とは別の個体として追加する（既存の個体は変更しません）</label></div>`:''}`;
+  if(blocked) return;
+  srPending={sig:srSig(),c,j,dups:dups.length};
+  $('srApply').disabled=false;
+}
+// 確認画面どおりに登録する。保存に失敗したら登録前の状態に戻す
+function applyScreenshot(){
+  const p=srPending;
+  if(!p||p.sig!==srSig()){srPending=null;$('srApply').disabled=true;$('srMsg').textContent='内容が変わったため、もう一度「確認画面へ」を押してください';return}
+  if(p.dups&&!$('srDupOk')?.checked){$('srMsg').textContent='同じキャラの個体がすでにあります。別の個体として追加する場合は、チェックを入れてから「登録する」を押してください';return}
+  // 確認後にデータが変わっていても安全なように、保存直前に照合し直す
+  const plan=planInventory(p.j), row=plan.rows[0];
+  if(row.cls==='conflict'||row.cls==='reject'||srDuplicates(p.c).length!==p.dups){srPending=null;$('srApply').disabled=true;$('srMsg').textContent='登録前にデータが変わりました。もう一度「確認画面へ」を押してください';return}
+  // 保留から再開した登録なら、登録と同じ保存の中でその保留だけを消す（失敗したら保留も元に戻す）
+  const pid=srState?.pendingId&&db.pendingReadings.some(x=>x.id===srState.pendingId)?srState.pendingId:'';
+  const backupState=JSON.stringify({master:db.master,units:db.units,pendingReadings:db.pendingReadings});
+  try{
+    db.master.characters=plan.chars;db.master.forms=plan.forms;db.units=plan.units;
+    if(pid) db.pendingReadings=db.pendingReadings.filter(x=>x.id!==pid);
+    persist();
+  }catch(e){
+    const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.pendingReadings=b.pendingReadings;
+    srPending=null;$('srApply').disabled=true;render();
+    $('srMsg').textContent='登録に失敗したため、登録前の状態に戻しました'+(pid?'（保留はそのまま残っています）':'');return;
+  }
+  srPending=null;$('srApply').disabled=true;
+  if(pid){srState=null;$('srEdit').hidden=true;$('srTools').hidden=true}
+  render();
+  $('srMsg').textContent=`登録しました：${devLabel(p.c.device)} ${p.c.characterName}｜${p.c.formName} 個体${row.unitNo}（${VERIFY[p.c.needsReview?'NEEDS_REVIEW':'VERIFIED']}）`
+    +(pid?'。この読み取りの保留を一覧から消しました':'');
+}
+/* ---- スクショ読取の保留（pendingReadings） ----
+   ・進化形態が分からないなど、すぐ登録できない読み取り結果を、入力欄の内容のまま保留する（端末は未選択でもよい）
+   ・保留はキャラ・進化形態・所持個体を作らない（所持数・ステージの所持判定に入らない）。画像は保存しない
+   ・上限200件。上限に達したら新しい保留を止める（古い保留を自動で消さない）
+   ・同じキャラの保留がすでにあれば知らせ、もう一度押したときだけ別の保留として追加する（統合・上書きしない）
+   ・保留から再開した内容をもう一度「保留に入れる」と、その保留だけを今の内容で更新する */
+let srHoldDupSig='';
+function pendingLabel(x){return `${x.characterName||'（キャラ名なし）'}｜${x.formName||'進化形態未確認'}`}
+function holdScreenshot(){
+  $('srMsg').textContent='';
+  if(!srState||srState.text!==$('srText').value){$('srMsg').textContent='先に「内容を確認」を押してください';return}
+  const c=srCollect(), r=srState.reading;
+  const pid=srState.pendingId&&db.pendingReadings.some(x=>x.id===srState.pendingId)?srState.pendingId:'';
+  if(!pid&&db.pendingReadings.length>=PENDING_MAX){
+    const over=db.pendingReadings.length-PENDING_MAX+1;
+    $('srMsg').textContent=`保留は${PENDING_MAX}件までです。新しく保留するには、不要な保留を${over>1?`${over}件以上`:''}削除してください（自動では削除しません）`;return;
+  }
+  const dups=c.characterName?db.pendingReadings.filter(x=>x.id!==pid&&x.characterName===c.characterName):[];
+  const sig=srSig();
+  if(dups.length&&srHoldDupSig!==sig){
+    srHoldDupSig=sig;
+    $('srMsg').textContent=`「${c.characterName}」の保留がすでに${dups.length}件あります（自動では統合・上書きしません）。別の保留として残す場合は、もう一度「保留に入れる」を押してください`;return;
+  }
+  srHoldDupSig='';
+  const now=new Date().toISOString(), old=pid?db.pendingReadings.find(x=>x.id===pid):null;
+  const item=normPending({id:pid||uid(),at:old?old.at:now,updatedAt:old?now:'',device:c.device,
+    characterName:c.characterName,formName:c.formName,monsterNo:c.monsterNo,race:c.race,battleType:c.battleType,shotType:c.shotType,
+    fruits:c.fruits,needsReview:c.needsReview,confidence:r.confidence,reviewNotes:r.reviewNotes,uncertainFields:r.uncertainFields});
+  const backup=JSON.stringify(db.pendingReadings);
+  try{
+    db.pendingReadings=pid?db.pendingReadings.map(x=>x.id===pid?item:x):db.pendingReadings.concat([item]);
+    persist();
+  }catch(e){
+    db.pendingReadings=JSON.parse(backup);render();
+    $('srMsg').textContent='保留に失敗したため、保留前の状態に戻しました';return;
+  }
+  srState=null;srPending=null;$('srText').value='';$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML='';$('srApply').disabled=true;
+  render();
+  $('srMsg').textContent=`${pid?'保留を更新しました':'保留しました'}：${pendingLabel(item)}（${db.pendingReadings.length}／${PENDING_MAX}件）`;
+}
+function resumePending(id){
+  const x=db.pendingReadings.find(p=>p.id===id);if(!x) return;
+  srPending=null;srHoldDupSig='';$('srApply').disabled=true;$('srResult').innerHTML='';$('srText').value='';
+  srState={text:'',pendingId:x.id,preset:{device:x.device,fruits:x.fruits,needsReview:x.needsReview,at:x.at},
+    reading:{characterName:x.characterName,formName:x.formName,monsterNo:x.monsterNo,race:x.race,battleType:x.battleType,shotType:x.shotType,
+      fruit1:'',fruit2:'',fruit3:'',confidence:x.confidence,needsReview:x.needsReview,reviewNotes:x.reviewNotes,uncertainFields:x.uncertainFields}};
+  renderSrEdit();renderPending();
+  $('srMsg').textContent=`保留から再開しました：${pendingLabel(x)}。進化形態と登録先の端末を確認して「確認画面へ」を押してください`;
+  $('srPanel').scrollIntoView({block:'start'});
+}
+function deletePending(id){
+  const x=db.pendingReadings.find(p=>p.id===id);if(!x) return;
+  if(!confirm(`保留中の「${pendingLabel(x)}」を削除しますか？（登録済みの所持データは変わりません）`)) return;
+  const backup=JSON.stringify(db.pendingReadings);
+  try{db.pendingReadings=db.pendingReadings.filter(p=>p.id!==id);persist()}
+  catch(e){db.pendingReadings=JSON.parse(backup);render();$('srMsg').textContent='削除に失敗したため、元に戻しました';return}
+  if(srState?.pendingId===id){srState=null;srPending=null;$('srApply').disabled=true;$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML=''}
+  render();
+  $('srMsg').textContent=`保留を削除しました：${pendingLabel(x)}`;
+}
+function renderPending(){
+  const el=$('srPendingList');if(!el) return;
+  const list=db.pendingReadings, cur=srState?.pendingId;
+  if(!list.length){el.innerHTML='';return}
+  el.innerHTML=`<div class="invSec">保留中の読み取り（${list.length}／${PENDING_MAX}件）</div>
+    <div class="small">保留中のキャラは、所持数やステージの所持判定には入りません。</div>
+    ${list.length>PENDING_MAX?`<div class="note" id="srPendOver">保留が上限（${PENDING_MAX}件）を超えています（${list.length}件）。データは消していません。新しく保留するには、不要な保留を${list.length-PENDING_MAX+1}件以上削除してください（自動では削除しません）。</div>`
+      :list.length===PENDING_MAX?`<div class="note" id="srPendFull">保留が上限（${PENDING_MAX}件）に達しています。新しく保留するには、不要な保留を削除してください（自動では削除しません）。</div>`:''}
+    ${list.map(x=>`<div class="pendRow${x.id===cur?' cur':''}" data-pend="${esc(x.id)}"><div class="cname">${esc(pendingLabel(x))}</div>
+      <div class="meta">${esc(x.device?devLabel(x.device):'端末未選択')}・実：${esc(srFruitText(x.fruits))}${x.needsReview?'・要確認':''}・保留：${esc(x.at.slice(0,16).replace('T',' '))}</div>
+      <div class="pendBtns"><button class="mini" data-act="srResume" data-id="${esc(x.id)}">再開</button><button class="mini" data-act="srPendDel" data-id="${esc(x.id)}">削除</button></div></div>`).join('')}`;
+}
 function renderOwnershipChecks(){
   const list=db.ownershipChecks;
   $('invChecksSaved').innerHTML=list.length?`<details><summary>保存済みの所持確認（${list.length}件）</summary>${list.map(x=>
@@ -2443,7 +2738,7 @@ function backupJson(){
   return JSON.stringify({app:APP,version:1,exportedAt:new Date().toISOString(),
     data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages,
       rankings:db.rankings,ownership:db.ownership,
-      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks}},null,1);
+      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks,pendingReadings:db.pendingReadings}},null,1);
 }
 function backup(){
   const text=backupJson();
@@ -2471,8 +2766,16 @@ function restore(){
   if(!obj||obj.app!==APP||!obj.data||!Array.isArray(obj.data.characters)){
     $('bkMsg').textContent='この試作版のバックアップではありません';return;
   }
+  const next=normalize({...obj.data,ui:db.ui});
+  // 保留が上限を超えるバックアップは、切り捨てずに復元自体を中止する（現在のデータは変更しない）
+  if(next.pendingReadings.length>PENDING_MAX){
+    $('bkMsg').textContent=`このバックアップには保留中の読み取りが${next.pendingReadings.length}件あり、上限（${PENDING_MAX}件）を超えているため復元を中止しました。現在のデータは変更していません。`;return;
+  }
   if(!confirm('現在の試作データを上書きして復元しますか？'))return;
-  db=normalize({...obj.data,ui:db.ui});persist();render();
+  const prev=db;
+  try{db=next;persist()}
+  catch(e){db=prev;render();$('bkMsg').textContent='復元に失敗したため、復元前の状態のままにしました';return}
+  render();
   $('bkMsg').textContent=`復元しました（${db.characters.length}件）`;
 }
 
@@ -2573,6 +2876,12 @@ document.addEventListener('click',e=>{
     case 'imApply':confirmSuitImport();break;
     case 'invPreview':previewInventory();break;
     case 'invApply':confirmInventory();break;
+    case 'srPreview':previewScreenshot();break;
+    case 'srCheck':checkScreenshot();break;
+    case 'srApply':applyScreenshot();break;
+    case 'srHold':holdScreenshot();break;
+    case 'srResume':resumePending(b.dataset.id);break;
+    case 'srPendDel':deletePending(b.dataset.id);break;
     case 'issueDone':db.importIssues=db.importIssues.filter(x=>x.id!==b.dataset.id);persist();render();break;
   }
 });
@@ -2600,6 +2909,9 @@ $('stEval').addEventListener('change',syncSuitModal);
 // 貼り付け内容を変えたら、確認済みの取り込み計画は無効にする
 $('imText').addEventListener('input',()=>{pendingSuitImport=null;$('imApply').disabled=true});
 $('invText').addEventListener('input',()=>{pendingInv=null;$('invApply').disabled=true});
+// スクショ読取：JSONを変えたら確認し直し。項目・端末を変えたら確認画面からやり直し
+$('srText').addEventListener('input',()=>{srState=null;srPending=null;$('srApply').disabled=true;$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML=''});
+['input','change'].forEach(ev=>$('srEdit').addEventListener(ev,e=>{if(e.target.id==='srDupOk')return;if(srPending){srPending=null;$('srApply').disabled=true;$('srResult').innerHTML=''}}));
 $('invFile').addEventListener('change',e=>{
   const file=e.target.files[0];if(!file)return;
   const r=new FileReader();
