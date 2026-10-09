@@ -104,6 +104,44 @@ test('grade notation: 特L/特M/特EL are converted, 特級○ kept, anything un
   assert.deepEqual([await val('srFr1Name'),await val('srFr1Grade'),await val('srFr2Name'),await val('srFr2Grade')],['加撃の実 L','','等級の無い実','']);
 });
 
+test('grade in brackets (as Screenshot Reader Ver.2 returns it on a real phone): 「撃種の絆・加速命（特級L）」 is split into name + 特級L', async()=>{
+  // スマホ実機でスクショ読取 Ver.2 が返した文字列そのまま（等級が全角かっこで囲まれ、空白なし）
+  await preview({...READING,fruit1:'撃種の絆・加速命（特級L）',fruit2:'撃種の絆・加速（特級L）',fruit3:'撃種の絆・加命撃（特級L）'});
+  assert.deepEqual([await val('srFr1Name'),await val('srFr1Grade'),await val('srFr2Name'),await val('srFr2Grade'),await val('srFr3Name'),await val('srFr3Grade')],
+    ['撃種の絆・加速命','特級L','撃種の絆・加速','特級L','撃種の絆・加命撃','特級L']);
+  assert.equal(await page.locator('#srWarn').count(),0,'no manual grade check needed');
+  assert.equal(await page.locator('#srInfo').count(),0,'特級L is already the app notation (not reported as converted)');
+  // かっこ内の略記は対応表どおり変換／半角かっこ・かっこ前の空白も同じ扱い
+  await preview({...READING,fruit1:'加撃の実（特L）',fruit2:'速必殺の実 (特級M)',fruit3:'熱き友撃の実(特ＥＬ)'});
+  assert.deepEqual([await val('srFr1Name'),await val('srFr1Grade'),await val('srFr2Name'),await val('srFr2Grade'),await val('srFr3Name'),await val('srFr3Grade')],
+    ['加撃の実','特級L','速必殺の実','特級M','熱き友撃の実','特級EL']);
+  assert.equal((await page.locator('#srInfo').innerText()).trim(),
+    'わくわくの実1の等級「特L」を「特級L」に変換しました\nわくわくの実3の等級「特ＥＬ」を「特級EL」に変換しました');
+  // かっこの中が等級として分からないもの・閉じていないものは推測しない（元の文字列のまま名前欄、等級は空欄）
+  await preview({...READING,fruit1:'加撃の実（特S）',fruit2:'加撃の実（特級L',fruit3:'加撃の実（同族）'});
+  assert.deepEqual([await val('srFr1Name'),await val('srFr1Grade'),await val('srFr2Name'),await val('srFr2Grade'),await val('srFr3Name'),await val('srFr3Grade')],
+    ['加撃の実（特S）','','加撃の実（特級L','','加撃の実（同族）','']);
+  for(const i of [1,2,3]) assert.match(await page.locator('#srWarn').textContent(),new RegExp(`わくわくの実${i}「[^」]+」の等級が分からない表記`));
+  // 確認画面・登録でも名前と等級が別々に入る
+  await preview({...READING,characterName:'架空キャラ捌',fruit1:'撃種の絆・加速命（特級L）',fruit2:'撃種の絆・加速（特級L）',fruit3:'撃種の絆・加命撃（特級L）'});
+  await toConfirm('サブ2');
+  assert.match(await result(),/わくわくの実：撃種の絆・加速命 特級L、撃種の絆・加速 特級L、撃種の絆・加命撃 特級L/);
+  await click('[data-act="srApply"]');
+  assert.deepEqual(unitsOf(await snapshot(),'架空キャラ捌')[0].fruits,
+    [{name:'撃種の絆・加速命',grade:'特級L',kind:''},{name:'撃種の絆・加速',grade:'特級L',kind:''},{name:'撃種の絆・加命撃',grade:'特級L',kind:''}]);
+});
+
+test('a pending entry held before the fix keeps its fruits exactly as held (no re-conversion on resume)', async()=>{
+  // 修正前に保留された形（名前に「（特級L）」が残り、等級は空欄）
+  const old={id:'old1',at:'2026-10-09T11:00:00.000Z',updatedAt:'',device:'メイン',characterName:'架空保留キャラ',formName:'',monsterNo:'',race:'',battleType:'',shotType:'',
+    fruits:[{name:'撃種の絆・加速命（特級L）',grade:''}],needsReview:true,confidence:'MEDIUM',reviewNotes:[],uncertainFields:[]};
+  await seed({characters:[],master:{characters:[],forms:[]},units:[],pendingReadings:[old]});
+  await click('[data-act="view"][data-view="admin"]');
+  await click('[data-act="srResume"][data-id="old1"]');
+  assert.deepEqual([await val('srFr1Name'),await val('srFr1Grade')],['撃種の絆・加速命（特級L）',''],'shown as held; the user edits it by hand');
+  assert.deepEqual((await page.evaluate(()=>JSON.parse(JSON.stringify(db.pendingReadings))))[0],old,'stored entry untouched');
+});
+
 test('converted grades are what gets registered; existing units with old notation are not changed', async()=>{
   await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ伍'}],forms:[{id:'f1',characterId:'c1',name:'架空形態',short:'',race:'',battleType:'',shotType:''}]},
     units:[{id:'old',formId:'f1',device:'サブ4',no:1,fruits:[{name:'旧表記の実 特L',grade:''}],memo:'手入力'}]});

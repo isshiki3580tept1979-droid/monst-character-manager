@@ -2449,10 +2449,13 @@ function srGrade(token){
   if(GRADES.includes(t)) return t;
   return Object.prototype.hasOwnProperty.call(SR_GRADE_ALIASES,t)?SR_GRADE_ALIASES[t]:null;
 }
-// 実の文字列（例「同族の絆・加撃 特L」）を名前と等級に分ける。末尾の語が等級として読めたときだけ等級とし（略記は変換）、
+// 実の文字列（例「同族の絆・加撃 特L」「撃種の絆・加命撃（特級L）」）を名前と等級に分ける。末尾の語（またはかっこ内）が等級として読めたときだけ等級とし（略記は変換）、
 // それ以外は変換せず、文字列全体を名前欄に入れて利用者に直してもらう。converted は変換前の表記（変換したときだけ）
 function splitFruit(s){
   s=clean(s,40);
+  // 末尾が「（等級）」「(等級)」の形（スクショ読取が画面どおりに返す形。前の空白は無くてもよい）。かっこの中が等級として読めたときだけ分ける
+  const b=s.match(/^(.*?\S)\s*[（(]\s*([^（）()]+?)\s*[）)]$/), gb=b?srGrade(b[2]):null;
+  if(gb) return {name:clean(b[1],20),grade:gb,exact:true,converted:gb!==b[2]?b[2]:''};
   const m=s.match(/^(.*\S)\s+(\S+)$/), g=m?srGrade(m[2]):null;
   if(g) return {name:clean(m[1],20),grade:g,exact:true,converted:g!==m[2]?m[2]:''};
   return {name:clean(s,20),grade:'',exact:!s,converted:''};
