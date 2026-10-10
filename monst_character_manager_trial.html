@@ -57,6 +57,8 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .cand b{font-weight:900}
 .cand .meta{font-size:12px;color:#475569}
 .candNote{font-size:12px;color:#475569;font-weight:700}
+.cand .candSuit{color:#1d4ed8}
+.b.bLink{background:#f1f5f9;color:#334155;border:1px dashed #94a3b8}
 .uEp{font-size:12px;color:#475569;font-weight:700;overflow-wrap:anywhere}
 .imCh{margin-top:8px}
 .linkLine{margin-top:4px;line-height:1.7}
@@ -1356,11 +1358,15 @@ function charSummary(c){
 function candListHtml(name,monsterNo,act){
   const list=charCandidates(name,monsterNo), nm=clean(name,40), exact=list.find(x=>x.rank===0);
   if(!list.length) return nm?`<div class="candNote">登録済みの候補はありません。新しいキャラ「${esc(nm)}」として登録します</div>`:'';
+  // 候補に登録済みの適正があれば、ステージ・評価・出典（出典の形態表記）も見せる。選んだときだけ、その適正につながる（自動では結び付けない）
+  const suitsOf=c=>{const ids=new Set(formsOfChar(c.id).map(f=>f.id));return db.suits.filter(s=>ids.has(s.formId)).sort((a,b)=>sortJa(a.stageKey,b.stageKey))};
+  const anySuit=list.some(x=>suitsOf(x.c).length);
   return `<div class="candNote">登録済みのキャラ候補（選ぶと、そのキャラに新しい個体を追加します。名前が似ていても同じキャラとは限りません）</div>`
-    +list.map(x=>`<button type="button" class="cand" data-act="${act}" data-id="${esc(x.c.id)}"><b>${esc(x.c.name)}</b> <span class="b">${esc(x.why)}</span>
-      <div class="meta">${esc(charSummary(x.c))}</div></button>`).join('')
+    +list.map(x=>{const ss=suitsOf(x.c);return `<button type="button" class="cand" data-act="${act}" data-id="${esc(x.c.id)}"><b>${esc(x.c.name)}</b> <span class="b">${esc(x.why)}</span>
+      <div class="meta">${esc(charSummary(x.c))}</div>${ss.length?`<div class="meta candSuit">適正：${ss.map(s=>`${esc(stageLabel(s.stageKey))}：${esc(suitText(s))}（${esc(SOURCES[s.source])}・${esc(formShort(formOf(s.formId)||{name:'形態不明'}))}）`).join('／')}</div>
+      <div class="meta candSuit">この候補を選ぶと登録済みの適正情報につながります</div>`:''}</button>`}).join('')
     +`<div class="candNote">${exact?`同じ名前のキャラが登録済みのため、「${esc(exact.c.name)}」に個体を追加します（別のキャラとして登録する場合は名前を変えてください）`
-      :nm?`候補を選ばない場合は、新しいキャラ「${esc(nm)}」として登録します`:''}</div>`;
+      :nm?`候補を選ばない場合は、新しいキャラ「${esc(nm)}」として登録します${anySuit?'（適正とは自動ではつながらない場合があります。あとでステージ画面の適正一覧から対応付けできます）':''}`:''}</div>`;
 }
 // 候補を選んだ：入力した名前が「（二つ名） キャラ名」の形なら、残りを二つ名欄へ（二つ名欄が空のときだけ）
 function applyCandidate(nameId,epId,c){
@@ -1958,6 +1964,8 @@ function pickBlock(k,d){
     group('所持キャラ（適正未登録・仮選択）',owns)].join('');
   const fm=unit&&inCand?{kind:unitFormMatch(unit,k,map),note:unitFormNote(unit,k,map),basis:unitFormBasis(unit,k,map)}:null;
   return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!any&&!stale?' disabled':''}>${opts}</select>`+
+    // 適正と結び付いていない所持キャラがある端末だけ：適正一覧の「同じキャラとして対応付ける」への案内（対応付けると通常の候補になる）
+    (owns.length&&suitFormIds(k).size?'<div class="pNone pickHint">適正図鑑に同じキャラが登録されている場合は、下の適正一覧から対応付けできます</div>':'')+
     (stale?'<div class="pWarn">選択中の個体は今の候補外です（適正・所持・形態を確認してください）</div>':'')+
     // 編成判断に必要な情報（形態・種族・戦型・撃種・実）は常時表示。下の「詳細」は補助（既定は表示なし）
     (unit&&!stale?unitCardHtml(unit,inCand&&!unitVerified(unit,k,map),prov?'prov':false,fm):'')+
@@ -2023,9 +2031,12 @@ function renderChara(){
   $('charaList').innerHTML=list.length?list.map(c=>{
     const forms=formsOfChar(c.id), fids=new Set(forms.map(f=>f.id));
     const units=db.units.filter(u=>fids.has(u.formId)), suits=db.suits.filter(s=>fids.has(s.formId));
+    // 対応付け先（利用者の対応付け・自動照合。除外したキャラは含まない）の適正も数える。同じ適正は1回だけ。適正データは変更しない
+    const linkedChars=[...linkedIds('char',c.id)].filter(id=>id!==c.id).map(charOf).filter(Boolean), seen=new Set(suits.map(s=>s.id)), linked=[];
+    linkedChars.forEach(o=>{const ofids=new Set(formsOfChar(o.id).map(f=>f.id));db.suits.forEach(s=>{if(ofids.has(s.formId)&&!seen.has(s.id)){seen.add(s.id);linked.push({s,via:o})}})});
     const open=db.ui.charaOpen===c.id;
     const head=`<button type="button" class="cHead" data-act="charaOpen" data-id="${esc(c.id)}" aria-expanded="${open}">
-      <span class="cname">${esc(c.name)}</span><span class="small">形態${forms.length}・個体${units.length}・適正${suits.length} ${open?'▲':'▼'}</span></button>`;
+      <span class="cname">${esc(c.name)}</span><span class="small">形態${forms.length}・個体${units.length}・適正${suits.length+linked.length}${linked.length?`（うち対応付け先${linked.length}）`:''} ${open?'▲':'▼'}</span></button>`;
     if(!open) return `<div class="card chara">${head}</div>`;
     const flash=charaFlash&&units.some(u=>u.id===charaFlash.unitId)?charaFlash:null;
     const guide=!forms.length?'① 「＋ 進化形態」で進化形態を登録 → ② 「＋ 所持個体」で端末とわくわくの実を登録'
@@ -2043,8 +2054,10 @@ function renderChara(){
         <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:formOf(u.formId)?.unknownForm?'ステージ画面では、適正キャラと同名なら参考として表示':'ステージ適正 未登録（ステージ画面の候補には出ません。仮選択はできます）'}</div></div>
         <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></div>`).join('');
     }).join('')||'<div class="small">所持個体が未登録です</div>';
-    const suitRows=suits.length?`<div class="badges">${suits.sort((a,b)=>sortJa(a.stageKey,b.stageKey)).map(s=>
-      `<span class="b">${esc(stageLabel(s.stageKey))}・${esc(formShort(formOf(s.formId)||{name:'形態不明'}))}・${esc(SOURCES[s.source])} ${esc(suitText(s))}</span>`).join('')}</div>`
+    const suitChip=s=>`${esc(stageLabel(s.stageKey))}・${esc(formShort(formOf(s.formId)||{name:'形態不明'}))}・${esc(SOURCES[s.source])} ${esc(suitText(s))}`;
+    // 自分の適正はそのまま、対応付け先の適正は「対応付け先：キャラ名」付きで区別して並べる（参照しているだけで、このキャラの適正にはしない）
+    const suitRows=suits.length||linked.length?`<div class="badges">${suits.sort((a,b)=>sortJa(a.stageKey,b.stageKey)).map(s=>`<span class="b">${suitChip(s)}</span>`).join('')}${
+      linked.sort((a,b)=>sortJa(a.via.name,b.via.name)||sortJa(a.s.stageKey,b.s.stageKey)).map(({s,via})=>`<span class="b bLink">対応付け先：${esc(via.name)}｜${suitChip(s)}${s.verificationStatus&&s.verificationStatus!=='VERIFIED'?`・${esc(VERIFY[s.verificationStatus])}`:''}</span>`).join('')}</div>`
       :'<div class="small">適正ステージは未登録です（ステージ画面の「＋ 適正を追加」から登録）</div>';
     return `<div class="card chara open">${head}
       ${flash?`<div class="okMsg" role="status">${esc(flash.text)}</div>`:''}
@@ -2361,7 +2374,8 @@ function syncQrChar(){
   $('qrCharNameField').hidden=!isNew;
   const forms=isNew?[]:formsOfChar(cid);
   $('qrForm').innerHTML=`<option value="${NEW}">＋ 新しく登録（進化形態は任意）</option>`+forms.map(f=>`<option value="${esc(f.id)}">${esc(formShort(f))}${esc(formNameParen(f))}</option>`).join('');
-  $('qrForm').value=forms[0]?.id||NEW;
+  // 適正図鑑から来たキャラは、出典の形態表記をそのまま所持形態と断定しないため、既定は「新しく登録（進化形態は任意）」。選べば既存の形態にも登録できる
+  $('qrForm').value=forms[0]&&!charOf(cid)?.origin?forms[0].id:NEW;
   syncQrForm();
 }
 function syncQrForm(){
