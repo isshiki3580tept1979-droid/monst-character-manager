@@ -92,6 +92,14 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tool{border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:9px 12px;font-weight:800;font-size:13px;color:#334155;min-height:42px}
 .tool.main{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
+.tool:disabled{background:#e2e8f0;border-color:#cbd5e1;color:#94a3b8;cursor:not-allowed}
+#srStatus{flex-basis:100%;margin:2px 0;padding:8px 10px;border-radius:10px;font-size:13px;font-weight:700;line-height:1.55}
+#srStatus[hidden],#srDone[hidden]{display:none!important}
+#srStatus.s-next{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a}
+#srStatus.s-block{background:#fff7ed;border:1px solid #fdba74;color:#9a3412}
+#srStatus.s-error{background:#fef2f2;border:2px solid #f87171;color:#991b1b}
+#srStatus.s-ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46}
+#srDone{margin-top:8px;padding:10px 12px;border-radius:10px;background:#ecfdf5;border:2px solid #10b981;color:#065f46;font-weight:800;line-height:1.55}
 .stageList{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .sItem{display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;max-width:100%;overflow-wrap:anywhere}
 .sItem.cand{border:1px dashed #94a3b8;background:#fff}
@@ -388,11 +396,13 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div id="srEdit" hidden></div>
       <div id="srResult" style="margin-top:6px"></div>
       <div class="tools" id="srTools" hidden>
+        <div id="srStatus" role="status" hidden></div>
         <button class="tool" id="srCheck" data-act="srCheck">確認画面へ</button>
         <button class="tool main" id="srApply" data-act="srApply" disabled>登録する</button>
         <button class="tool" id="srHold" data-act="srHold">保留に入れる</button>
       </div>
       <div class="msg" id="srMsg"></div>
+      <div id="srDone" role="status" hidden><div id="srDoneText"></div><div class="tools"><button class="tool main" data-act="srGoChara" id="srGoChara">キャラ画面で見る</button></div></div>
       <div id="srPendingList"></div>
     </div>
     <div class="panel">
@@ -2602,7 +2612,7 @@ function fillSrDevices(){
 }
 function previewScreenshot(){
   srState=null;srPending=null;$('srApply').disabled=true;$('srMsg').textContent='';$('srResult').innerHTML='';
-  $('srEdit').hidden=true;$('srTools').hidden=true;
+  $('srEdit').hidden=true;$('srTools').hidden=true;srSetStatus('','');srHideDone();
   const text=$('srText').value, p=parseScreenshotReading(text);
   if(p.errors.length){$('srResult').innerHTML=`<div class="note">取り込めません（何も変更していません）：<br>${p.errors.map(esc).join('<br>')}</div>`;return}
   srState={text,reading:p.data};
@@ -2647,7 +2657,13 @@ function renderSrEdit(){
   fillSrDevices();
   if(pre&&pre.device) $('srDevice').value=pre.device;
   $('srEdit').hidden=false;$('srTools').hidden=false;
+  srSetStatus('next','内容を画像と見比べて確認・修正し、登録先の端末を選んで「確認画面へ」を押してください。確認画面で問題がなければ「登録する」が押せるようになります');
 }
+/* ---- 登録の案内と結果（スクショ読取からの登録） ----
+   ・「登録する」のすぐ上に、今できること／登録できない理由と直し方を必ず出す（押せないボタンを押しても何も起きないため）
+   ・成功は、保存データを読み直して登録した個体が入っていることを確かめてからだけ出す */
+function srSetStatus(cls,text){const e=$('srStatus');e.className=cls?'s-'+cls:'';e.textContent=text||'';e.hidden=!text}
+function srHideDone(){$('srDone').hidden=true;$('srDoneText').textContent='';delete $('srGoChara').dataset.id}
 function srCollect(){
   const v=(id,max)=>clean($(id).value,max);
   const fruits=[1,2,3].map(i=>({name:v('srFr'+i+'Name',20),grade:GRADES.includes($('srFr'+i+'Grade').value)?$('srFr'+i+'Grade').value:''})).filter(x=>x.name||x.grade);
@@ -2664,13 +2680,14 @@ function srDuplicates(c){
 }
 function srFruitText(fr){return fr.length?fr.map(x=>`${x.name||'（名前なし）'} ${x.grade||'等級未確認'}`).join('、'):'なし'}
 function checkScreenshot(){
-  srPending=null;$('srApply').disabled=true;$('srMsg').textContent='';
-  if(!srState||srState.text!==$('srText').value){$('srResult').innerHTML='<div class="note">先に「内容を確認」を押してください</div>';return}
+  srPending=null;$('srApply').disabled=true;$('srMsg').textContent='';srHideDone();
+  if(!srState||srState.text!==$('srText').value){srSetStatus('block','先に「内容を確認」を押してください');$('srResult').innerHTML='<div class="note">先に「内容を確認」を押してください</div>';return}
   const c=srCollect(), errs=[];
   if(!DEVICES.includes(c.device)) errs.push('登録先の端末を選んでください');
   if(!c.characterName) errs.push('キャラ名が空です。画像で確認して入力してください');
   if(c.fruits.some(x=>!x.name)) errs.push('名前が空の実があります（等級だけの実は登録できません）');
-  if(errs.length){$('srResult').innerHTML=`<div class="note">まだ登録できません：<br>${errs.map(esc).join('<br>')}</div>`;return}
+  if(errs.length){$('srResult').innerHTML=`<div class="note">まだ登録できません：<br>${errs.map(esc).join('<br>')}</div>`;
+    srSetStatus('block',`まだ登録できません：${errs.join('／')}。直してから、もう一度「確認画面へ」を押してください`);return}
   const j={schema:SR_FORMAT,device:c.device,scope:'',ownershipChecks:[],
     units:[{characterName:c.characterName,formName:c.formName,monsterNo:c.monsterNo,race:c.race,battleType:c.battleType,shotType:c.shotType,
       fruits:c.fruits,verificationStatus:c.needsReview?'NEEDS_REVIEW':'VERIFIED'}]};
@@ -2691,35 +2708,53 @@ function checkScreenshot(){
     ${!blocked&&dups.length?`<div class="note" id="srDupNote">${esc(devLabel(c.device))}には「${esc(c.characterName)}」の個体がすでにあります（自動では上書き・統合しません）：<br>${dups.map(d=>
       `個体${esc(String(d.no))}${d.unknown?'':`｜${esc(d.formName)}`}・実：${esc(srFruitText(d.fruits))}${d.sameForm?'（同じ進化形態）':''}${d.sameFruits?'<b>（実も同じ＝同じ個体の可能性が高い）</b>':''}`).join('<br>')}
       <label class="srChk"><input type="checkbox" id="srDupOk"> 既存の個体とは別の個体として追加する（既存の個体は変更しません）</label></div>`:''}`;
-  if(blocked) return;
+  if(blocked){srSetStatus('block',`登録できません：${reasons.join('／')}（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください`);return}
   srPending={sig:srSig(),c,j,dups:dups.length};
   $('srApply').disabled=false;
+  srSetStatus('next',dups.length?'同じキャラの個体があります。別の個体として追加する場合は、上のチェックを入れてから「登録する」を押してください（押すまでは保存されません）'
+    :'確認画面の内容でよければ「登録する」を押してください（押すまでは保存されません）');
 }
 // 確認画面どおりに登録する。保存に失敗したら登録前の状態に戻す
 function applyScreenshot(){
   const p=srPending;
-  if(!p||p.sig!==srSig()){srPending=null;$('srApply').disabled=true;$('srMsg').textContent='内容が変わったため、もう一度「確認画面へ」を押してください';return}
-  if(p.dups&&!$('srDupOk')?.checked){$('srMsg').textContent='同じキャラの個体がすでにあります。別の個体として追加する場合は、チェックを入れてから「登録する」を押してください';return}
+  const fail=(cls,t)=>{$('srMsg').textContent=t;srSetStatus(cls,t)};
+  if(!p||p.sig!==srSig()){srPending=null;$('srApply').disabled=true;fail('block','内容が変わったため、もう一度「確認画面へ」を押してください');return}
+  if(p.dups&&!$('srDupOk')?.checked){fail('block','同じキャラの個体がすでにあります。別の個体として追加する場合は、チェックを入れてから「登録する」を押してください');return}
   // 確認後にデータが変わっていても安全なように、保存直前に照合し直す
   const plan=planInventory(p.j,{allowUnknownForm:true}), row=plan.rows[0];
-  if(row.cls==='conflict'||row.cls==='reject'||srDuplicates(p.c).length!==p.dups){srPending=null;$('srApply').disabled=true;$('srMsg').textContent='登録前にデータが変わりました。もう一度「確認画面へ」を押してください';return}
+  if(row.cls==='conflict'||row.cls==='reject'||srDuplicates(p.c).length!==p.dups){srPending=null;$('srApply').disabled=true;fail('block','登録前にデータが変わりました。もう一度「確認画面へ」を押してください');return}
   // 保留から再開した登録なら、登録と同じ保存の中でその保留だけを消す（失敗したら保留も元に戻す）
   const pid=srState?.pendingId&&db.pendingReadings.some(x=>x.id===srState.pendingId)?srState.pendingId:'';
   const backupState=JSON.stringify({master:db.master,units:db.units,pendingReadings:db.pendingReadings});
+  const oldIds=new Set(db.units.map(u=>u.id)), newUnit=plan.units.find(u=>!oldIds.has(u.id));
+  const rollback=()=>{const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.pendingReadings=b.pendingReadings;srPending=null;$('srApply').disabled=true;render()};
   try{
     db.master.characters=plan.chars;db.master.forms=plan.forms;db.units=plan.units;
     if(pid) db.pendingReadings=db.pendingReadings.filter(x=>x.id!==pid);
     persist();
   }catch(e){
-    const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.pendingReadings=b.pendingReadings;
-    srPending=null;$('srApply').disabled=true;render();
-    $('srMsg').textContent=saveFailText(e,'登録に失敗したため、登録前の状態に戻しました')+(pid?'（保留はそのまま残っています）':'');return;
+    rollback();
+    fail(isStale(e)?'block':'error',saveFailText(e,'登録に失敗したため、登録前の状態に戻しました')+(pid?'（保留はそのまま残っています）':'')
+      +(isStale(e)?'':'。入力した内容はそのまま残っています。もう一度「確認画面へ」→「登録する」を押してください'));return;
+  }
+  // 保存データを読み直し、このタブが書いた内容そのもので、登録した個体が入っているか確かめる（違えば成功とは表示しない）
+  // 違っていた場合は、保存データがどうなっているか分からないため、このタブでは以後保存しない（STEP1 と同じ扱い。保存データには一切書き込まない）
+  let saved=false;
+  try{const raw=localStorage.getItem(KEY), d=JSON.parse(raw||'null');saved=raw===lastRaw&&!!newUnit&&!!d&&Array.isArray(d.units)&&d.units.some(u=>u.id===newUnit.id)}catch(e){saved=false}
+  if(!saved){
+    markStale();
+    rollback();
+    fail('error','保存を確認できませんでした（登録は完了していません）。内容はそのまま残っています。ページを再読み込みしてから、もう一度読み取り・登録してください');return;
   }
   srPending=null;$('srApply').disabled=true;
   if(pid){srState=null;$('srEdit').hidden=true;$('srTools').hidden=true}
   render();
   $('srMsg').textContent=`登録しました：${devLabel(p.c.device)} ${p.c.characterName}${p.c.formName?`｜${p.c.formName}`:''} 個体${row.unitNo}（${VERIFY[p.c.needsReview?'NEEDS_REVIEW':'VERIFIED']}）`
     +(pid?'。この読み取りの保留を一覧から消しました':'');
+  srSetStatus('ok','登録が完了しました。続けて登録するときは、新しく読み取ってください');
+  $('srDoneText').textContent=`✅ 登録しました（保存済み）：${devLabel(p.c.device)} ${p.c.characterName}${p.c.formName?`｜${p.c.formName}`:''} 個体${row.unitNo}`;
+  $('srGoChara').dataset.id=formOf(newUnit.formId)?.characterId||'';$('srDone').hidden=false;
+  try{$('srDone').scrollIntoView({block:'center'})}catch(e){} // 下のメニューに隠れないよう、画面の中央に出す
 }
 /* ---- スクショ読取 Ver.2 との連携（アプリ内でスクショ → 読み取り → 確認画面） ----
    ・読み取りは既存の Apps Script（Gemini の APIキーはサーバー側の Script Properties だけ）。このアプリはキーを持たず、Gemini とも通信しない
@@ -3069,6 +3104,8 @@ document.addEventListener('click',guardStale(e=>{
     case 'srPreview':previewScreenshot();break;
     case 'srCheck':checkScreenshot();break;
     case 'srApply':applyScreenshot();break;
+    case 'srGoChara':{const id=b.dataset.id;if(!charOf(id))break;db.ui.view='chara';db.ui.charaOpen=id;persistUi();render();
+      document.querySelector('#charaList .card.open')?.scrollIntoView({block:'start'});break}
     case 'srHold':holdScreenshot();break;
     case 'srReader':$('srMsg').textContent=openReader($('srDevice')?.value||'');break;
     case 'qrFromShot':$('qrMsg').textContent=openReader($('qrDevice').value);break;
@@ -3106,8 +3143,9 @@ $('stEval').addEventListener('change',syncSuitModal);
 $('imText').addEventListener('input',()=>{pendingSuitImport=null;$('imApply').disabled=true});
 $('invText').addEventListener('input',()=>{pendingInv=null;$('invApply').disabled=true});
 // スクショ読取：JSONを変えたら確認し直し。項目・端末を変えたら確認画面からやり直し
-$('srText').addEventListener('input',()=>{srState=null;srPending=null;$('srApply').disabled=true;$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML=''});
-['input','change'].forEach(ev=>$('srEdit').addEventListener(ev,e=>{if(e.target.id==='srDupOk')return;if(srPending){srPending=null;$('srApply').disabled=true;$('srResult').innerHTML=''}}));
+$('srText').addEventListener('input',()=>{srState=null;srPending=null;$('srApply').disabled=true;$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML='';srHideDone()});
+['input','change'].forEach(ev=>$('srEdit').addEventListener(ev,e=>{if(e.target.id==='srDupOk')return;if(srPending){srPending=null;$('srApply').disabled=true;$('srResult').innerHTML='';
+  srSetStatus('block','内容を変更したため、確認画面を取り消しました。もう一度「確認画面へ」を押してください')}}));
 $('invFile').addEventListener('change',e=>{
   const file=e.target.files[0];if(!file)return;
   const r=new FileReader();
