@@ -58,7 +58,7 @@ const U=(id,formId,device,no,x={})=>({id,formId,device,no,fruits:[],memo:'',...x
 const BASE={characters:[],deviceNames:{'メイン':'架空メイン名','サブ1':'架空タブレット'},
   master:{characters:[{id:'cG',name:'架空五条',origin:'SUIT_CATALOG'},{id:'cQ',name:'架空真キャラ',origin:'SUIT_CATALOG'},{id:'cN',name:'架空ネオ'},{id:'cJ',name:'架空甚爾',origin:'SUIT_CATALOG'},{id:'cL',name:'架空レム',origin:'SUIT_CATALOG'},
       {id:'cO',name:'架空0.2秒 架空五条'},{id:'cR',name:'架空 真キャラ'},{id:'cT',name:'架空最強架空甚爾'},{id:'cX',name:'架空五条β'},{id:'cA',name:'架空ネオα'},{id:'cM',name:'架空ラム＆架空レム'}],
-    forms:[F('fGs','cG','真獣神化',{origin:'SUIT_CATALOG'}),F('fQs','cQ','獣神化',{origin:'SUIT_CATALOG'}),F('fN1','cN','架空ハローワールド',{short:'ハロー'}),F('fN2','cN','架空リバース',{short:'リバース'}),
+    forms:[F('fGs','cG','真獣神化',{origin:'SUIT_CATALOG'}),F('fQs','cQ','獣神化',{origin:'SUIT_CATALOG'}),F('fN1','cN','架空ハローワールド',{short:'ハロー',monsterNo:'98001'}),F('fN2','cN','架空リバース',{short:'リバース',monsterNo:'98002'}),
       F('fJs','cJ','獣神化',{origin:'SUIT_CATALOG'}),F('fLs','cL','獣神化',{origin:'SUIT_CATALOG'}),
       F('fOu','cO','',{unknownForm:true,monsterNo:'99310',race:'亜人',battleType:'超バランス型',shotType:'貫通'}),F('fR1','cR','架空の獣神化'),
       F('fTu','cT','',{unknownForm:true}),F('fXu','cX','',{unknownForm:true}),F('fAu','cA','',{unknownForm:true}),F('fMu','cM','',{unknownForm:true})]},

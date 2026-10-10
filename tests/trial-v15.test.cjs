@@ -54,7 +54,7 @@ const U=(id,formId,device,no)=>({id,formId,device,no,fruits:[],memo:''});
 // 架空キャラ：X（確認済み形態 fX1・fX2、未確認 fXu）、似た名前の別キャラ Xα（未確認 fYu）、適正は fX1 に1件
 function world(units,extraSuits=[]){
   return {characters:[],master:{characters:[{id:'cX',name:'架空スカアハ'},{id:'cY',name:'架空スカアハα'},{id:'cZ',name:'架空別キャラ'}],
-    forms:[F('fX1','cX','架空の形態一'),F('fX2','cX','架空の形態二'),F('fXu','cX','',{unknownForm:true,monsterNo:'99216'}),F('fYu','cY','',{unknownForm:true}),F('fZu','cZ','',{unknownForm:true})]},
+    forms:[F('fX1','cX','架空の形態一',{monsterNo:'99101'}),F('fX2','cX','架空の形態二',{monsterNo:'99102'}),F('fXu','cX','',{unknownForm:true,monsterNo:'99216'}),F('fYu','cY','',{unknownForm:true}),F('fZu','cZ','',{unknownForm:true})]},
     units,suits:[{id:'s1',stageKey:K,formId:'fX1',source:'GAMEWITH',evaluationType:'GRADE',grade:'S',verificationStatus:'VERIFIED'},...extraSuits],
     ui:{view:'stage',quest:'破界の星墓',stage:{'破界の星墓':'パライソ'}}};
 }

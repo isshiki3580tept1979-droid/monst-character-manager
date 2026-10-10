@@ -101,12 +101,12 @@ test('UI: register character, two forms, two units on one device, suitability; c
   // 適正が未登録でも、この端末の所持キャラから仮選択はできる（候補は0）
   assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
   await click('[data-act="suitAdd"]');await page.selectOption('#stForm',formIds[0]);await page.fill('#stRank','2');await click('[data-act="saveSuit"]');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）','ネオ｜リバース 個体2（別形態）（未検証）'],'same character: the other confirmed form is a candidate marked 別形態');
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）','ネオ｜リバース 個体2（形態未確認）（未検証）'],'same character, other named form without 図鑑No.: candidate marked 形態未確認 (not 別形態)');
   await click('[data-act="suitVerify"]');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（別形態）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（形態未確認）']);
   assert.equal(await page.locator('.pickDev').count(),1); // only the chosen device is shown
   await page.reload();
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（別形態）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（形態未確認）']);
   d=await snapshot();assert.deepEqual(d.suits.map(s=>[s.stageKey,s.source,s.evaluationType,s.rank,s.grade,s.verificationStatus]),[[STAGE,'GAME_CLEAR_MONSTERS','RANK',2,'','VERIFIED']]);
   // character view lists the suitable stage
   await click('[data-act="view"][data-view="chara"]');assert.match(await page.locator('#charaList').textContent(),/禁忌 一ノ獄・ハロー・みんなのクリアモンスター 2位/);
@@ -115,8 +115,8 @@ test('UI: register character, two forms, two units on one device, suitability; c
 test('candidates: only owned AND suitable units per device, per-unit (not per-character), reasons when none',async()=>{
   await seed(world({useDevs:{'禁忌の獄::一ノ獄':['メイン','サブ1','サブ2'],'禁忌の獄::二ノ獄':['メイン']}}));
   // main owns ルシファー, ネオ×2 (ハロー suitable, リバース = same character, other confirmed form → candidate marked 別形態), アーサー (not suitable). エル is suitable but unowned.
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ルシファー｜獣神化改 個体1','ネオ｜リバース 個体2（別形態）']);
-  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','リンネ｜リンネ（獣神化） 個体1','ネオ｜リバース 個体1（別形態）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ルシファー｜獣神化改 個体1','ネオ｜リバース 個体2（形態未確認）']);
+  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','リンネ｜リンネ（獣神化） 個体1','ネオ｜リバース 個体1（形態未確認）']);
   assert.equal(await pickSel('サブ2').isDisabled(),true);
   assert.match(await devRow('サブ2').textContent(),/この端末の所持個体が未登録です/);
   assert.match(await devRow('メイン').textContent(),/候補3/);
@@ -130,7 +130,7 @@ test('candidates: only owned AND suitable units per device, per-unit (not per-ch
   assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
   assert.match(await devRow('メイン').textContent(),/このステージの適正が未登録です（所持キャラから仮選択できます）/);
   // form ownership status helper (bright / dark+！ / dark) per device
-  assert.deepEqual(await page.evaluate(()=>[formStatus('f-hello','メイン'),formStatus('f-hello','サブ1'),formStatus('f-hello','サブ2'),formStatus('f-el','メイン')]),['owned','alt-form','not-owned','not-owned']);
+  assert.deepEqual(await page.evaluate(()=>[formStatus('f-hello','メイン'),formStatus('f-hello','サブ1'),formStatus('f-hello','サブ2'),formStatus('f-el','メイン')]),['owned','unconfirmed','not-owned','not-owned']);
 });
 
 test('info toggle: 進化形態 / 種族・戦型・撃種 / 実 / 全部 with one tap, switching unit updates info, persists',async()=>{
@@ -180,7 +180,7 @@ test('stage suitability: sources kept separate, ranks and grades never converted
   assert.match(await page.locator('#stMsg').textContent(),/既にあります/);await click('#suitModal [data-act="close"]');
   assert.equal((await snapshot()).suits.filter(x=>x.formId==='f-hello').length,1);
   // ownership marks per device: main owns ハロー, サブ1 owns only another ネオ form (！)
-  assert.match(await page.locator('#suitPanel').textContent(),/ネオ｜ハロー2位.*所持：メイン×1 サブ1！/s);
+  assert.match(await page.locator('#suitPanel').textContent(),/ネオ｜ハロー2位.*所持：メイン×1 サブ1（所持・形態未確認）/s);
 });
 
 test('stale pick after suitability removal is shown as 候補外, not silently changed',async()=>{

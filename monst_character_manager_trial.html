@@ -1727,9 +1727,11 @@ function suitCharMap(k){
 function unitFormMatch(u,k,map){
   const f=formOf(u.formId);if(!f) return null;const e=(map||suitCharMap(k)).get(f.characterId);if(!e) return null;
   if(e.forms.has(u.formId)) return 'exact';
-  if(f.unknownForm||e.src.some(sf=>sf.unknownForm)||!e.src.some(sf=>sf.characterId===f.characterId)) return 'unknown';
-  return 'other';
+  // 別形態と言えるのは、この適正の形態すべてと「別の形態」だと確認できるときだけ（図鑑No.の違い、または利用者の確認）
+  return e.src.length&&e.src.every(sf=>formsDistinct(sf,f))?'other':'unknown';
 }
+// 別形態の根拠（カードの注記用）
+function unitFormBasis(u,k,map){const f=formOf(u.formId), e=(map||suitCharMap(k)).get(f?.characterId);if(!e)return '';return [...new Set(e.src.map(sf=>distinctBasis(sf,f)).filter(Boolean))].join('・')}
 function unitFormNote(u,k,map){
   const f=formOf(u.formId), e=(map||suitCharMap(k)).get(f?.characterId);if(!e) return '';
   return [...new Set(e.src.map(sf=>sf.unknownForm?formLabel(sf):`${formLabel(sf)}`))].join('・');
@@ -1796,13 +1798,22 @@ function linkedIds(kind,id){
     if(out.has(l.a)&&!out.has(l.b)){out.add(l.b);more=true}if(out.has(l.b)&&!out.has(l.a)){out.add(l.a);more=true}}}
   return out;
 }
+/* 2つの形態が「別の形態」だと確認できる根拠：①両方に図鑑No.があって違う ②利用者が「別の形態」と確認した（idLinks kind=form, basis=USER_EXCLUDED）
+   形態名・IDが違うだけでは別形態としない（出典の表記「真獣神化」と、登録した形態名・二つ名は比べられないため）。根拠が無ければ「形態未確認」 */
+function formPairDistinctByUser(a,b){return db.idLinks.some(l=>l.kind==='form'&&l.basis===EXCLUDED&&((l.a===a&&l.b===b)||(l.a===b&&l.b===a)))}
+function formsDistinct(fa,fb){
+  if(!fa||!fb||fa.id===fb.id||fa.unknownForm||fb.unknownForm) return false; // 進化形態未確認の個体は、図鑑No.があっても断定しない
+  if(fa.monsterNo&&fb.monsterNo&&fa.monsterNo!==fb.monsterNo) return true;
+  return formPairDistinctByUser(fa.id,fb.id);
+}
+function distinctBasis(fa,fb){return !fa||!fb||fa.unknownForm||fb.unknownForm?'':fa.monsterNo&&fb.monsterNo&&fa.monsterNo!==fb.monsterNo?'図鑑No.が違う':formPairDistinctByUser(fa?.id,fb?.id)?'別の形態と確認済み':''}
 function formStatus(formId,dev){
   const f=formOf(formId);if(!f) return 'not-owned';
   const cids=linkedIds('char',f.characterId), fids=linkedIds('form',formId);
   const mine=db.units.filter(u=>u.device===dev&&cids.has(formOf(u.formId)?.characterId));
   if(!f.unknownForm&&mine.some(u=>fids.has(u.formId))) return 'owned';
-  // 進化形態未確認の個体、または対応付けた別IDのキャラの個体（形態の対応が未確認）→ 断定しない
-  if(mine.some(u=>f.unknownForm||formOf(u.formId)?.unknownForm||formOf(u.formId)?.characterId!==f.characterId)) return 'unconfirmed';
+  // 別の形態だと確認できない個体（形態未確認・別IDのキャラ・名前が違うだけ）が1体でもあれば、断定しない
+  if(mine.some(u=>!formsDistinct(f,formOf(u.formId)))) return 'unconfirmed';
   if(mine.length) return 'alt-form';
   return 'not-owned';
 }
@@ -1812,8 +1823,7 @@ function ownerText(formId,dev){
   const mine=db.units.filter(u=>u.device===dev&&cids.has(formOf(u.formId)?.characterId));
   if(st==='owned') return `${dev}×${mine.filter(u=>fids.has(u.formId)).length}`;
   if(st==='unconfirmed'){
-    const n=mine.filter(u=>f.unknownForm?(fids.has(u.formId)||formOf(u.formId)?.unknownForm||formOf(u.formId)?.characterId!==f.characterId)
-      :(!fids.has(u.formId)&&(formOf(u.formId)?.unknownForm||formOf(u.formId)?.characterId!==f.characterId))).length;
+    const n=mine.filter(u=>!formsDistinct(f,formOf(u.formId))).length;
     return `${dev}（所持・形態未確認${n>1?'×'+n:''}）`;
   }
   return st==='alt-form'?`${dev}！`:'';
@@ -1829,15 +1839,18 @@ function suitLinkHtml(f){
   });
   db.idLinks.filter(l=>l.kind==='char'&&l.basis===EXCLUDED&&(l.a===c.id||l.b===c.id)).map(l=>charOf(l.a===c.id?l.b:l.a)).filter(Boolean).forEach(o=>out.push(
     `<div class="meta linkLine">除外中（同じキャラではない）：${esc(o.name)} <button class="mini" data-act="unexcludeChar" data-a="${esc(c.id)}" data-b="${esc(o.id)}">除外を取り消す</button></div>`));
-  if(!f.unknownForm&&group.size>1){
-    const fl=linkedIds('form',f.id);
+  if(!f.unknownForm){
+    const fl=linkedIds('form',f.id), lbl=g=>esc(formLabel(g))+(g.short&&g.short!==g.name?`（${esc(g.name)}）`:'');
     [...fl].filter(id=>id!==f.id).map(formOf).filter(Boolean).forEach(g=>out.push(
-      `<div class="meta linkLine">同じ形態として確認済み：${esc(formLabel(g))}${g.short&&g.short!==g.name?`（${esc(g.name)}）`:''} <button class="mini" data-act="unlinkForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">確認を取り消す</button></div>`));
-    const opts=db.master.forms.filter(g=>!g.unknownForm&&g.characterId!==f.characterId&&group.has(g.characterId)&&!fl.has(g.id)&&db.units.some(u=>u.formId===g.id));
-    if(opts.length) out.push(`<div class="meta linkLine">所持している形態が、この適正の「${esc(f.name)}」と同じだと確認できた場合だけ選んでください：<br>${opts.map(g=>
-      `<button class="mini" data-act="linkForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">${esc(formLabel(g))}${g.short&&g.short!==g.name?`（${esc(g.name)}）`:''}と同じ形態</button>`).join(' ')}</div>`);
+      `<div class="meta linkLine">同じ形態として確認済み：${lbl(g)} <button class="mini" data-act="unlinkForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">確認を取り消す</button></div>`));
+    db.idLinks.filter(l=>l.kind==='form'&&l.basis===EXCLUDED&&(l.a===f.id||l.b===f.id)).map(l=>formOf(l.a===f.id?l.b:l.a)).filter(Boolean).forEach(g=>out.push(
+      `<div class="meta linkLine">別形態と確認済み：${lbl(g)} <button class="mini" data-act="undistinctForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">確認を取り消す</button></div>`));
+    // 同じキャラ（対応付け・自動照合を含む）の、名前の付いた他の形態で所持個体があるもの。図鑑No.で別形態と分かるものは除く
+    const opts=db.master.forms.filter(g=>!g.unknownForm&&g.id!==f.id&&group.has(g.characterId)&&!fl.has(g.id)&&!formsDistinct(f,g)&&db.units.some(u=>u.formId===g.id));
+    if(opts.length) out.push(`<div class="meta linkLine">所持している形態が、この適正の「${esc(f.name)}」と同じか別かが分かる場合だけ選んでください（分からなければそのままで構いません）：<br>${opts.map(g=>
+      `${lbl(g)}： <button class="mini" data-act="linkForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">同じ形態</button> <button class="mini" data-act="distinctForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">別の形態</button>`).join('<br>')}</div>`);
     else if(fl.size===1&&db.units.some(u=>group.has(formOf(u.formId)?.characterId)&&formOf(u.formId)?.unknownForm))
-      out.push('<div class="meta linkLine">所持個体の進化形態が未確認です（キャラ画面で進化形態を登録すると、同じ形態かどうかを確認できます）</div>');
+      out.push('<div class="meta linkLine">所持個体の進化形態が未確認です（形態未確認のまま編成候補に使えます。キャラ画面で進化形態を登録すると、同じ形態かどうかを確認できます）</div>');
   }
   // 同じキャラ（対応付けを含む）の所持個体が1体もないときだけ、所持キャラの候補を出す（自動では結び付けない）
   if(!db.units.some(u=>group.has(formOf(u.formId)?.characterId))){
@@ -1905,7 +1918,7 @@ function fruitShort(x){
 function unitCardHtml(u,unverified,ref,fm){
   const f=formOf(u.formId), c=f&&charOf(f.characterId);
   const fmBadge=fm?.kind==='unknown'?'<span class="vb v-FM">形態未確認</span>':fm?.kind==='other'?'<span class="vb v-FM">別形態</span>':'';
-  const fmLine=fm&&fm.kind!=='exact'?`<div class="uFm">出典の形態：${esc(fm.note||'—')}（${fm.kind==='other'?'この個体は別の形態':'同じ形態かは未確認'}）</div>`:'';
+  const fmLine=fm&&fm.kind!=='exact'?`<div class="uFm">出典の形態：${esc(fm.note||'—')}（${fm.kind==='other'?`この個体は別の形態：${esc(fm.basis||'確認済み')}`:'同じ形態かは未確認'}）</div>`:'';
   const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
   return `<div class="uCard${ref?' uRef':''}${ref==='prov'?' uProv':''}">
     <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b>${f?.unknownForm?'':`<span class="uSep">｜</span><span class="uForm">${esc(f?formShort(f):'形態不明・要確認')}</span>`}
@@ -1943,7 +1956,7 @@ function pickBlock(k,d){
     stale?`<option value="${esc(sel)}" selected>${esc(unit?unitLabel(unit):'削除された個体')}（候補外）</option>`:'',
     ...cands.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u)+mark(u))}</option>`),
     group('所持キャラ（適正未登録・仮選択）',owns)].join('');
-  const fm=unit&&inCand?{kind:unitFormMatch(unit,k,map),note:unitFormNote(unit,k,map)}:null;
+  const fm=unit&&inCand?{kind:unitFormMatch(unit,k,map),note:unitFormNote(unit,k,map),basis:unitFormBasis(unit,k,map)}:null;
   return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!any&&!stale?' disabled':''}>${opts}</select>`+
     (stale?'<div class="pWarn">選択中の個体は今の候補外です（適正・所持・形態を確認してください）</div>':'')+
     // 編成判断に必要な情報（形態・種族・戦型・撃種・実）は常時表示。下の「詳細」は補助（既定は表示なし）
@@ -1990,7 +2003,7 @@ function renderSuitPanel(){
   $('suitPanel').innerHTML=`<div class="ptitle"><span>このステージの適正（出典別）</span><button class="mini" data-act="suitAdd">＋ 適正を追加</button></div>
     ${unv?`<div class="note">未検証・要確認の適正が${unv}件あります。内容を確認してから「確認済みにする」を押してください（候補には「（未検証）」と表示されます）。</div>`:''}
     ${body||`<div class="small">${db.master.forms.length?'まだ適正が登録されていません。':'先に「キャラ」タブでキャラ・進化形態を登録してください。'}</div>`}
-    <div class="small" style="margin-top:6px">「！」はその端末が同じキャラの別の進化形態だけを持っていることを表します。「所持・形態未確認」は、その端末に同じキャラがいるものの進化形態が未確認であることを表します（別形態とも未所持とも断定しません）。名前が一致するキャラ（二つ名を除いた一致を含む）は自動で同じキャラとみなし、形態が未確認・別形態でも編成候補に出します（形態の一致状況は別に表示します。間違いなら「除外」できます）。出典ごとの順位・ランクは混ぜずに表示します。</div>`;
+    <div class="small" style="margin-top:6px">「！」はその端末が同じキャラの別の進化形態だけを持っていることを表します。「所持・形態未確認」は、その端末に同じキャラがいるものの進化形態が未確認であることを表します（別形態とも未所持とも断定しません）。名前が一致するキャラ（二つ名を除いた一致を含む）は自動で同じキャラとみなし、形態が未確認・別形態でも編成候補に出します（形態の一致状況は別に表示します。間違いなら「除外」できます）。「！」（別形態）と表示するのは、図鑑No.が両方あって違うか、「別の形態」と確認したときだけです。形態名が違うだけでは別形態としません。出典ごとの順位・ランクは混ぜずに表示します。</div>`;
 }
 
 /* ---- キャラ画面：キャラ → 端末・個体・形態・実・適正ステージ ---- */
@@ -3517,8 +3530,15 @@ document.addEventListener('click',guardStale(e=>{
       persist();render();break}
     case 'linkForm':{const fa=formOf(b.dataset.a),fb=formOf(b.dataset.b);
       if(!fa||!fb||fa.unknownForm||fb.unknownForm||fa.id===fb.id||!linkedIds('char',fa.characterId).has(fb.characterId)||linkedIds('form',fa.id).has(fb.id))break;
+      if(fa.monsterNo&&fb.monsterNo&&fa.monsterNo!==fb.monsterNo)break; // 図鑑No.が違う形態は同じ形態にできない
+      db.idLinks=db.idLinks.filter(l=>!(l.kind==='form'&&l.basis===EXCLUDED&&((l.a===fa.id&&l.b===fb.id)||(l.a===fb.id&&l.b===fa.id))));
       db.idLinks.push({id:uid(),kind:'form',a:fa.id,b:fb.id,basis:'USER_SELECTED',at:new Date().toISOString()});persist();render();break}
     case 'unlinkForm':{const pair=new Set([b.dataset.a,b.dataset.b]);db.idLinks=db.idLinks.filter(l=>!(l.kind==='form'&&pair.has(l.a)&&pair.has(l.b)));persist();render();break}
+    case 'distinctForm':{const fa=formOf(b.dataset.a),fb=formOf(b.dataset.b);
+      if(!fa||!fb||fa.unknownForm||fb.unknownForm||fa.id===fb.id||!linkedIds('char',fa.characterId).has(fb.characterId)||formPairDistinctByUser(fa.id,fb.id))break;
+      const pair=new Set([fa.id,fb.id]);db.idLinks=db.idLinks.filter(l=>!(l.kind==='form'&&pair.has(l.a)&&pair.has(l.b)));
+      db.idLinks.push({id:uid(),kind:'form',a:fa.id,b:fb.id,basis:EXCLUDED,at:new Date().toISOString()});persist();render();break}
+    case 'undistinctForm':{const pair=new Set([b.dataset.a,b.dataset.b]);db.idLinks=db.idLinks.filter(l=>!(l.kind==='form'&&l.basis===EXCLUDED&&pair.has(l.a)&&pair.has(l.b)));persist();render();break}
     case 'charaFilter':if(['mine','catalog','all'].includes(b.dataset.f)){charaFilter=b.dataset.f;renderChara()}break;
     case 'srHold':holdScreenshot();break;
     case 'srReader':$('srMsg').textContent=openReader($('srDevice')?.value||'');break;
