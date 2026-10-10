@@ -59,6 +59,8 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .candNote{font-size:12px;color:#475569;font-weight:700}
 .uEp{font-size:12px;color:#475569;font-weight:700;overflow-wrap:anywhere}
 .imCh{margin-top:8px}
+.linkLine{margin-top:4px;line-height:1.7}
+.linkLine .mini{margin:2px 0}
 .imCh label{font-size:13px;font-weight:800;color:#0f172a;overflow-wrap:anywhere}
 .imCh select{width:100%;max-width:100%;margin-top:3px}
 .imOpt{display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:13px}
@@ -987,6 +989,11 @@ function normV3(raw,d){
     id:clean(a.id,40),kind:a.kind,source:a.source,site:clean(a.site,30),label:clean(a.label,40),...(a.kind==='form'?{formLabel:clean(a.formLabel,60),formId:clean(a.formId,40)}:{}),
     characterId:clean(a.characterId,40),basis:clean(a.basis,20)||'USER_SELECTED',stageKey:clean(a.stageKey,80),at:clean(a.at,40)
   })).filter(a=>a.id&&a.label&&a.characterId&&(a.kind!=='form'||a.formId)&&!aIds.has(a.id)&&aIds.add(a.id)).slice(0,2000);
+  // 同じキャラ・同じ進化形態の対応付け（別IDのまま結び付ける。統合・削除はしない。利用者が確認したものだけ）
+  const lIds=new Set(), lPairs=new Set();
+  d.idLinks=(Array.isArray(raw.idLinks)?raw.idLinks:[]).filter(l=>l&&typeof l==='object'&&(l.kind==='char'||l.kind==='form'))
+    .map(l=>({id:clean(l.id,40),kind:l.kind,a:clean(l.a,40),b:clean(l.b,40),basis:clean(l.basis,20)||'USER_SELECTED',at:clean(l.at,40)}))
+    .filter(l=>{const p=l.kind+'|'+[l.a,l.b].sort().join('|');if(!l.id||!l.a||!l.b||l.a===l.b||lIds.has(l.id)||lPairs.has(p))return false;lIds.add(l.id);lPairs.add(p);return true}).slice(0,2000);
   d.importIssues=(Array.isArray(raw.importIssues)?raw.importIssues:[]).filter(x=>x&&typeof x==='object').map(x=>({
     id:clean(x.id,40),at:clean(x.at,40),stageKey:clean(x.stageKey,80),source:SOURCES[x.source]?x.source:'',site:clean(x.site,30),
     characterName:clean(x.characterName,40),formName:clean(x.formName,60),reason:clean(x.reason,120)})).filter(x=>once(x.id)).slice(0,500);
@@ -1003,7 +1010,7 @@ function blank(){
   return {app:APP,version:1,deviceNames:{},characters:[],
     extraStages:Object.fromEntries(QUESTS.filter(q=>q.canAdd).map(q=>[q.id,[]])),
     rankings:{},ownership:{},
-    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],ownershipChecks:[],pendingReadings:[],suitAliases:[],
+    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],ownershipChecks:[],pendingReadings:[],suitAliases:[],idLinks:[],
     ui:{view:'stage',quest:QUESTS[0].id,stage:{},rankDevice:DEVICES[0],infoMode:'none',charaOpen:null}};
 }
 function normalize(raw){
@@ -1328,7 +1335,7 @@ function charCandidates(name,monsterNo){
   if(!k&&!no) return [];
   return db.master.characters.map(c=>{
     const ck=nameKey(c.name);
-    if(k&&ck===k) return {c,why:'同じ名前',rank:0};
+    if(k&&ck===k) return c.name===String(name||'').trim()?{c,why:'同じ名前',rank:0}:{c,why:'表記ゆれ（空白・記号・全角半角）だけが違う',rank:0.5};
     if(no&&formsOfChar(c.id).some(f=>f.monsterNo===no)) return {c,why:'図鑑No.が一致',rank:1};
     if(k&&k.length>=2&&ck.length>=2&&(k.includes(ck)||ck.includes(k))) return {c,why:'名前の一部が一致',rank:2};
     if(k&&nameSimilarity(k,ck)>=0.5) return {c,why:'似た名前',rank:3};
@@ -1341,7 +1348,7 @@ function charSummary(c){
   const byDev=DEVICES.map(d=>[d,us.filter(u=>u.device===d).length]).filter(([,n])=>n).map(([d,n])=>`${devLabel(d)}×${n}`).join('・');
   const known=forms.filter(f=>!f.unknownForm&&us.some(u=>u.formId===f.id)).map(f=>formShort(f)), unk=us.some(u=>formOf(u.formId)?.unknownForm);
   const fs=!us.length?'個体なし':known.length&&unk?`確認済み（${known.join('・')}）＋未確認`:known.length?`確認済み（${known.join('・')}）`:'未確認';
-  return `${us.length}体${byDev?`（${byDev}）`:''}・進化形態：${fs}`;
+  return `${us.length}体${byDev?`（${byDev}）`:''}・進化形態：${fs}${c.origin==='SUIT_CATALOG'?'・適正図鑑':''}`;
 }
 function candListHtml(name,monsterNo,act){
   const list=charCandidates(name,monsterNo), nm=clean(name,40), exact=list.find(x=>x.rank===0);
@@ -1699,7 +1706,7 @@ function formLabel(f){
 }
 // ステージの参考表示：適正のある形態のキャラと同名で、進化形態未確認の所持個体（候補ではない。適正は確定しない）
 function refUnitsFor(k,dev){
-  const ids=suitFormIds(k), cids=new Set([...ids].map(id=>formOf(id)?.characterId).filter(Boolean));
+  const ids=linkedFormIdsOf(suitFormIds(k)), cids=new Set([...suitFormIds(k)].flatMap(id=>[...linkedIds('char',formOf(id)?.characterId)]).filter(Boolean));
   return db.units.filter(u=>{const f=formOf(u.formId);return u.device===dev&&f?.unknownForm&&!ids.has(u.formId)&&cids.has(f.characterId)})
     .sort((a,b)=>sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId)))||(a.no||0)-(b.no||0));
 }
@@ -1707,9 +1714,11 @@ function unitLabel(u){return `${formLabel(formOf(u.formId))} 個体${u.no??'?'}`
 function fruitText(x){return `${x.kind?`[${x.kind}]`:''}${x.name||'名称未設定'}${x.grade?` ${x.grade}`:''}`}
 // このステージに適正がある進化形態（どの出典でも1件あれば適正。形態が削除済みの適正は除く）
 function suitFormIds(k){return new Set(db.suits.filter(s=>s.stageKey===k&&formOf(s.formId)).map(s=>s.formId))}
+// 利用者が「同じ進化形態」と確認した形態も含めた集合（適正データそのものは変更しない）
+function linkedFormIdsOf(ids){return new Set([...ids].flatMap(id=>[...linkedIds('form',id)]))}
 // ステージ → 端末 → その端末が所持しているステージ適正個体
 function candidatesFor(k,dev){
-  const ids=suitFormIds(k);
+  const ids=linkedFormIdsOf(suitFormIds(k));
   return db.units.filter(u=>u.device===dev&&ids.has(u.formId))
     .sort((a,b)=>sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId)))||(a.no||0)-(b.no||0));
 }
@@ -1720,23 +1729,58 @@ function candidatesFor(k,dev){
 //                確認済みの別形態と未確認の個体が両方ある場合も、未確認の個体がその形態かもしれないため、こちらにする
 //  alt-form    ：確認済みの別の進化形態の個体だけがある
 //  not-owned   ：同じキャラの個体がない
+// 利用者が確認した対応付け（同じキャラ／同じ進化形態）をたどった集合（自分自身を含む）
+function linkedIds(kind,id){
+  const out=new Set([id]);let more=true;
+  while(more){more=false;for(const l of db.idLinks){if(l.kind!==kind)continue;
+    if(out.has(l.a)&&!out.has(l.b)){out.add(l.b);more=true}if(out.has(l.b)&&!out.has(l.a)){out.add(l.a);more=true}}}
+  return out;
+}
 function formStatus(formId,dev){
   const f=formOf(formId);if(!f) return 'not-owned';
-  const mine=db.units.filter(u=>u.device===dev&&formOf(u.formId)?.characterId===f.characterId);
-  if(!f.unknownForm&&mine.some(u=>u.formId===formId)) return 'owned';
-  if(mine.some(u=>f.unknownForm||formOf(u.formId)?.unknownForm)) return 'unconfirmed';
+  const cids=linkedIds('char',f.characterId), fids=linkedIds('form',formId);
+  const mine=db.units.filter(u=>u.device===dev&&cids.has(formOf(u.formId)?.characterId));
+  if(!f.unknownForm&&mine.some(u=>fids.has(u.formId))) return 'owned';
+  // 進化形態未確認の個体、または対応付けた別IDのキャラの個体（形態の対応が未確認）→ 断定しない
+  if(mine.some(u=>f.unknownForm||formOf(u.formId)?.unknownForm||formOf(u.formId)?.characterId!==f.characterId)) return 'unconfirmed';
   if(mine.length) return 'alt-form';
   return 'not-owned';
 }
 // 適正一覧の所持表示（端末ごと）：所持＝「端末×確認済みの個体数」／未確認＝「端末（所持・形態未確認）」／別形態＝「端末！」
 function ownerText(formId,dev){
-  const st=formStatus(formId,dev), f=formOf(formId);
-  if(st==='owned') return `${dev}×${db.units.filter(u=>u.device===dev&&u.formId===formId).length}`;
+  const st=formStatus(formId,dev), f=formOf(formId), cids=linkedIds('char',f?.characterId), fids=linkedIds('form',formId);
+  const mine=db.units.filter(u=>u.device===dev&&cids.has(formOf(u.formId)?.characterId));
+  if(st==='owned') return `${dev}×${mine.filter(u=>fids.has(u.formId)).length}`;
   if(st==='unconfirmed'){
-    const n=db.units.filter(u=>u.device===dev&&formOf(u.formId)?.characterId===f.characterId&&(f.unknownForm?u.formId===formId:formOf(u.formId)?.unknownForm)).length;
+    const n=mine.filter(u=>f.unknownForm?(fids.has(u.formId)||formOf(u.formId)?.unknownForm||formOf(u.formId)?.characterId!==f.characterId)
+      :(!fids.has(u.formId)&&(formOf(u.formId)?.unknownForm||formOf(u.formId)?.characterId!==f.characterId))).length;
     return `${dev}（所持・形態未確認${n>1?'×'+n:''}）`;
   }
   return st==='alt-form'?`${dev}！`:'';
+}
+// 適正一覧：別IDの所持キャラの候補と、対応付け（同じキャラ／同じ進化形態）の確認・解除。表示だけで、押したときだけ保存する
+function suitLinkHtml(f){
+  const c=f&&charOf(f.characterId);if(!c) return '';
+  const group=linkedIds('char',c.id), out=[];
+  [...group].filter(id=>id!==c.id).map(charOf).filter(Boolean).forEach(o=>out.push(
+    `<div class="meta linkLine">同じキャラとして対応付け済み：${esc(o.name)}（${esc(charSummary(o))}） <button class="mini" data-act="unlinkChar" data-a="${esc(c.id)}" data-b="${esc(o.id)}">対応付けを解除</button></div>`));
+  if(!f.unknownForm&&group.size>1){
+    const fl=linkedIds('form',f.id);
+    [...fl].filter(id=>id!==f.id).map(formOf).filter(Boolean).forEach(g=>out.push(
+      `<div class="meta linkLine">同じ形態として確認済み：${esc(formLabel(g))}${g.short&&g.short!==g.name?`（${esc(g.name)}）`:''} <button class="mini" data-act="unlinkForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">確認を取り消す</button></div>`));
+    const opts=db.master.forms.filter(g=>!g.unknownForm&&g.characterId!==f.characterId&&group.has(g.characterId)&&!fl.has(g.id)&&db.units.some(u=>u.formId===g.id));
+    if(opts.length) out.push(`<div class="meta linkLine">所持している形態が、この適正の「${esc(f.name)}」と同じだと確認できた場合だけ選んでください：<br>${opts.map(g=>
+      `<button class="mini" data-act="linkForm" data-a="${esc(f.id)}" data-b="${esc(g.id)}">${esc(formLabel(g))}${g.short&&g.short!==g.name?`（${esc(g.name)}）`:''}と同じ形態</button>`).join(' ')}</div>`);
+    else if(fl.size===1&&db.units.some(u=>group.has(formOf(u.formId)?.characterId)&&formOf(u.formId)?.unknownForm))
+      out.push('<div class="meta linkLine">所持個体の進化形態が未確認です（キャラ画面で進化形態を登録すると、同じ形態かどうかを確認できます）</div>');
+  }
+  // 同じキャラ（対応付けを含む）の所持個体が1体もないときだけ、所持キャラの候補を出す（自動では結び付けない）
+  if(!db.units.some(u=>group.has(formOf(u.formId)?.characterId))){
+    const cands=charCandidates(c.name,f.monsterNo||'').filter(x=>!group.has(x.c.id)&&db.units.some(u=>formOf(u.formId)?.characterId===x.c.id)).slice(0,3);
+    if(cands.length) out.push(`<div class="meta linkLine">所持キャラの候補：${cands.map(x=>`${esc(x.c.name)}（${esc(x.why)}・${esc(charSummary(x.c))}） <button class="mini" data-act="linkChar" data-a="${esc(c.id)}" data-b="${esc(x.c.id)}">同じキャラとして対応付ける</button>`).join('<br>')}
+      <br><span class="small">名前が似ていても同じキャラとは限りません。同じキャラだと確認できた場合だけ対応付けてください（キャラの統合・削除はしません）。</span></div>`);
+  }
+  return out.join('');
 }
 // 個体番号：同じ端末の同じキャラの中で連番（形態が違っても「ネオ 個体1／個体2」）
 function nextUnitNo(formId,dev,exceptId){
@@ -1751,7 +1795,7 @@ function suitText(s){
   return '候補';
 }
 // このステージで、確認済み（VERIFIED）の適正が1件以上ある進化形態
-function verifiedFormIds(k){return new Set(db.suits.filter(s=>s.stageKey===k&&s.verificationStatus==='VERIFIED').map(s=>s.formId))}
+function verifiedFormIds(k){return linkedFormIdsOf(db.suits.filter(s=>s.stageKey===k&&s.verificationStatus==='VERIFIED').map(s=>s.formId))}
 function typeChips(f){
   return [['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]]
     .map(([l,v])=>`<span class="ty${v?'':' unset'}" title="${l}">${esc(v||l+'未設定')}</span>`).join('');
@@ -1871,7 +1915,8 @@ function renderSuitPanel(){
       return `<div class="sRow${f?'':' bad'}"><div class="rowMain"><div class="cname">${esc(formLabel(f))}<span class="x">${esc(suitText(x))}</span>
           <span class="vb v-${x.verificationStatus}">${esc(VERIFY[x.verificationStatus])}</span></div>
         <div class="meta">${owners.length?'所持：'+esc(owners.join(' ')):'所持個体の登録なし'}${x.note?'・'+esc(x.note):''}</div>
-        ${(oc=>oc.length?`<div class="meta">所持確認の記録：${esc(oc.map(o=>`${devLabel(o.device)} ${OWN_CHECK[o.status]}`).join(' '))}</div>`:'')(db.ownershipChecks.filter(o=>o.stageKey===x.stageKey&&f&&o.characterName===charOf(f.characterId)?.name))}</div>
+        ${(oc=>oc.length?`<div class="meta">所持確認の記録：${esc(oc.map(o=>`${devLabel(o.device)} ${OWN_CHECK[o.status]}`).join(' '))}</div>`:'')(db.ownershipChecks.filter(o=>o.stageKey===x.stageKey&&f&&o.characterName===charOf(f.characterId)?.name))}
+        ${suitLinkHtml(f)}</div>
         <span class="acts">${x.verificationStatus!=='VERIFIED'?`<button class="mini ret" data-act="suitVerify" data-id="${esc(x.id)}">確認済みにする</button>`:''}
         <button class="mini" data-act="suitEdit" data-id="${esc(x.id)}">編集</button></span></div>`;
     }).join('');
@@ -1926,6 +1971,7 @@ function renderChara(){
     return `<div class="card chara open">${head}
       ${flash?`<div class="okMsg" role="status">${esc(flash.text)}</div>`:''}
       ${guide?`<div class="guide">${esc(guide)}</div>`:''}
+      ${(g=>g.length?`<div class="small">同じキャラとして対応付け：${g.map(o=>esc(o.name)).join('・')}（解除はステージ画面の適正一覧から）</div>`:'')([...linkedIds('char',c.id)].filter(id=>id!==c.id).map(charOf).filter(Boolean))}
       <div class="pgroup">進化形態</div>${formRows}
       <div class="tools"><button class="tool${forms.length?'':' main'}" data-act="formAdd" data-id="${esc(c.id)}">＋ 進化形態</button>
         <button class="tool${forms.length&&!units.length?' main':''}" data-act="unitAdd" data-id="${esc(c.id)}">＋ 所持個体</button>
@@ -3232,7 +3278,7 @@ function backupJson(){
   return JSON.stringify({app:APP,version:1,...mark,exportedAt:new Date().toISOString(),
     data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages,
       rankings:db.rankings,ownership:db.ownership,
-      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks,pendingReadings:db.pendingReadings,suitAliases:db.suitAliases}},null,1);
+      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks,pendingReadings:db.pendingReadings,suitAliases:db.suitAliases,idLinks:db.idLinks}},null,1);
 }
 function backup(){
   const text=backupJson();
@@ -3392,6 +3438,16 @@ document.addEventListener('click',guardStale(e=>{
       $('qrChar').value=c.id;syncQrChar();$('qrCands').hidden=true;break}
     case 'srGoChara':goChara(b.dataset.id);break;
     case 'goChara':goChara(b.dataset.id);break;
+    case 'linkChar':{const a=b.dataset.a,c2=b.dataset.b;if(!charOf(a)||!charOf(c2)||a===c2||linkedIds('char',a).has(c2))break;
+      db.idLinks.push({id:uid(),kind:'char',a,b:c2,basis:'USER_SELECTED',at:new Date().toISOString()});persist();render();break}
+    case 'unlinkChar':{const a=b.dataset.a,c2=b.dataset.b,pair=new Set([a,c2]);
+      db.idLinks=db.idLinks.filter(l=>!(l.kind==='char'&&pair.has(l.a)&&pair.has(l.b))
+        &&!(l.kind==='form'&&pair.has(formOf(l.a)?.characterId)&&pair.has(formOf(l.b)?.characterId)&&formOf(l.a)?.characterId!==formOf(l.b)?.characterId));
+      persist();render();break}
+    case 'linkForm':{const fa=formOf(b.dataset.a),fb=formOf(b.dataset.b);
+      if(!fa||!fb||fa.unknownForm||fb.unknownForm||fa.id===fb.id||!linkedIds('char',fa.characterId).has(fb.characterId)||linkedIds('form',fa.id).has(fb.id))break;
+      db.idLinks.push({id:uid(),kind:'form',a:fa.id,b:fb.id,basis:'USER_SELECTED',at:new Date().toISOString()});persist();render();break}
+    case 'unlinkForm':{const pair=new Set([b.dataset.a,b.dataset.b]);db.idLinks=db.idLinks.filter(l=>!(l.kind==='form'&&pair.has(l.a)&&pair.has(l.b)));persist();render();break}
     case 'charaFilter':if(['mine','catalog','all'].includes(b.dataset.f)){charaFilter=b.dataset.f;renderChara()}break;
     case 'srHold':holdScreenshot();break;
     case 'srReader':$('srMsg').textContent=openReader($('srDevice')?.value||'');break;
