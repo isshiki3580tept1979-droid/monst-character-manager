@@ -292,7 +292,7 @@ test('stage: units of 進化形態未確認 are not treated as suitable; suitabi
     units:[{id:'u1',formId:'fu',device:'メイン',no:1,fruits:[]}],
     suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}]});
   assert.deepEqual(await page.evaluate(k=>candidatesFor(k,'メイン').map(u=>u.id),K),[],'not a candidate (form unknown)');
-  assert.equal(await page.evaluate(()=>formStatus('f1','メイン')),'alt-form','shown as 別形態 for the known suitable form');
+  assert.equal(await page.evaluate(()=>formStatus('f1','メイン')),'unconfirmed','shown as 所持・形態未確認 (not 別形態) for the known suitable form');
   assert.equal(await page.evaluate(()=>formLabel(formOf('fu'))),'架空キャラ玖');
   // 適正データの取り込み：キャラ名だけ・形態名が空の行は紐づけない（未確認の形態へ付かない）
   await click('[data-act="view"][data-view="admin"]');

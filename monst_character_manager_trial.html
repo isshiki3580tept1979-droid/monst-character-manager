@@ -1615,12 +1615,29 @@ function candidatesFor(k,dev){
     .sort((a,b)=>sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId)))||(a.no||0)-(b.no||0));
 }
 // 端末ごとの進化形態の所持判定（TOP10の「所持／別形態（！）／未所持」表示と同じ考え方）
+// 判定はキャラ（characterId）単位。名前の似たキャラは同じキャラとみなさない。進化形態は推測で補わない。
+//  owned       ：確認済みの同じ進化形態の個体がある（確認済みの事実を優先）
+//  unconfirmed ：同じキャラの進化形態未確認の個体がある（別形態とも未所持とも断定しない）。
+//                確認済みの別形態と未確認の個体が両方ある場合も、未確認の個体がその形態かもしれないため、こちらにする
+//  alt-form    ：確認済みの別の進化形態の個体だけがある
+//  not-owned   ：同じキャラの個体がない
 function formStatus(formId,dev){
   const f=formOf(formId);if(!f) return 'not-owned';
-  const mine=db.units.filter(u=>u.device===dev);
-  if(mine.some(u=>u.formId===formId)) return 'owned';
-  if(mine.some(u=>formOf(u.formId)?.characterId===f.characterId)) return 'alt-form';
+  const mine=db.units.filter(u=>u.device===dev&&formOf(u.formId)?.characterId===f.characterId);
+  if(!f.unknownForm&&mine.some(u=>u.formId===formId)) return 'owned';
+  if(mine.some(u=>f.unknownForm||formOf(u.formId)?.unknownForm)) return 'unconfirmed';
+  if(mine.length) return 'alt-form';
   return 'not-owned';
+}
+// 適正一覧の所持表示（端末ごと）：所持＝「端末×確認済みの個体数」／未確認＝「端末（所持・形態未確認）」／別形態＝「端末！」
+function ownerText(formId,dev){
+  const st=formStatus(formId,dev), f=formOf(formId);
+  if(st==='owned') return `${dev}×${db.units.filter(u=>u.device===dev&&u.formId===formId).length}`;
+  if(st==='unconfirmed'){
+    const n=db.units.filter(u=>u.device===dev&&formOf(u.formId)?.characterId===f.characterId&&(f.unknownForm?u.formId===formId:formOf(u.formId)?.unknownForm)).length;
+    return `${dev}（所持・形態未確認${n>1?'×'+n:''}）`;
+  }
+  return st==='alt-form'?`${dev}！`:'';
 }
 // 個体番号：同じ端末の同じキャラの中で連番（形態が違っても「ネオ 個体1／個体2」）
 function nextUnitNo(formId,dev,exceptId){
@@ -1751,8 +1768,7 @@ function renderSuitPanel(){
       ${meta?.sourceUpdatedAt?`<span class="small">更新 ${esc(meta.sourceUpdatedAt)}</span>`:''}
       ${meta?.sourceUrl?`<a class="small" href="${esc(meta.sourceUrl)}" target="_blank" rel="noopener noreferrer">出典</a>`:''}</div>`+items.map(x=>{
       const f=formOf(x.formId);
-      const owners=DEVICES.map(d=>[d,db.units.filter(u=>u.device===d&&u.formId===x.formId).length,formStatus(x.formId,d)])
-        .filter(([,n,st])=>n||st==='alt-form').map(([d,n,st])=>st==='owned'?`${d}×${n}`:`${d}！`);
+      const owners=DEVICES.map(d=>ownerText(x.formId,d)).filter(Boolean);
       return `<div class="sRow${f?'':' bad'}"><div class="rowMain"><div class="cname">${esc(formLabel(f))}<span class="x">${esc(suitText(x))}</span>
           <span class="vb v-${x.verificationStatus}">${esc(VERIFY[x.verificationStatus])}</span></div>
         <div class="meta">${owners.length?'所持：'+esc(owners.join(' ')):'所持なし'}${x.note?'・'+esc(x.note):''}</div></div>
@@ -1764,7 +1780,7 @@ function renderSuitPanel(){
   $('suitPanel').innerHTML=`<div class="ptitle"><span>このステージの適正（出典別）</span><button class="mini" data-act="suitAdd">＋ 適正を追加</button></div>
     ${unv?`<div class="note">未検証・要確認の適正が${unv}件あります。内容を確認してから「確認済みにする」を押してください（候補には「（未検証）」と表示されます）。</div>`:''}
     ${body||`<div class="small">${db.master.forms.length?'まだ適正が登録されていません。':'先に「キャラ」タブでキャラ・進化形態を登録してください。'}</div>`}
-    <div class="small" style="margin-top:6px">「！」はその端末が同じキャラの別の進化形態だけを持っていることを表します。出典ごとの順位・ランクは混ぜずに表示します。</div>`;
+    <div class="small" style="margin-top:6px">「！」はその端末が同じキャラの別の進化形態だけを持っていることを表します。「所持・形態未確認」は、その端末に同じキャラがいるものの進化形態が未確認であることを表します（別形態とも未所持とも断定しません）。出典ごとの順位・ランクは混ぜずに表示します。</div>`;
 }
 
 /* ---- キャラ画面：キャラ → 端末・個体・形態・実・適正ステージ ---- */
