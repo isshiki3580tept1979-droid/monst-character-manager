@@ -101,6 +101,11 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 
 .modalBack{display:none;position:fixed;inset:0;z-index:50;background:#0f172a99;padding:12px;align-items:flex-end;justify-content:center}
 .modalBack.open{display:flex}
+#staleBar{position:sticky;top:0;z-index:100;background:#fff7ed;border-bottom:3px solid #ea580c;color:#7c2d12;padding:10px 16px;font-size:13px;line-height:1.55;max-height:70vh;overflow:auto;box-shadow:0 4px 14px #0003}
+#staleBar[hidden],#staleText[hidden],#staleDiff[hidden],#bkDiff[hidden]{display:none!important}
+#staleDiff,#bkDiff{margin-top:6px;padding:6px 8px;background:#fff;border:1px solid #fdba74;border-radius:8px;color:#431407;white-space:pre-line}
+#staleBar b{display:block;font-size:14px;margin-bottom:2px}
+#staleText{width:100%;height:120px;font-size:12px;margin-top:6px;box-sizing:border-box}
 .modal{width:min(640px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:14px}
 .modal h2{font-size:17px;margin:0 0 10px;overflow-wrap:anywhere}
 .basicInfo{min-width:0;border:1px solid #e2e8f0;border-radius:12px;padding:10px;margin:0 0 12px}
@@ -287,6 +292,14 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 </style>
 </head>
 <body>
+<div id="staleBar" role="alert" hidden>
+  <b>⚠ 別のタブ（またはウィンドウ）で、このアプリのデータが更新されました</b>
+  <div>このタブの古い内容で上書きしないよう、このタブでの保存を止めています。このタブで保存できなかった変更は、まだ保存されていません（自動では消しません）。このタブの画面には、保存されていない変更が表示されていることがあります。</div>
+  <div class="tools"><button class="tool" data-act="staleExport">このタブの内容を控える</button><button class="tool main" data-act="staleReload">最新のデータを読み込む</button></div>
+  <div class="small">「最新のデータを読み込む」を押すと、保存された最新のデータでこの画面を開き直します。このタブで保存できなかった変更は、そのときに消えます。必要なら先に「このタブの内容を控える」を押してください。最新のデータと違う箇所の一覧と、控え（コピー用）を表示します。控えは<b>完全なバックアップではなく、復元には使えません</b>（復元すると最新のデータが消えるため）。再読み込みの後、一覧を見ながら入力し直してください。控えを管理画面の「復元する」に貼り付けると、復元はせずに同じ一覧を表示します。</div>
+  <div id="staleDiff" class="small" hidden></div>
+  <textarea id="staleText" readonly hidden aria-label="このタブの内容（控え）"></textarea>
+</div>
 <header>
   <h1>モンスト キャラ管理 <span class="tag">復刻版・試作</span></h1>
   <p>高難易度のステージ別に、どの端末に適正キャラがいるかを確認（試作版専用データ）</p>
@@ -433,6 +446,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <label for="bkFile" style="margin-top:8px">ファイルから読み込む</label>
       <input id="bkFile" type="file" accept="application/json,.json,.txt">
       <div class="msg" id="bkMsg"></div>
+      <div id="bkDiff" class="small" hidden></div>
     </div>
   </section>
 </main>
@@ -1026,10 +1040,67 @@ function normalize(raw){
   }
   return d;
 }
+/* ---- 複数タブでの上書き防止 ----
+   ・このタブが最後に読み込んだ／保存した保存データ（文字列そのもの）を lastRaw に控える
+   ・保存の直前に保存データを読み直し、lastRaw と違えば「別のタブで更新された」とみなして保存しない（StaleDataError）
+   ・一度そうなったら、このタブでは再読み込みするまで保存しない（画面上部に警告。控えの書き出しと再読み込みを選べる）
+   ・保存データの形式は変えない（リビジョン番号などの項目は足さない。旧データ・バックアップとそのまま互換） */
+let lastRaw=null, stale=false;
+class StaleDataError extends Error{constructor(){super('別のタブでデータが更新されたため、保存を止めました');this.name='StaleDataError'}}
+function isStale(e){return !!e&&e.name==='StaleDataError'}
 function load(){
-  try{return normalize(JSON.parse(localStorage.getItem(KEY)||'null'))}catch{return blank()}
+  try{lastRaw=localStorage.getItem(KEY);return normalize(JSON.parse(lastRaw||'null'))}catch{return blank()}
 }
-function persist(){localStorage.setItem(KEY,JSON.stringify(db))}
+function persist(){
+  if(stale||localStorage.getItem(KEY)!==lastRaw){markStale();throw new StaleDataError()}
+  const raw=JSON.stringify(db);
+  localStorage.setItem(KEY,raw);
+  lastRaw=raw;
+}
+// 表示状態（開いている画面・ステージなど）だけの保存。古いタブでは保存せず、画面の切り替えだけ行う
+function persistUi(){try{persist()}catch(e){if(!isStale(e))throw e}}
+function saveFailText(e,text){return isStale(e)?'別のタブでデータが更新されたため、保存を止めました（このタブの変更は保存していません）。画面上部の案内をご覧ください':text}
+function markStale(){
+  if(stale) return;
+  stale=true;
+  const bar=document.getElementById('staleBar');if(bar) bar.hidden=false;
+}
+function checkStale(){try{if(localStorage.getItem(KEY)!==lastRaw)markStale()}catch(e){}}
+// 他のタブで保存されたら、保存しようとする前に知らせる
+window.addEventListener('storage',e=>{if(e.storageArea===localStorage&&(e.key===KEY||e.key===null))checkStale()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkStale()});
+window.addEventListener('pageshow',checkStale);
+// 保存を止めた操作は、そこで中断する（入力中のダイアログ・入力欄はそのまま残る）
+function guardStale(fn){return e=>{try{fn(e)}catch(err){if(!isStale(err))throw err;try{render()}catch(e2){}}}}
+/* 古いタブの控えと、比べる相手（最新の保存データ、または今のデータ）の違いを一覧にする（表示用。データは変更しない）
+   「控えにだけあるもの・控えで変わっているもの」を具体的に、「相手にだけあるもの」は件数だけ出す */
+const STALE_KIND='STALE_TAB_SNAPSHOT';
+function snapshotDiff(snap,cur){
+  const out=[], byId=a=>new Map(a.map(x=>[x.id,x])), same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  const cS=byId(snap.master.characters), cC=byId(cur.master.characters), fS=byId(snap.master.forms), fC=byId(cur.master.forms), uC=byId(cur.units);
+  const cName=id=>(cS.get(id)||cC.get(id))?.name||'（キャラ不明）';
+  const fLabel=f=>f?`${cName(f.characterId)}｜${f.unknownForm?UNKNOWN_FORM_LABEL:f.name}`:'（形態不明）';
+  const uLabel=u=>u?`${fLabel(fS.get(u.formId)||fC.get(u.formId))} ${u.device} 個体${u.no??'?'}`:'（個体不明）';
+  snap.master.characters.forEach(c=>{const o=cC.get(c.id);if(!o)out.push(`キャラ追加：${c.name}`);else if(o.name!==c.name)out.push(`キャラ名の変更：${o.name} → ${c.name}`)});
+  snap.master.forms.forEach(f=>{const o=fC.get(f.id);if(!o)out.push(`進化形態の追加：${fLabel(f)}`);else if(!same(o,f))out.push(`進化形態の変更：${fLabel(f)}`)});
+  snap.units.forEach(u=>{const o=uC.get(u.id);const fr=u.fruits.map(x=>x.name+(x.grade?' '+x.grade:'')).join('、')||'実なし';
+    if(!o)out.push(`個体の追加：${uLabel(u)}（${fr}）`);else if(!same(o,u))out.push(`個体の変更：${uLabel(u)}（${fr}${u.memo?'・メモ：'+u.memo:''}）`)});
+  Object.entries(snap.picks).forEach(([k,v])=>Object.entries(v).forEach(([d,id])=>{if(cur.picks[k]?.[d]!==id)out.push(`編成：${stageLabel(k)} ${d} → ${uLabel(snap.units.find(u=>u.id===id)||uC.get(id))}`)}));
+  Object.entries(cur.picks).forEach(([k,v])=>Object.keys(v).forEach(d=>{if(!snap.picks[k]?.[d])out.push(`編成の解除：${stageLabel(k)} ${d}`)}));
+  Object.entries(snap.useDevs).forEach(([k,v])=>{if(!same(v,cur.useDevs[k]||[]))out.push(`今回使う端末：${stageLabel(k)} → ${v.join('・')||'なし'}`)});
+  const sC=byId(cur.suits);snap.suits.forEach(x=>{const o=sC.get(x.id);if(!o||!same(o,x))out.push(`適正${o?'の変更':'の追加'}：${stageLabel(x.stageKey)} ${fLabel(fS.get(x.formId)||fC.get(x.formId))} ${suitText(x)}（${VERIFY[x.verificationStatus]}）`)});
+  const pC=byId(cur.pendingReadings);snap.pendingReadings.forEach(x=>{if(!pC.has(x.id))out.push(`読み取りの保留：${pendingLabel(x)}`)});
+  DEVICES.forEach(d=>{if((snap.deviceNames[d]||'')!==(cur.deviceNames[d]||''))out.push(`端末名：${d} → ${snap.deviceNames[d]||'未設定'}`)});
+  Object.entries(snap.extraStages).forEach(([q,a])=>a.forEach(x=>{if(!(cur.extraStages[q]||[]).includes(x))out.push(`追加ステージ：${q} ${x}`)}));
+  const lC=byId(cur.characters);snap.characters.forEach(c=>{const o=lC.get(c.id);if(!o)out.push(`旧登録キャラの追加：${c.name}`);else if(!same(o,c))out.push(`旧登録キャラの変更：${c.name}（${c.lentTo?'貸出中 → '+c.lentTo:'在籍'}）`)});
+  const onlyCur=[['キャラ',cur.master.characters,cS],['個体',cur.units,byId(snap.units)]].map(([l,a,m])=>[l,a.filter(x=>!m.has(x.id)).length]).filter(([,n])=>n);
+  return {lines:out,onlyCur};
+}
+function diffText(d,mine,other){
+  return (d.lines.length?`${mine}にあって、${other}と違うもの（${d.lines.length}件）：\n${d.lines.slice(0,40).join('\n')}${d.lines.length>40?`\nほか${d.lines.length-40}件`:''}`:`${mine}にだけある内容はありません`)
+    +(d.onlyCur.length?`\n${other}にだけあるもの：${d.onlyCur.map(([l,n])=>l+n+'件').join('・')}（別のタブで追加されたもの。消えません）`:'');
+}
+function latestStored(){try{return normalize(JSON.parse(localStorage.getItem(KEY)||'null'))}catch(e){return blank()}}
 let db=load();
 let editingId=null, lendingId=null;
 
@@ -2059,7 +2130,7 @@ function saveQuickReg(){
       :`${label}を登録しました。このステージの適正が無いため、候補には出ません（「所持キャラ」から仮選択はできます）`;
   }catch(e){
     const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.suits=b.suits;
-    err('保存に失敗したため、登録前の状態に戻しました');
+    err(saveFailText(e,'保存に失敗したため、登録前の状態に戻しました'));
   }
 }
 
@@ -2219,7 +2290,9 @@ function planSuitImport(p){
   return plan;
 }
 // 計画どおりに反映する。途中で失敗した場合は取り込み前の状態に戻す
+let suitImportErr=null;
 function applySuitImport(plan){
+  suitImportErr=null;
   const backupState=JSON.stringify({suits:db.suits,importIssues:db.importIssues});
   try{
     const now=new Date().toISOString(), upd=new Map(plan.update.map(x=>[x.id,x.item]));
@@ -2232,6 +2305,7 @@ function applySuitImport(plan){
     return true;
   }catch(err){
     const b=JSON.parse(backupState);db.suits=b.suits;db.importIssues=b.importIssues;
+    suitImportErr=err;
     return false;
   }
 }
@@ -2267,7 +2341,7 @@ function confirmSuitImport(){
     ?`取り込みました（追加${pi.plan.add.length}件・更新${pi.plan.update.length}件・要確認${pi.plan.issues.length}件）。`
       +(states?`取り込んだ適正の状態：${states}。`:'')
       +(vs.some(v=>v!=='VERIFIED')?'未検証・要確認の適正は、内容を確認してから「確認済みにする」を押してください。':'')
-    :'取り込みに失敗したため、取り込み前の状態に戻しました';
+    :saveFailText(suitImportErr,'取り込みに失敗したため、取り込み前の状態に戻しました');
 }
 /* ---- 所持データ（所持確認・所持個体）のJSON取り込み ----
    適正データ（suits）とは別物。ステージ名は「どのステージの候補として検索したか」の情報なので、suits は作らない。
@@ -2459,7 +2533,7 @@ function confirmInventory(){
   }catch(e){
     const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.ownershipChecks=b.ownershipChecks;
     pendingInv=null;$('invApply').disabled=true;render();
-    $('invMsg').textContent='取り込みに失敗したため、取り込み前の状態に戻しました';return;
+    $('invMsg').textContent=saveFailText(e,'取り込みに失敗したため、取り込み前の状態に戻しました');return;
   }
   const n=c=>plan.rows.filter(r=>r.cls===c).length;
   pendingInv=null;$('invApply').disabled=true;render();
@@ -2639,7 +2713,7 @@ function applyScreenshot(){
   }catch(e){
     const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.pendingReadings=b.pendingReadings;
     srPending=null;$('srApply').disabled=true;render();
-    $('srMsg').textContent='登録に失敗したため、登録前の状態に戻しました'+(pid?'（保留はそのまま残っています）':'');return;
+    $('srMsg').textContent=saveFailText(e,'登録に失敗したため、登録前の状態に戻しました')+(pid?'（保留はそのまま残っています）':'');return;
   }
   srPending=null;$('srApply').disabled=true;
   if(pid){srState=null;$('srEdit').hidden=true;$('srTools').hidden=true}
@@ -2723,7 +2797,7 @@ function holdScreenshot(){
     persist();
   }catch(e){
     db.pendingReadings=JSON.parse(backup);render();
-    $('srMsg').textContent='保留に失敗したため、保留前の状態に戻しました';return;
+    $('srMsg').textContent=saveFailText(e,'保留に失敗したため、保留前の状態に戻しました');return;
   }
   srState=null;srPending=null;$('srText').value='';$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML='';$('srApply').disabled=true;
   render();
@@ -2744,7 +2818,7 @@ function deletePending(id){
   if(!confirm(`保留中の「${pendingLabel(x)}」を削除しますか？（登録済みの所持データは変わりません）`)) return;
   const backup=JSON.stringify(db.pendingReadings);
   try{db.pendingReadings=db.pendingReadings.filter(p=>p.id!==id);persist()}
-  catch(e){db.pendingReadings=JSON.parse(backup);render();$('srMsg').textContent='削除に失敗したため、元に戻しました';return}
+  catch(e){db.pendingReadings=JSON.parse(backup);render();$('srMsg').textContent=saveFailText(e,'削除に失敗したため、元に戻しました');return}
   if(srState?.pendingId===id){srState=null;srPending=null;$('srApply').disabled=true;$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML=''}
   render();
   $('srMsg').textContent=`保留を削除しました：${pendingLabel(x)}`;
@@ -2840,7 +2914,9 @@ function removeStage(s){
   $('exMsg').textContent=`「${s}」を削除しました`;
 }
 function backupJson(){
-  return JSON.stringify({app:APP,version:1,exportedAt:new Date().toISOString(),
+  // 古いタブ（別のタブで更新済み）の内容は完全なバックアップではないため、印を付けて区別する（復元には使わせない）
+  const mark=stale?{kind:STALE_KIND,warning:'別のタブでデータが更新された後の、古いタブの控えです。完全なバックアップではないため、復元には使えません。'}:{};
+  return JSON.stringify({app:APP,version:1,...mark,exportedAt:new Date().toISOString(),
     data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages,
       rankings:db.rankings,ownership:db.ownership,
       master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks,pendingReadings:db.pendingReadings}},null,1);
@@ -2852,10 +2928,11 @@ function backup(){
     const a=document.createElement('a');
     const d=new Date(), p=n=>String(n).padStart(2,'0');
     a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));
-    a.download=`monst_trial_backup_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}.json`;
+    a.download=`monst_trial_${stale?'STALE_TAB_snapshot':'backup'}_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}.json`;
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-    $('bkMsg').textContent='バックアップを作成しました（ファイル保存＋下の欄に表示）';
+    $('bkMsg').textContent=stale?'このタブは古い内容のため、完全なバックアップではなく「古いタブの控え」として書き出しました（復元には使えません）。最新のデータのバックアップは、再読み込みしてから作成してください'
+      :'バックアップを作成しました（ファイル保存＋下の欄に表示）';
   }catch{
     $('bkMsg').textContent='下の欄の内容をコピーして保存してください';
   }
@@ -2871,6 +2948,14 @@ function restore(){
   if(!obj||obj.app!==APP||!obj.data||!Array.isArray(obj.data.characters)){
     $('bkMsg').textContent='この試作版のバックアップではありません';return;
   }
+  $('bkDiff').hidden=true;
+  if(obj.kind!=null){
+    if(obj.kind===STALE_KIND){
+      $('bkMsg').textContent='これは古いタブの控えで、完全なバックアップではないため復元しません（復元すると、別のタブで保存した新しいデータが消えます）。下の一覧を見ながら、必要な内容を入力し直してください。現在のデータは変更していません';
+      $('bkDiff').textContent=diffText(snapshotDiff(normalize({...obj.data,ui:db.ui}),db),'控え','今のデータ');$('bkDiff').hidden=false;
+    }else $('bkMsg').textContent='このバックアップは種類が不明なため復元しません（現在のデータは変更していません）';
+    return;
+  }
   const next=normalize({...obj.data,ui:db.ui});
   // 保留が上限を超えるバックアップは、切り捨てずに復元自体を中止する（現在のデータは変更しない）
   if(next.pendingReadings.length>PENDING_MAX){
@@ -2879,32 +2964,32 @@ function restore(){
   if(!confirm('現在の試作データを上書きして復元しますか？'))return;
   const prev=db;
   try{db=next;persist()}
-  catch(e){db=prev;render();$('bkMsg').textContent='復元に失敗したため、復元前の状態のままにしました';return}
+  catch(e){db=prev;render();$('bkMsg').textContent=saveFailText(e,'復元に失敗したため、復元前の状態のままにしました');return}
   render();
   $('bkMsg').textContent=`復元しました（${db.characters.length}件）`;
 }
 
 /* ---- イベント ---- */
-document.addEventListener('click',e=>{
+document.addEventListener('click',guardStale(e=>{
   const b=e.target.closest('[data-act]');
   if(e.target.classList.contains('modalBack')){if(confirmDiscard())closeModals();return}
   if(!b)return;
   const c=b.dataset.id?db.characters.find(x=>x.id===b.dataset.id):null;
   switch(b.dataset.act){
-    case 'view':db.ui.view=b.dataset.view;persist();render();window.scrollTo(0,0);break;
-    case 'quest':db.ui.quest=b.dataset.quest;persist();render();scrollActiveChip();break;
+    case 'view':db.ui.view=b.dataset.view;persistUi();render();window.scrollTo(0,0);break;
+    case 'quest':db.ui.quest=b.dataset.quest;persistUi();render();scrollActiveChip();break;
     case 'stage':{
       const q=db.ui.quest, g=groupOf(q,b.dataset.stage);
       db.ui.stage[q]=b.dataset.stage;
       if(g) db.ui.stage[key(q,g)]=b.dataset.stage;
-      persist();render();scrollActiveChip();break;
+      persistUi();render();scrollActiveChip();break;
     }
     case 'group':{
       // 系統ごとに最後に見ていた階層へ戻る（なければ先頭）
       const q=db.ui.quest, g=b.dataset.group, list=stagesOf(q).filter(s=>groupOf(q,s)===g), last=db.ui.stage[key(q,g)];
       if(!list.length) break;
       db.ui.stage[q]=list.includes(last)?last:list[0];
-      persist();render();scrollActiveChip();break;
+      persistUi();render();scrollActiveChip();break;
     }
     case 'quickReg':openQuickReg();break;
     case 'qrSave':saveQuickReg();break;
@@ -2922,7 +3007,7 @@ document.addEventListener('click',e=>{
     case 'backup':backup();break;
     case 'copyBackup':copyBackup();break;
     case 'restore':restore();break;
-    case 'rankDev':if(DEVICES.includes(b.dataset.dev)){db.ui.rankDevice=b.dataset.dev;persist();render()}break;
+    case 'rankDev':if(DEVICES.includes(b.dataset.dev)){db.ui.rankDevice=b.dataset.dev;persistUi();render()}break;
     case 'rankMode':rankMode=b.dataset.mode;render();break;
     case 'rankTile':{
       const r=parseInt(b.dataset.rank,10);
@@ -2941,7 +3026,7 @@ document.addEventListener('click',e=>{
     case 'importPreset':{const p=TOP20_PRESETS.find(x=>x.id===b.dataset.preset);if(p)openImport(p.data);break}
     case 'applyImport':confirmImport();break;
     // 新構造
-    case 'infoMode':if(INFO_MODES.some(([m])=>m===b.dataset.mode)){db.ui.infoMode=db.ui.infoMode===b.dataset.mode?'none':b.dataset.mode;persist();render()}break;
+    case 'infoMode':if(INFO_MODES.some(([m])=>m===b.dataset.mode)){db.ui.infoMode=db.ui.infoMode===b.dataset.mode?'none':b.dataset.mode;persistUi();render()}break;
     case 'useDev':{
       const k=key(db.ui.quest,curStage()), d=b.dataset.dev;
       if(!DEVICES.includes(d)) break;
@@ -2951,7 +3036,7 @@ document.addEventListener('click',e=>{
       db.useDevs[k]=cur.includes(d)?cur.filter(x=>x!==d):[...cur,d];
       persist();render();break;
     }
-    case 'charaOpen':db.ui.charaOpen=db.ui.charaOpen===b.dataset.id?null:b.dataset.id;persist();render();break;
+    case 'charaOpen':db.ui.charaOpen=db.ui.charaOpen===b.dataset.id?null:b.dataset.id;persistUi();render();break;
     case 'mcharAdd':openMChar();break;
     case 'mcharEdit':{const x=charOf(b.dataset.id);if(x)openMChar(x);break}
     case 'saveMChar':saveMChar();break;
@@ -2990,10 +3075,14 @@ document.addEventListener('click',e=>{
     case 'srResume':resumePending(b.dataset.id);break;
     case 'srPendDel':deletePending(b.dataset.id);break;
     case 'issueDone':db.importIssues=db.importIssues.filter(x=>x.id!==b.dataset.id);persist();render();break;
+    case 'staleExport':
+      $('staleDiff').textContent=diffText(snapshotDiff(db,latestStored()),'このタブ','最新の保存データ');$('staleDiff').hidden=false;
+      $('staleText').value=backupJson();$('staleText').hidden=false;$('staleText').select();break;
+    case 'staleReload':location.reload();break;
   }
-});
+}));
 // ステージ画面：端末ごとに使う個体を選ぶ（候補は「その端末が所持しているステージ適正個体」だけ）
-document.addEventListener('change',e=>{
+document.addEventListener('change',guardStale(e=>{
   const sel=e.target.closest('[data-pick-dev]');
   if(!sel) return;
   const k=key(db.ui.quest,curStage()), dev=sel.dataset.pickDev;
@@ -3001,7 +3090,7 @@ document.addEventListener('change',e=>{
   const byDev=db.picks[k]||(db.picks[k]={});
   if(sel.value) byDev[dev]=sel.value; else{delete byDev[dev];if(!Object.keys(byDev).length)delete db.picks[k]}
   persist();render();
-});
+}));
 $('charaSearch').addEventListener('input',renderChara);
 $('fmRace').addEventListener('change',()=>{$('fmRaceCustomField').hidden=$('fmRace').value!==CUSTOM_RACE});
 $('unForm').addEventListener('change',()=>{if(!mEdit?.id)$('unNo').value=nextUnitNo($('unForm').value,$('unDevice').value)});
