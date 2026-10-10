@@ -39,6 +39,18 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .chip{flex:none;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 12px;font-weight:700;font-size:13px;color:#334155;white-space:nowrap;min-height:38px}
 .chip.active{background:#2563eb;border-color:#2563eb;color:#fff}
 .chip .n{font-size:10px;font-weight:800;margin-left:4px;opacity:.75}
+.chip .n.nS,.gBtn .n.nS{color:#1d4ed8;opacity:1}
+.chip.active .n.nS,.gBtn.active .n.nS{color:#fff}
+.chip .n.nL,.gBtn .n.nL{color:#64748b}
+.chip.active .n.nL,.gBtn.active .n.nL{color:#e2e8f0}
+#chipLegend{margin-top:4px}
+.devNew,.devOld{margin-top:8px}
+.devNew .uCard{margin-top:6px}
+.frS.frEmpty{background:#f1f5f9;color:#94a3b8;font-weight:700}
+.uMeta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin-top:6px}
+.b.new{background:#dbeafe;color:#1d4ed8}
+.b.old{background:#f1f5f9;color:#475569}
+.sNew,.sOld{margin-bottom:6px}
 .chip.cand{border-style:dashed}
 .note{font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:7px 9px;margin-top:4px;line-height:1.5}
 
@@ -323,6 +335,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div class="ptitle"><span>ステージを選ぶ</span><span class="small" id="stageCount"></span></div>
       <div class="groupTabs" id="groupTabs" style="display:none"></div>
       <div class="chips" id="stageChips"></div>
+      <div class="small" id="chipLegend">ボタンの数字：適＝新方式で適正を登録した進化形態の数／旧＝旧登録のキャラ数（同じキャラが新旧両方にあっても合算しません）</div>
       <div class="note" id="questNote"></div>
     </div>
     <div class="stageHead">
@@ -355,7 +368,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
   <section class="view" id="view-search">
     <div class="panel">
       <div class="ptitle">キャラ検索</div>
-      <input id="searchInput" type="search" maxlength="40" placeholder="キャラ名・メモで検索">
+      <input id="searchInput" type="search" maxlength="40" placeholder="キャラ名・形態名・メモで検索">
       <div class="small" id="searchCount" style="margin-top:6px"></div>
     </div>
     <div id="searchResults"></div>
@@ -1204,13 +1217,14 @@ function renderStage(){
   $('groupTabs').style.display=groups.length?'':'none';
   $('groupTabs').innerHTML=groups.map(x=>{
     const n=db.characters.filter(c=>c.stages.some(k2=>{const [q2,s2]=k2.split(SEP);return q2===q&&groupOf(q,s2)===x})).length;
-    return `<button class="gBtn${x===g?' active':''}" data-act="group" data-group="${esc(x)}">${esc(x)}${n?`<span class="n">${n}</span>`:''}</button>`;
+    const sn=new Set(stages.filter(st=>groupOf(q,st)===x).flatMap(st=>[...suitFormIds(key(q,st))].map(id=>st+SEP+id))).size;
+    return `<button class="gBtn${x===g?' active':''}" data-act="group" data-group="${esc(x)}">${esc(x)}${countBadges(sn,n)}</button>`;
   }).join('');
   const shown=g?stages.filter(st=>groupOf(q,st)===g):stages;
   $('stageChips').innerHTML=shown.map(st=>{
-    const n=db.characters.filter(c=>c.stages.includes(key(q,st))).length;
+    const n=db.characters.filter(c=>c.stages.includes(key(q,st))).length, sn=suitFormIds(key(q,st)).size;
     const cand=(def.candidate&&def.stages.includes(st))||isLegacy(q,st);
-    return `<button class="chip${st===s?' active':''}${cand?' cand':''}" data-act="stage" data-stage="${esc(st)}">${esc(chipText(q,st))}${n?`<span class="n">${n}</span>`:''}</button>`;
+    return `<button class="chip${st===s?' active':''}${cand?' cand':''}" data-act="stage" data-stage="${esc(st)}">${esc(chipText(q,st))}${countBadges(sn,n)}</button>`;
   }).join('');
   const added=(db.extraStages[q]||[]).length;
   $('stageCount').textContent=`${stages.length}ステージ`+(added?`（うち追加${added}）`:'');
@@ -1243,16 +1257,59 @@ function renderStage(){
   $('legacyStage').innerHTML=legacy?`<summary>従来の登録キャラ（旧機能・${here.length}件）</summary>${legacy}`:'';
 }
 
+/* ---- 新方式の個体の表示（端末画面・検索画面）。表示だけで、保存データ・保存済みの名前は変更しない ---- */
+// 検索用の比較キー（全角・半角の違いを吸収。保存されている名前はそのまま）
+function searchKey(v){return String(v??'').normalize('NFKC').toLowerCase()}
+// ステージボタンの数字：適＝新方式の適正（進化形態の数）、旧＝旧登録のキャラ数。合算しない
+function countBadges(sn,n){return `${sn?`<span class="n nS" title="新方式で適正を登録した進化形態の数">適${sn}</span>`:''}${n?`<span class="n nL" title="旧登録のキャラ数">旧${n}</span>`:''}`}
+function pickUseCount(unitId){let n=0;Object.values(db.picks).forEach(v=>Object.values(v||{}).forEach(id=>{if(id===unitId)n++}));return n}
+function unitCharName(u){return charOf(formOf(u.formId)?.characterId)?.name||''}
+// 端末画面の個体カード：キャラ名｜形態（未確認なら印）個体番号 ／ 種族・戦型・撃種 ／ 実3枠（空きも表示）／ 編成での使用数
+function unitBoxHtml(u){
+  const f=formOf(u.formId), c=f&&charOf(f.characterId), uses=pickUseCount(u.id);
+  const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
+  const slots=Array.from({length:FRUIT_BASE},(_,i)=>u.fruits[i]?chip(u.fruits[i]):'<span class="frS frEmpty">空き</span>').join('');
+  return `<div class="uCard" data-unit="${esc(u.id)}">
+    <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b>${!f?'<span class="uSep">｜</span><span class="uForm">形態不明・要確認</span>'
+      :f.unknownForm?' <span class="vb v-REF">進化形態未確認</span>':`<span class="uSep">｜</span><span class="uForm">${esc(formShort(f))}</span>`} <span class="uNo">個体${u.no??'?'}</span></div>
+    <div class="uL2">${[['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
+    <div class="uL3">${slots}</div>${u.fruits.length>FRUIT_BASE?`<div class="uL3 uL4">${u.fruits.slice(FRUIT_BASE).map(chip).join('')}</div>`:''}
+    <div class="uMeta">${uses?`<span class="b">編成で使用 ${uses}件</span>`:'<span></span>'}${c?`<button class="mini" data-act="goChara" data-id="${esc(c.id)}">キャラ画面で見る</button>`:''}</div>
+  </div>`;
+}
+// キャラ画面の該当キャラを開く（表示状態だけを保存。データは変更しない）
+function goChara(id){
+  if(!charOf(id)) return;
+  db.ui.view='chara';db.ui.charaOpen=id;$('charaSearch').value='';persistUi();render();
+  document.querySelector('#charaList .card.open')?.scrollIntoView({block:'start'});
+}
+
 /* ---- キャラ検索 ---- */
 function renderSearch(){
-  const q=$('searchInput').value.trim().toLowerCase();
-  const hits=db.characters.filter(c=>!q||(c.name+' '+c.memo).toLowerCase().includes(q))
+  const q=searchKey($('searchInput').value.trim()), hit=v=>searchKey(v).includes(q);
+  // 新方式：キャラ名・進化形態名（短縮名・表示名を含む）
+  const chars=db.master.characters.filter(c=>!q||hit(c.name)||formsOfChar(c.id).some(f=>hit(f.name)||hit(f.short)||hit(f.fullDisplayName)))
+    .sort((a,b)=>sortJa(a.name,b.name));
+  const unitsOf=c=>{const ids=new Set(formsOfChar(c.id).map(f=>f.id));return db.units.filter(u=>ids.has(u.formId))};
+  const unitTotal=chars.reduce((n,c)=>n+unitsOf(c).length,0);
+  // 旧登録：従来どおりキャラ名・メモ
+  const hits=db.characters.filter(c=>!q||hit(c.name+' '+c.memo))
     .sort((a,b)=>sortJa(a.name,b.name)||sortJa(a.device,b.device));
-  const places=[...new Set(hits.map(c=>devLabel(locOf(c))))];
-  $('searchCount').textContent=q
-    ?`${hits.length}件ヒット`+(hits.length?`（所在：${places.join('・')}）`:'')
-    :`全${db.characters.length}件`;
-  $('searchResults').innerHTML=hits.length?hits.map(c=>`
+  $('searchCount').textContent=`${q?'':'全件：'}新方式 ${chars.length}キャラ（${unitTotal}体）・旧登録 ${hits.length}件`;
+  const newHtml=chars.map(c=>{
+    const us=unitsOf(c), byDev=DEVICES.map(d=>[d,us.filter(u=>u.device===d).length]).filter(([,n])=>n);
+    return `<div class="card">
+      <div class="cardTop">
+        <div class="rowMain">
+          <div class="cname">${esc(c.name)} <span class="b new">新方式</span></div>
+          <div class="badges">${byDev.length?byDev.map(([d,n])=>`<span class="b loc">${esc(devLabel(d))}×${n}</span>`).join(''):'<span class="small">所持個体なし</span>'}</div>
+          ${us.length?`<div class="meta">計${us.length}体</div>`:''}
+        </div>
+        <div class="acts"><button class="mini" data-act="goChara" data-id="${esc(c.id)}">キャラ画面で見る</button></div>
+      </div>
+    </div>`;
+  }).join('');
+  const oldHtml=hits.map(c=>`
     <div class="card">
       <div class="cardTop">
         <div class="rowMain">
@@ -1267,22 +1324,32 @@ function renderSearch(){
       </div>
       ${c.memo?`<div class="meta">${esc(c.memo)}</div>`:''}
       <div class="badges">${c.stages.length?c.stages.map(k=>`<span class="b">${esc(stageLabel(k))}</span>`).join(''):'<span class="small">適正ステージ未設定</span>'}</div>
-    </div>`).join('')
-    :`<div class="empty">${db.characters.length?'該当するキャラがいません':'まだキャラが登録されていません'}</div>`;
+    </div>`).join('');
+  $('searchResults').innerHTML=chars.length||hits.length
+    ?(chars.length?`<div class="sNew"><div class="pgroup">新方式（キャラ・所持個体）</div>${newHtml}</div>`:'')
+      +(hits.length?`<div class="sOld"><div class="pgroup">旧登録（従来の一覧）</div>${oldHtml}</div>`:'')
+    :`<div class="empty">${db.characters.length||db.master.characters.length?'該当するキャラがいません':'まだキャラが登録されていません'}</div>`;
 }
 
 /* ---- 端末別表示 ---- */
 function renderDevices(){
   $('deviceCards').innerHTML=DEVICES.map(d=>{
+    // 新方式：この端末の所持個体（キャラ名・個体番号順）
+    const units=db.units.filter(u=>u.device===d).sort((a,b)=>sortJa(unitCharName(a),unitCharName(b))||(a.no||0)-(b.no||0));
     const home=db.characters.filter(c=>c.device===d&&!c.lentTo);
     const out=db.characters.filter(c=>c.device===d&&c.lentTo);
     const inn=db.characters.filter(c=>c.lentTo===d);
     const list=[...home,...inn,...out].sort((a,b)=>sortJa(a.name,b.name));
     return `
-      <div class="card">
-        <div class="devHead"><div class="devName">${devNameHtml(d)}</div><span class="cnt${home.length+inn.length?' has':''}">${home.length+inn.length}体</span></div>
+      <div class="card" data-dev="${esc(d)}">
+        <div class="devHead"><div class="devName">${devNameHtml(d)}</div>
+          <span class="cnts"><span class="cnt${units.length?' has':''}">新方式${units.length}体</span><span class="cnt">旧登録${home.length+inn.length}体</span></span></div>
+        <div class="devNew"><div class="pgroup">所持個体（新方式）</div>
+          ${units.length?units.map(unitBoxHtml).join(''):'<div class="empty" style="padding:8px">新方式の所持個体はありません</div>'}</div>
+        <div class="devOld"><div class="pgroup">旧登録（従来の一覧・貸出／返却）</div>
         <div class="sum"><div><b>${home.length}</b>在籍</div><div><b>${out.length}</b>貸出中</div><div><b>${inn.length}</b>借用中</div></div>
-        ${list.length?list.map(c=>charRow(c,d,c.stages.slice(0,3).map(k=>`<span class="b">${esc(stageLabel(k))}</span>`).join('')+(c.stages.length>3?`<span class="b">他${c.stages.length-3}</span>`:''))).join(''):'<div class="empty" style="padding:8px">キャラなし</div>'}
+        ${list.length?list.map(c=>charRow(c,d,c.stages.slice(0,3).map(k=>`<span class="b">${esc(stageLabel(k))}</span>`).join('')+(c.stages.length>3?`<span class="b">他${c.stages.length-3}</span>`:''))).join(''):'<div class="empty" style="padding:8px">旧登録のキャラなし</div>'}
+        </div>
       </div>`;
   }).join('');
 }
@@ -3104,8 +3171,8 @@ document.addEventListener('click',guardStale(e=>{
     case 'srPreview':previewScreenshot();break;
     case 'srCheck':checkScreenshot();break;
     case 'srApply':applyScreenshot();break;
-    case 'srGoChara':{const id=b.dataset.id;if(!charOf(id))break;db.ui.view='chara';db.ui.charaOpen=id;persistUi();render();
-      document.querySelector('#charaList .card.open')?.scrollIntoView({block:'start'});break}
+    case 'srGoChara':goChara(b.dataset.id);break;
+    case 'goChara':goChara(b.dataset.id);break;
     case 'srHold':holdScreenshot();break;
     case 'srReader':$('srMsg').textContent=openReader($('srDevice')?.value||'');break;
     case 'qrFromShot':$('qrMsg').textContent=openReader($('qrDevice').value);break;
