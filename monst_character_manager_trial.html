@@ -58,6 +58,14 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .cand .meta{font-size:12px;color:#475569}
 .candNote{font-size:12px;color:#475569;font-weight:700}
 .uEp{font-size:12px;color:#475569;font-weight:700;overflow-wrap:anywhere}
+.imCh{margin-top:8px}
+.imCh label{font-size:13px;font-weight:800;color:#0f172a;overflow-wrap:anywhere}
+.imCh select{width:100%;max-width:100%;margin-top:3px}
+.imOpt{display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:13px}
+.imOpt input{margin-top:3px}
+#charaFilter{margin-top:6px}
+#charaFilter[hidden]{display:none!important}
+#charaFilter button[aria-pressed="true"]{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
 .chip.cand{border-style:dashed}
 .note{font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:7px 9px;margin-top:4px;line-height:1.5}
 
@@ -366,6 +374,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div class="ptitle"><span>キャラ（共通）</span><button class="mini" data-act="mcharAdd">＋ キャラ追加</button></div>
       <input id="charaSearch" type="search" maxlength="40" placeholder="キャラ名・進化形態で検索">
       <div class="small" id="charaCount" style="margin-top:6px"></div>
+      <div class="tools" id="charaFilter" hidden><button class="tool" data-act="charaFilter" data-f="mine">所持・登録キャラ</button><button class="tool" data-act="charaFilter" data-f="catalog">適正図鑑のみ</button><button class="tool" data-act="charaFilter" data-f="all">すべて</button></div>
       <div class="note" id="charaWarn" hidden></div>
     </div>
     <div id="charaList"></div>
@@ -449,12 +458,14 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
  "evaluationType":"GRADE",  // RANK=rank / GRADE=grade / CANDIDATE=どちらも無し
  "entries":[{"characterName":"…","formName":"…",
    "grade":"S","verificationStatus":"UNVERIFIED"}]}</pre></details>
+      <label class="imOpt"><input type="checkbox" id="imCatalogOn"> <span>登録済みキャラの候補がないキャラを、<b>適正図鑑キャラ</b>（所持個体なし）として追加する<br><span class="small">所持個体は作りません。所持・未所持の判定は、端末に登録した個体と所持確認の記録だけで行います。</span></span></label>
       <textarea id="imText" style="margin-top:6px" placeholder="取り込むJSONを貼り付け"></textarea>
       <div class="tools">
         <button class="tool" data-act="imPreview">内容を確認</button>
         <button class="tool main" id="imApply" data-act="imApply" disabled>取り込む</button>
       </div>
       <div id="imResult" style="margin-top:6px"></div>
+      <div id="imChoices"></div>
       <div class="msg" id="imMsg"></div>
       <div id="imIssues"></div>
     </div>
@@ -920,7 +931,8 @@ function normV3(raw,d){
   const m=raw.master&&typeof raw.master==='object'?raw.master:{};
   const ids=new Set(), once=id=>id&&!ids.has(id)&&ids.add(id);
   d.master.characters=(Array.isArray(m.characters)?m.characters:[]).filter(c=>c&&typeof c==='object')
-    .map(c=>({id:clean(c.id,40),name:clean(c.name,40)})).filter(c=>c.name&&once(c.id));
+    // origin：適正データの取り込みで追加した「適正図鑑キャラ」の印（所持個体の有無とは別）
+    .map(c=>({id:clean(c.id,40),name:clean(c.name,40),...(c.origin==='SUIT_CATALOG'?{origin:'SUIT_CATALOG'}:{})})).filter(c=>c.name&&once(c.id));
   // 参照先のキャラが無い形態・形態が無い個体/適正も消さずに残す（画面で「要確認」と表示する）
   d.master.forms=(Array.isArray(m.forms)?m.forms:[]).filter(f=>f&&typeof f==='object').map(f=>{
     const b=normFormBasic(f);
@@ -932,6 +944,7 @@ function normV3(raw,d){
     if(full) x.fullDisplayName=full;
     // 進化形態未確認（名前が空でも捨てない印）。名前が入っていれば通常の形態として扱う
     if(!x.name&&f.unknownForm===true) x.unknownForm=true;
+    if(f.origin==='SUIT_CATALOG') x.origin='SUIT_CATALOG';
     return x;
   }).filter(f=>(f.name||f.unknownForm)&&once(f.id));
   d.units=(Array.isArray(raw.units)?raw.units:[]).filter(u=>u&&typeof u==='object').map(u=>{
@@ -968,6 +981,12 @@ function normV3(raw,d){
       DEVICES.forEach(dev=>{const id=clean(byDev[dev],40);if(id)(d.picks[k]=d.picks[k]||{})[dev]=id});
     });
   }
+  // 適正データ取り込みでの照合の対応表（利用者が選んだ対応だけを記録。出典・根拠・日時つき）
+  const aIds=new Set();
+  d.suitAliases=(Array.isArray(raw.suitAliases)?raw.suitAliases:[]).filter(a=>a&&typeof a==='object'&&(a.kind==='char'||a.kind==='form')&&SOURCES[a.source]).map(a=>({
+    id:clean(a.id,40),kind:a.kind,source:a.source,site:clean(a.site,30),label:clean(a.label,40),...(a.kind==='form'?{formLabel:clean(a.formLabel,60),formId:clean(a.formId,40)}:{}),
+    characterId:clean(a.characterId,40),basis:clean(a.basis,20)||'USER_SELECTED',stageKey:clean(a.stageKey,80),at:clean(a.at,40)
+  })).filter(a=>a.id&&a.label&&a.characterId&&(a.kind!=='form'||a.formId)&&!aIds.has(a.id)&&aIds.add(a.id)).slice(0,2000);
   d.importIssues=(Array.isArray(raw.importIssues)?raw.importIssues:[]).filter(x=>x&&typeof x==='object').map(x=>({
     id:clean(x.id,40),at:clean(x.at,40),stageKey:clean(x.stageKey,80),source:SOURCES[x.source]?x.source:'',site:clean(x.site,30),
     characterName:clean(x.characterName,40),formName:clean(x.formName,60),reason:clean(x.reason,120)})).filter(x=>once(x.id)).slice(0,500);
@@ -984,7 +1003,7 @@ function blank(){
   return {app:APP,version:1,deviceNames:{},characters:[],
     extraStages:Object.fromEntries(QUESTS.filter(q=>q.canAdd).map(q=>[q.id,[]])),
     rankings:{},ownership:{},
-    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],ownershipChecks:[],pendingReadings:[],
+    master:{characters:[],forms:[]},units:[],suits:[],picks:{},useDevs:{},migrated:{},importIssues:[],ownershipChecks:[],pendingReadings:[],suitAliases:[],
     ui:{view:'stage',quest:QUESTS[0].id,stage:{},rankDevice:DEVICES[0],infoMode:'none',charaOpen:null}};
 }
 function normalize(raw){
@@ -1290,6 +1309,9 @@ function unitBoxHtml(u){
     <div class="uMeta">${uses?`<span class="b">編成で使用 ${uses}件</span>`:'<span></span>'}${c?`<button class="mini" data-act="goChara" data-id="${esc(c.id)}">キャラ画面で見る</button>`:''}</div>
   </div>`;
 }
+// 適正図鑑キャラ（適正データの取り込みで追加）で、所持個体がまだ1体もないもの。通常の一覧からは分けて表示する（未所持と断定はしない）
+let charaFilter='mine';
+function isCatalogOnly(c){return c.origin==='SUIT_CATALOG'&&!db.units.some(u=>formOf(u.formId)?.characterId===c.id)}
 /* ---- 登録時の候補（STEP3-3）----
    ・登録済みキャラから、同じ名前／図鑑No.が一致／名前の一部が一致／似た名前 を候補として出す（参考。自動では統合しない）
    ・利用者が候補を選んだときだけ、そのキャラの名前を入れて既存キャラへ個体を追加する。選ばなければ新しいキャラとして登録する
@@ -1356,6 +1378,7 @@ function renderQrCands(){
 // キャラ画面の該当キャラを開く（表示状態だけを保存。データは変更しない）
 function goChara(id){
   if(!charOf(id)) return;
+  if(isCatalogOnly(charOf(id))&&charaFilter==='mine') charaFilter='all';
   db.ui.view='chara';db.ui.charaOpen=id;$('charaSearch').value='';persistUi();render();
   document.querySelector('#charaList .card.open')?.scrollIntoView({block:'start'});
 }
@@ -1377,7 +1400,7 @@ function renderSearch(){
     return `<div class="card">
       <div class="cardTop">
         <div class="rowMain">
-          <div class="cname">${esc(c.name)} <span class="b new">新方式</span></div>
+          <div class="cname">${esc(c.name)} <span class="b new">新方式</span>${c.origin==='SUIT_CATALOG'?' <span class="b old">適正図鑑</span>':''}</div>
           <div class="badges">${byDev.length?byDev.map(([d,n])=>`<span class="b loc">${esc(devLabel(d))}×${n}</span>`).join(''):'<span class="small">所持個体なし</span>'}</div>
           ${us.length?`<div class="meta">計${us.length}体</div>`:''}
         </div>
@@ -1847,7 +1870,8 @@ function renderSuitPanel(){
       const owners=DEVICES.map(d=>ownerText(x.formId,d)).filter(Boolean);
       return `<div class="sRow${f?'':' bad'}"><div class="rowMain"><div class="cname">${esc(formLabel(f))}<span class="x">${esc(suitText(x))}</span>
           <span class="vb v-${x.verificationStatus}">${esc(VERIFY[x.verificationStatus])}</span></div>
-        <div class="meta">${owners.length?'所持：'+esc(owners.join(' ')):'所持なし'}${x.note?'・'+esc(x.note):''}</div></div>
+        <div class="meta">${owners.length?'所持：'+esc(owners.join(' ')):'所持個体の登録なし'}${x.note?'・'+esc(x.note):''}</div>
+        ${(oc=>oc.length?`<div class="meta">所持確認の記録：${esc(oc.map(o=>`${devLabel(o.device)} ${OWN_CHECK[o.status]}`).join(' '))}</div>`:'')(db.ownershipChecks.filter(o=>o.stageKey===x.stageKey&&f&&o.characterName===charOf(f.characterId)?.name))}</div>
         <span class="acts">${x.verificationStatus!=='VERIFIED'?`<button class="mini ret" data-act="suitVerify" data-id="${esc(x.id)}">確認済みにする</button>`:''}
         <button class="mini" data-act="suitEdit" data-id="${esc(x.id)}">編集</button></span></div>`;
     }).join('');
@@ -1862,9 +1886,14 @@ function renderSuitPanel(){
 /* ---- キャラ画面：キャラ → 端末・個体・形態・実・適正ステージ ---- */
 function renderChara(){
   const qtxt=$('charaSearch').value.trim().toLowerCase();
+  const catOnly=db.master.characters.filter(isCatalogOnly).length;
+  if(!catOnly) charaFilter='mine';
   const list=db.master.characters.filter(c=>!qtxt||(c.name+' '+formsOfChar(c.id).map(f=>f.name+' '+f.short).join(' ')).toLowerCase().includes(qtxt))
+    .filter(c=>charaFilter==='all'||(charaFilter==='catalog'?isCatalogOnly(c):!isCatalogOnly(c)))
     .sort((a,b)=>sortJa(a.name,b.name));
-  $('charaCount').textContent=`全${db.master.characters.length}キャラ・${db.units.length}個体`;
+  $('charaCount').textContent=`全${db.master.characters.length}キャラ・${db.units.length}個体`+(catOnly?`（うち適正図鑑のみ${catOnly}キャラ）`:'');
+  $('charaFilter').hidden=!catOnly;
+  [...$('charaFilter').querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.f===charaFilter)));
   const orphans=db.master.forms.filter(f=>!charOf(f.characterId)).length+db.units.filter(u=>!formOf(u.formId)||!DEVICES.includes(u.device)).length;
   $('charaWarn').hidden=!orphans;
   $('charaWarn').textContent=orphans?`参照先が見つからないデータが${orphans}件あります（削除せず保持しています・要確認）`:'';
@@ -2430,21 +2459,66 @@ function parseSuitImport(text){
   return errors.length?{errors:errors.slice(0,30).concat(errors.length>30?[`ほか${errors.length-30}件`]:[])}:{errors:[],blocks:out};
 }
 // 取り込み計画を作るだけ（db は変更しない）
-function planSuitImport(p){
-  const plan={blocks:p.blocks,add:[],update:[],same:[],issues:[],dupInFile:0,notIncluded:0};
-  const seen=new Set();
+/* 取り込み計画を作るだけ（db は変更しない）。照合は4分類：
+   auto ＝根拠のある自動照合（キャラ名が完全一致、または記録済みの対応）＋形態名・短縮名の完全一致（または記録済みの対応）
+   form ＝形態の選択が必要（「獣神化」などの表記だけでは形態を決めない）
+   char ＝キャラの選択が必要（名前の一部・表記ゆれ・似た名前の候補がある。自動では結び付けない）
+   new  ＝新しい適正図鑑キャラ（候補がない。opts.catalog のときだけ追加、選んだときも追加）
+   選ばれていない行は取り込まず、従来どおり「要確認」として残す（理由の文言も従来どおり） */
+const CATALOG='SUIT_CATALOG';
+function planSuitImport(p,opts={}){
+  const choices=opts.choices||{char:{},form:{}}, catalog=!!opts.catalog;
+  const plan={blocks:p.blocks,add:[],update:[],same:[],issues:[],dupInFile:0,notIncluded:0,
+    newChars:[],newForms:[],newAliases:[],resolved:[],counts:{auto:0,form:0,char:0,new:0},sel:{char:new Map(),form:new Map()}};
+  const seen=new Set(), newCharBy=new Map(), newFormBy=new Map(), aliasBy=new Set(), now=new Date().toISOString();
+  const formsOf=cid=>db.master.forms.concat(plan.newForms).filter(f=>f.characterId===cid);
+  const newChar=name=>{const k=nameKey(name);if(!newCharBy.has(k)){const c={id:uid(),name,origin:CATALOG};newCharBy.set(k,c);plan.newChars.push(c)}return newCharBy.get(k)};
+  const newForm=(cid,name)=>{const k=cid+'|'+nameKey(name);if(!newFormBy.has(k)){const f={id:uid(),characterId:cid,name,short:'',race:'',battleType:'',shotType:'',origin:CATALOG,...(name?{}:{unknownForm:true})};newFormBy.set(k,f);plan.newForms.push(f)}return newFormBy.get(k)};
+  const addAlias=a=>{const k=[a.kind,a.source,a.site,nameKey(a.label),a.kind==='form'?a.characterId+'|'+nameKey(a.formLabel):''].join('\u0002');
+    if(aliasBy.has(k))return;aliasBy.add(k);plan.newAliases.push({id:uid(),...a,basis:'USER_SELECTED',at:now})};
+  const sameSrc=(a,b,kind)=>a.kind===kind&&a.source===b.source&&(a.site||'')===(b.site||'');
   p.blocks.forEach(b=>{
     const touched=new Set();
     b.entries.forEach(e=>{
-      const issue=reason=>plan.issues.push({stageKey:b.stageKey,source:b.source,site:b.site,characterName:e.characterName,formName:e.formName,reason});
-      const chars=db.master.characters.filter(c=>c.name===e.characterName);
-      if(!chars.length) return issue('未登録のキャラ（自動では作成しません）');
-      if(chars.length>1) return issue('同じ名前のキャラが複数あります');
-      if(!e.formName) return issue('進化形態の指定がありません（キャラ名だけでは紐づけません）');
-      const forms=formsOfChar(chars[0].id).filter(f=>f.name===e.formName||f.short===e.formName);
-      if(!forms.length) return issue('進化形態が一致しません（正式名・短縮名と完全一致のみ）');
-      if(forms.length>1) return issue('一致する進化形態が複数あります');
-      const item={stageKey:b.stageKey,formId:forms[0].id,source:b.source,site:b.site,sourceUrl:b.sourceUrl,sourceUpdatedAt:b.sourceUpdatedAt,
+      const issue=(cls,reason)=>{plan.counts[cls]++;plan.issues.push({stageKey:b.stageKey,source:b.source,site:b.site,characterName:e.characterName,formName:e.formName,reason})};
+      let cls='auto', char=null, created=false;
+      const exact=db.master.characters.filter(c=>c.name===e.characterName);
+      if(exact.length>1) return issue('char','同じ名前のキャラが複数あります');
+      if(exact.length) char=exact[0];
+      else{
+        const ca=db.suitAliases.find(a=>sameSrc(a,b,'char')&&nameKey(a.label)===nameKey(e.characterName)&&charOf(a.characterId));
+        if(ca) char=charOf(ca.characterId);
+        else{
+          const ck=nameKey(e.characterName), pick=choices.char[ck], cands=charCandidates(e.characterName,'');
+          if(cands.length&&!plan.sel.char.has(ck)) plan.sel.char.set(ck,{key:ck,label:e.characterName,cands});
+          if(pick&&pick!=='new'&&charOf(pick)){char=charOf(pick);cls='char';addAlias({kind:'char',source:b.source,site:b.site,label:e.characterName,characterId:pick,stageKey:b.stageKey})}
+          else if(pick==='new'||(!cands.length&&catalog)){char=newChar(e.characterName);created=true;cls='new'}
+          else return issue(cands.length?'char':'new','未登録のキャラ（自動では作成しません）');
+        }
+      }
+      let formId=null;
+      if(created) formId=newForm(char.id,e.formName).id;
+      else{
+        const forms=e.formName?formsOf(char.id).filter(f=>f.name===e.formName||f.short===e.formName):[];
+        if(forms.length>1) return issue('form','一致する進化形態が複数あります');
+        if(forms.length) formId=forms[0].id;
+        else{
+          const fa=e.formName&&db.suitAliases.find(a=>sameSrc(a,b,'form')&&a.characterId===char.id&&nameKey(a.formLabel)===nameKey(e.formName)&&formOf(a.formId)?.characterId===char.id&&!formOf(a.formId).unknownForm);
+          if(fa) formId=fa.formId;
+          else{
+            const fk=char.id+'|'+nameKey(e.formName), pick=choices.form[fk];
+            if(!plan.sel.form.has(fk)) plan.sel.form.set(fk,{key:fk,charId:char.id,charName:char.name,formLabel:e.formName});
+            if(pick&&pick!=='new'&&formOf(pick)?.characterId===char.id&&!formOf(pick).unknownForm){
+              formId=pick;if(cls==='auto')cls='form';
+              if(e.formName) addAlias({kind:'form',source:b.source,site:b.site,label:e.characterName,formLabel:e.formName,characterId:char.id,formId:pick,stageKey:b.stageKey});
+            }else if(pick==='new'&&e.formName){formId=newForm(char.id,e.formName).id;if(cls==='auto')cls='form'}
+            else return issue('form',e.formName?'進化形態が一致しません（正式名・短縮名と完全一致のみ）':'進化形態の指定がありません（キャラ名だけでは紐づけません）');
+          }
+        }
+      }
+      plan.counts[cls]++;
+      plan.resolved.push([b.stageKey,b.source,b.site,e.characterName,e.formName].join('\u0001'));
+      const item={stageKey:b.stageKey,formId,source:b.source,site:b.site,sourceUrl:b.sourceUrl,sourceUpdatedAt:b.sourceUpdatedAt,
         evaluationType:b.evaluationType,rank:e.rank,grade:e.grade,verificationStatus:e.verificationStatus,note:e.note};
       const k=suitKey(item);
       if(seen.has(k)){plan.dupInFile++;return}
@@ -2459,15 +2533,26 @@ function planSuitImport(p){
     });
     plan.notIncluded+=db.suits.filter(s=>s.stageKey===b.stageKey&&s.source===b.source&&(b.source!=='OTHER_SITE'||s.site===b.site)&&!touched.has(suitKey(s))).length;
   });
+  // 実際に使う新しいキャラ・形態だけを残す（重複行だけだった場合なども含めて、使われないものは作らない）
+  const usedForms=new Set(plan.add.map(x=>x.formId));
+  plan.newForms=plan.newForms.filter(f=>usedForms.has(f.id));
+  const usedChars=new Set(plan.newForms.map(f=>f.characterId));
+  plan.newChars=plan.newChars.filter(c=>usedChars.has(c.id));
   return plan;
 }
 // 計画どおりに反映する。途中で失敗した場合は取り込み前の状態に戻す
 let suitImportErr=null;
 function applySuitImport(plan){
   suitImportErr=null;
-  const backupState=JSON.stringify({suits:db.suits,importIssues:db.importIssues});
+  const backupState=JSON.stringify({master:db.master,suits:db.suits,importIssues:db.importIssues,suitAliases:db.suitAliases});
   try{
     const now=new Date().toISOString(), upd=new Map(plan.update.map(x=>[x.id,x.item]));
+    if(plan.newChars?.length) db.master.characters=db.master.characters.concat(plan.newChars.map(c=>({...c})));
+    if(plan.newForms?.length) db.master.forms=db.master.forms.concat(plan.newForms.map(f=>({...f})));
+    if(plan.newAliases?.length) db.suitAliases=db.suitAliases.concat(plan.newAliases);
+    // 照合できた行の古い「要確認」記録は消す（確認待ちの一覧を実態に合わせる）
+    const done=new Set(plan.resolved||[]);
+    if(done.size) db.importIssues=db.importIssues.filter(x=>!done.has([x.stageKey,x.source,x.site,x.characterName,x.formName].join('\u0001')));
     const suits=db.suits.map(s=>upd.has(s.id)?{...upd.get(s.id),id:s.id}:s).concat(plan.add.map(it=>({...it,id:uid()})));
     const ik=x=>[x.stageKey,x.source,x.site,x.characterName,x.formName].join('\u0001');
     const fresh=plan.issues.map(x=>({...x,id:uid(),at:now})), freshKeys=new Set(fresh.map(ik));
@@ -2476,34 +2561,56 @@ function applySuitImport(plan){
     persist();
     return true;
   }catch(err){
-    const b=JSON.parse(backupState);db.suits=b.suits;db.importIssues=b.importIssues;
+    const b=JSON.parse(backupState);db.master=b.master;db.suits=b.suits;db.importIssues=b.importIssues;db.suitAliases=b.suitAliases;
     suitImportErr=err;
     return false;
   }
 }
-function previewSuitImport(){
+let imChoices={char:{},form:{}};
+function previewSuitImport(keep){
   const text=$('imText').value;
-  pendingSuitImport=null;$('imApply').disabled=true;
+  if(!keep) imChoices={char:{},form:{}};
+  pendingSuitImport=null;$('imApply').disabled=true;$('imChoices').innerHTML='';
   const p=parseSuitImport(text);
   if(p.errors.length){
     $('imResult').innerHTML=`<div class="note">取り込めません（何も変更していません）：<br>${p.errors.map(esc).join('<br>')}</div>`;return;
   }
-  const plan=planSuitImport(p);
+  const plan=planSuitImport(p,{choices:imChoices,catalog:$('imCatalogOn').checked});
   pendingSuitImport={text,plan};
+
   $('imApply').disabled=!(plan.add.length||plan.update.length||plan.issues.length);
   const blk=plan.blocks.map(b=>`${esc(stageLabel(b.stageKey))}：${esc(SOURCES[b.source])}${b.site?`（${esc(b.site)}）`:''}・${esc(EVAL_TYPES[b.evaluationType])}・${b.entries.length}行`).join('<br>');
   $('imResult').innerHTML=`<div class="small" style="font-size:12px;line-height:1.6">${blk}<br>
     追加 ${plan.add.length}件／更新 ${plan.update.length}件／変更なし ${plan.same.length}件／要確認（取り込まない） ${plan.issues.length}件
+    <br>照合：自動照合 ${plan.counts.auto}件／形態の選択が必要 ${plan.counts.form}件／キャラの選択が必要 ${plan.counts.char}件／新しい適正図鑑キャラ ${plan.counts.new}件${plan.newChars.length||plan.newForms.length?`（キャラ${plan.newChars.length}・形態${plan.newForms.length}を追加）`:''}
     ${plan.dupInFile?`／ファイル内の重複 ${plan.dupInFile}件（1件にまとめます）`:''}
     ${plan.notIncluded?`<br>今回のデータに含まれない同じ出典の既存適正 ${plan.notIncluded}件は削除しません`:''}
     ${plan.update.some(u=>u.item.verificationStatus==='NEEDS_REVIEW')?'<br>確認済みの内容が変わる行は「要確認」になります':''}</div>
     ${plan.issues.length?`<div class="note">${plan.issues.slice(0,20).map(x=>`${esc(x.characterName)}${x.formName?`／${esc(x.formName)}`:''}：${esc(x.reason)}`).join('<br>')}${plan.issues.length>20?`<br>ほか${plan.issues.length-20}件`:''}</div>`:''}`;
+  renderImChoices(plan);
+}
+// 照合の選択（キャラ・形態）。選ばない行は取り込まず「要確認」として残す
+function renderImChoices(plan){
+  const ch=[...plan.sel.char.values()], fo=[...plan.sel.form.values()];
+  if(!ch.length&&!fo.length){$('imChoices').innerHTML='';return}
+  const sel=(v,cur)=>v===cur?' selected':'';
+  $('imChoices').innerHTML=`<div class="invSec">照合の選択（選ばない行は取り込まず、要確認として残します）</div>`
+    +ch.map(x=>`<div class="imCh"><label>キャラ「${esc(x.label)}」（出典の表記）</label><select data-im-char="${esc(x.key)}">
+      <option value="">保留（取り込まない）</option>
+      ${x.cands.map(c=>`<option value="${esc(c.c.id)}"${sel(c.c.id,imChoices.char[x.key])}>既存：${esc(c.c.name)}（${esc(c.why)}・${esc(charSummary(c.c))}）</option>`).join('')}
+      <option value="new"${sel('new',imChoices.char[x.key])}>新しい適正図鑑キャラとして追加</option></select>
+      <div class="small">名前が似ていても同じキャラとは限りません。同じキャラだと確認できた場合だけ既存のキャラを選んでください。</div></div>`).join('')
+    +fo.map(x=>`<div class="imCh"><label>${esc(x.charName)}｜形態「${esc(x.formLabel||'（指定なし）')}」（出典の表記）</label><select data-im-form="${esc(x.key)}">
+      <option value="">保留（取り込まない）</option>
+      ${formsOfChar(x.charId).filter(f=>!f.unknownForm).map(f=>`<option value="${esc(f.id)}"${sel(f.id,imChoices.form[x.key])}>既存の形態：${esc(formShort(f))}（${esc(f.name)}）</option>`).join('')}
+      ${x.formLabel?`<option value="new"${sel('new',imChoices.form[x.key])}>新しい形態として追加（「${esc(x.formLabel)}」）</option>`:''}</select>
+      <div class="small">「獣神化」などの進化段階の表記だけでは、どの形態かは決まりません。進化形態未確認の個体は、ここでは形態として選べません。</div></div>`).join('');
 }
 function confirmSuitImport(){
   const pi=pendingSuitImport;
   if(!pi||pi.text!==$('imText').value){$('imMsg').textContent='先に「内容を確認」を押してください';$('imApply').disabled=true;return}
   const ok=applySuitImport(pi.plan);
-  pendingSuitImport=null;$('imApply').disabled=true;
+  pendingSuitImport=null;$('imApply').disabled=true;$('imChoices').innerHTML='';imChoices={char:{},form:{}};
   render();
   // 完了メッセージは実際に取り込んだ行（追加＋更新）の検証状態から作る
   const vs=pi.plan.add.concat(pi.plan.update.map(u=>u.item)).map(it=>it.verificationStatus);
@@ -2511,6 +2618,7 @@ function confirmSuitImport(){
   const states=Object.keys(VERIFY).filter(s=>cnt(s)).map(s=>`${VERIFY[s]}${cnt(s)}件`).join('・');
   $('imMsg').textContent=ok
     ?`取り込みました（追加${pi.plan.add.length}件・更新${pi.plan.update.length}件・要確認${pi.plan.issues.length}件）。`
+      +(pi.plan.newChars.length||pi.plan.newForms.length?`適正図鑑に キャラ${pi.plan.newChars.length}・形態${pi.plan.newForms.length} を追加しました（所持個体は作っていません）。`:'')
       +(states?`取り込んだ適正の状態：${states}。`:'')
       +(vs.some(v=>v!=='VERIFIED')?'未検証・要確認の適正は、内容を確認してから「確認済みにする」を押してください。':'')
     :saveFailText(suitImportErr,'取り込みに失敗したため、取り込み前の状態に戻しました');
@@ -3124,7 +3232,7 @@ function backupJson(){
   return JSON.stringify({app:APP,version:1,...mark,exportedAt:new Date().toISOString(),
     data:{deviceNames:db.deviceNames,characters:db.characters,extraStages:db.extraStages,
       rankings:db.rankings,ownership:db.ownership,
-      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks,pendingReadings:db.pendingReadings}},null,1);
+      master:db.master,units:db.units,suits:db.suits,picks:db.picks,useDevs:db.useDevs,migrated:db.migrated,importIssues:db.importIssues,ownershipChecks:db.ownershipChecks,pendingReadings:db.pendingReadings,suitAliases:db.suitAliases}},null,1);
 }
 function backup(){
   const text=backupJson();
@@ -3284,6 +3392,7 @@ document.addEventListener('click',guardStale(e=>{
       $('qrChar').value=c.id;syncQrChar();$('qrCands').hidden=true;break}
     case 'srGoChara':goChara(b.dataset.id);break;
     case 'goChara':goChara(b.dataset.id);break;
+    case 'charaFilter':if(['mine','catalog','all'].includes(b.dataset.f)){charaFilter=b.dataset.f;renderChara()}break;
     case 'srHold':holdScreenshot();break;
     case 'srReader':$('srMsg').textContent=openReader($('srDevice')?.value||'');break;
     case 'qrFromShot':$('qrMsg').textContent=openReader($('qrDevice').value);break;
@@ -3318,7 +3427,15 @@ $('qrRace').addEventListener('change',()=>{$('qrRaceCustomField').hidden=$('qrRa
 ['qrSuitOn','qrSource','qrEval'].forEach(id=>$(id).addEventListener('change',syncQrSuit));
 $('stEval').addEventListener('change',syncSuitModal);
 // 貼り付け内容を変えたら、確認済みの取り込み計画は無効にする
-$('imText').addEventListener('input',()=>{pendingSuitImport=null;$('imApply').disabled=true});
+$('imText').addEventListener('input',()=>{pendingSuitImport=null;$('imApply').disabled=true;$('imChoices').innerHTML=''});
+$('imChoices').addEventListener('change',e=>{
+  const t=e.target;if(!pendingSuitImport||pendingSuitImport.text!==$('imText').value) return;
+  if(t.dataset.imChar!=null) imChoices.char[t.dataset.imChar]=t.value;
+  else if(t.dataset.imForm!=null) imChoices.form[t.dataset.imForm]=t.value;
+  else return;
+  previewSuitImport(true);
+});
+$('imCatalogOn').addEventListener('change',()=>{if(pendingSuitImport&&pendingSuitImport.text===$('imText').value) previewSuitImport(true)});
 $('invText').addEventListener('input',()=>{pendingInv=null;$('invApply').disabled=true});
 // スクショ読取：JSONを変えたら確認し直し。項目・端末を変えたら確認画面からやり直し
 $('srText').addEventListener('input',()=>{srState=null;srPending=null;$('srApply').disabled=true;$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML='';srHideDone()});

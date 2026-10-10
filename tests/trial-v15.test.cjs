@@ -65,14 +65,14 @@ test('進化形態未確認 only: shown as 所持・形態未確認, never as �
   await seed(world([U('u1','fXu','サブ1',1)]));
   assert.equal(await st('fX1','サブ1'),'unconfirmed');
   const t=await row();
-  assert.match(t,/所持：サブ1（所持・形態未確認）/);assert.doesNotMatch(t,/サブ1！/);assert.doesNotMatch(t,/所持なし/);
+  assert.match(t,/所持：サブ1（所持・形態未確認）/);assert.doesNotMatch(t,/サブ1！/);assert.doesNotMatch(t,/所持個体の登録なし/);
 });
 
-test('confirmed exact form: 所持; confirmed other form only: 別形態（！）; nothing: 所持なし', async()=>{
+test('confirmed exact form: 所持; confirmed other form only: 別形態（！）; nothing: 所持個体の登録なし', async()=>{
   await seed(world([U('u1','fX1','メイン',1),U('u2','fX2','サブ2',1)]));
   assert.equal(await st('fX1','メイン'),'owned');assert.equal(await st('fX1','サブ2'),'alt-form');assert.equal(await st('fX1','サブ3'),'not-owned');
   const t=await row();assert.match(t,/所持：メイン×1 サブ2！/);
-  await seed(world([]));assert.match(await row(),/所持なし/);assert.equal(await st('fX1','メイン'),'not-owned');
+  await seed(world([]));assert.match(await row(),/所持個体の登録なし/);assert.equal(await st('fX1','メイン'),'not-owned');
 });
 
 test('mixed on one device: a confirmed exact form wins; other form + unconfirmed is ambiguous → 所持・形態未確認', async()=>{
@@ -85,7 +85,7 @@ test('mixed on one device: a confirmed exact form wins; other form + unconfirmed
 test('a similarly named but different character is never counted (matched by character, not by name)', async()=>{
   await seed(world([U('u1','fYu','メイン',1),U('u2','fZu','サブ1',1)]));
   assert.equal(await st('fX1','メイン'),'not-owned');assert.equal(await st('fX1','サブ1'),'not-owned');
-  assert.match(await row(),/所持なし/);
+  assert.match(await row(),/所持個体の登録なし/);
 });
 
 test('several devices at once; the count after ×N is confirmed exact units only; 2 unconfirmed units are shown as ×2', async()=>{
