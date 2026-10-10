@@ -101,12 +101,12 @@ test('UI: register character, two forms, two units on one device, suitability; c
   // 適正が未登録でも、この端末の所持キャラから仮選択はできる（候補は0）
   assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
   await click('[data-act="suitAdd"]');await page.selectOption('#stForm',formIds[0]);await page.fill('#stRank','2');await click('[data-act="saveSuit"]');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）','ネオ｜リバース 個体2（別形態）（未検証）'],'same character: the other confirmed form is a candidate marked 別形態');
   await click('[data-act="suitVerify"]');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（別形態）']);
   assert.equal(await page.locator('.pickDev').count(),1); // only the chosen device is shown
   await page.reload();
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（別形態）']);
   d=await snapshot();assert.deepEqual(d.suits.map(s=>[s.stageKey,s.source,s.evaluationType,s.rank,s.grade,s.verificationStatus]),[[STAGE,'GAME_CLEAR_MONSTERS','RANK',2,'','VERIFIED']]);
   // character view lists the suitable stage
   await click('[data-act="view"][data-view="chara"]');assert.match(await page.locator('#charaList').textContent(),/禁忌 一ノ獄・ハロー・みんなのクリアモンスター 2位/);
@@ -114,12 +114,12 @@ test('UI: register character, two forms, two units on one device, suitability; c
 
 test('candidates: only owned AND suitable units per device, per-unit (not per-character), reasons when none',async()=>{
   await seed(world({useDevs:{'禁忌の獄::一ノ獄':['メイン','サブ1','サブ2'],'禁忌の獄::二ノ獄':['メイン']}}));
-  // main owns ルシファー, ネオ×2 (ハロー suitable, リバース not), アーサー (not suitable). エル is suitable but unowned.
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ルシファー｜獣神化改 個体1']);
-  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','リンネ｜リンネ（獣神化） 個体1']);
+  // main owns ルシファー, ネオ×2 (ハロー suitable, リバース = same character, other confirmed form → candidate marked 別形態), アーサー (not suitable). エル is suitable but unowned.
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ルシファー｜獣神化改 個体1','ネオ｜リバース 個体2（別形態）']);
+  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','リンネ｜リンネ（獣神化） 個体1','ネオ｜リバース 個体1（別形態）']);
   assert.equal(await pickSel('サブ2').isDisabled(),true);
   assert.match(await devRow('サブ2').textContent(),/この端末の所持個体が未登録です/);
-  assert.match(await devRow('メイン').textContent(),/候補2/);
+  assert.match(await devRow('メイン').textContent(),/候補3/);
   // When リバース also becomes suitable (other source), main can choose between ネオ 個体1 and 個体2.
   await page.evaluate(()=>{db.suits.push(normSuit({id:'s5',stageKey:'禁忌の獄::一ノ獄',formId:'f-rev',source:'GAMEWITH',evaluationType:'GRADE',grade:'A',verificationStatus:'VERIFIED'}));persist();render()});
   assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2','ルシファー｜獣神化改 個体1']);

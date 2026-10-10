@@ -206,7 +206,7 @@ test('picks are kept when a device is removed and reused when it is added back; 
   await click('[data-act="useDev"][data-dev="サブ3"]');
   await page.evaluate(()=>{db.suits=db.suits.filter(s=>s.formId!=='f-yk1');persist();render()});
   await click('[data-act="useDev"][data-dev="サブ3"]');
-  assert.match(await card('サブ3').textContent(),/仮選択・適正未確定/);assert.match(await pickSel('サブ3').locator('option:checked').textContent(),/（仮）/);
+  assert.match(await card('サブ3').textContent(),/別形態/);assert.match(await pickSel('サブ3').locator('option:checked').textContent(),/（別形態）/);
   assert.equal((await snapshot()).picks[STAGE]['サブ3'],'u-yk1');
 });
 

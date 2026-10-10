@@ -285,13 +285,14 @@ test('known 進化形態 in JSON still works (compatibility) and stays separate 
   assert.equal(unitsOf(d,'奈良シカマル').length,2);
 });
 
-test('stage: units of 進化形態未確認 are not treated as suitable; suitability import never attaches to it', async()=>{
+test('stage: a unit of 進化形態未確認 is a candidate marked 形態未確認 (form never confirmed); suitability import never attaches to it', async()=>{
   const K='禁忌の獄::一ノ獄';
   await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ玖'}],forms:[{id:'f1',characterId:'c1',name:'架空の既知形態',short:'',race:'',battleType:'',shotType:''},
       {id:'fu',characterId:'c1',name:'',unknownForm:true,short:'',race:'',battleType:'',shotType:''}]},
     units:[{id:'u1',formId:'fu',device:'メイン',no:1,fruits:[]}],
     suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}]});
-  assert.deepEqual(await page.evaluate(k=>candidatesFor(k,'メイン').map(u=>u.id),K),[],'not a candidate (form unknown)');
+  assert.deepEqual(await page.evaluate(k=>candidatesFor(k,'メイン').map(u=>u.id),K),['u1'],'same character → candidate');
+  assert.equal(await page.evaluate(k=>unitFormMatch(db.units[0],k),K),'unknown','form stays unconfirmed');
   assert.equal(await page.evaluate(()=>formStatus('f1','メイン')),'unconfirmed','shown as 所持・形態未確認 (not 別形態) for the known suitable form');
   assert.equal(await page.evaluate(()=>formLabel(formOf('fu'))),'架空キャラ玖');
   // 適正データの取り込み：キャラ名だけ・形態名が空の行は紐づけない（未確認の形態へ付かない）
@@ -304,7 +305,7 @@ test('stage: units of 進化形態未確認 are not treated as suitable; suitabi
   assert.deepEqual((await snapshot()).suits.map(x=>x.formId),['f1']);
 });
 
-test('stage cards: a same-name unit of 進化形態未確認 is shown as 参考 and can be picked provisionally (never a confirmed candidate); exact-form units stay normal', async()=>{
+test('stage cards: a same-name unit of 進化形態未確認 is a normal candidate marked 形態未確認 (not 参考, not 仮選択); exact-form units stay unmarked', async()=>{
   const K='禁忌の獄::一ノ獄';
   await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ玖'},{id:'c2',name:'架空キャラ拾壱'},{id:'c3',name:'適正なしの架空キャラ'}],
       forms:[{id:'f1',characterId:'c1',name:'架空の既知形態',short:'',race:'',battleType:'',shotType:''},
@@ -319,66 +320,51 @@ test('stage cards: a same-name unit of 進化形態未確認 is shown as 参考 
       {id:'s2',stageKey:K,formId:'f2',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],
     useDevs:{[K]:['メイン','サブ1']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
   const main=page.locator('.pickDev[data-dev="メイン"]'), sub=page.locator('.pickDev[data-dev="サブ1"]');
-  // 選択肢：進化形態まで一致する候補の下に、参考（進化形態未確認）を「（仮）」として別グループで出す
-  // （その下に、適正の無い所持キャラも「所持キャラ」グループとして出る：trial-v11）
-  assert.deepEqual(await main.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ拾壱｜架空の形態B 個体1','架空キャラ玖 個体1（仮）','適正なしの架空キャラ 個体1（仮）']);
-  assert.equal(await main.locator('.pickSel optgroup').first().getAttribute('label'),'参考（進化形態未確認・仮選択）');
-  assert.match(await main.locator('.devHead').textContent(),/候補1/);assert.match(await main.locator('.devHead').textContent(),/参考1/);
-  // 参考：同名キャラ（進化形態未確認）。キャラ名・種族・戦型・撃種・実を表示し、点線の別枠＋「参考」で区別
-  const ref=main.locator('.pRef');
-  assert.equal(await ref.count(),1);
-  const rt=(await ref.textContent()).replace(/\s+/g,' ');
-  assert.match(rt,/参考：適正キャラと同名（進化形態未確認・適正は未確定）/);
-  assert.match(rt,/架空キャラ玖 個体1/);assert.match(rt,/亜人.*バランス型.*反射/);assert.match(rt,/撃種加命撃L/);
-  assert.doesNotMatch(rt,/適正なしの架空キャラ/,'名前が適正キャラと一致しない個体は出さない');
-  assert.equal(await ref.locator('.uCard.uRef').count(),1);
-  // 候補が無い端末でも、参考があれば仮選択できる（選択欄は有効）
+  // 選択肢：形態まで一致する候補 → 同じキャラで形態未確認の候補（明示）。適正の無い所持キャラは「所持キャラ」グループ（仮選択）
+  assert.deepEqual(await main.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ拾壱｜架空の形態B 個体1','架空キャラ玖 個体1（形態未確認）','適正なしの架空キャラ 個体1（仮）']);
+  assert.deepEqual(await main.locator('.pickSel optgroup').evaluateAll(gs=>gs.map(g=>g.label)),['所持キャラ（適正未登録・仮選択）']);
+  assert.match(await main.locator('.devHead').textContent(),/候補2/);assert.doesNotMatch(await main.locator('.devHead').textContent(),/参考/);
   assert.equal(await sub.locator('.pickSel').isDisabled(),false);
-  assert.match(await sub.textContent(),/進化形態まで一致する所持個体はありません（参考から仮選択できます）/);
-  assert.match((await sub.locator('.pRef').textContent()).replace(/\s+/g,' '),/架空キャラ玖 個体1/);
-  // 通常の候補を選んだカードは従来どおり（参考・仮選択の印は付かない）
+  assert.deepEqual(await sub.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ玖 個体1（形態未確認）']);
+  // 形態まで一致する候補のカードは従来どおり（印なし）
   await main.locator('.pickSel').selectOption('uOk');
-  const okCard=main.locator('.uCard:not(.uRef)');
-  assert.equal(await okCard.count(),1);assert.doesNotMatch(await okCard.textContent(),/参考|仮選択/);
-  // 参考の個体を仮選択：保存されるのは個体IDだけ（従来の picks と同じ形）。カードは点線＋「仮選択・適正未確定」で区別し、種族・戦型・撃種・実を表示
+  assert.equal(await main.locator('.uCard').count(),1);assert.doesNotMatch(await main.locator('.uCard').textContent(),/参考|仮選択|形態未確認|別形態/);
+  // 形態未確認の個体を選ぶ：保存は従来どおり picks に個体IDだけ。カードに「形態未確認」と出典の形態を表示し、種族・戦型・撃種・実も表示
   await sub.locator('.pickSel').selectOption('uRef2');
   await main.locator('.pickSel').selectOption('uRef');
   let d=await snapshot();
   assert.deepEqual(d.picks,{'禁忌の獄::一ノ獄':{'メイン':'uRef','サブ1':'uRef2'}});
-  const prov=main.locator('.uCard.uProv');
-  assert.equal(await prov.count(),1);
-  const pt=(await prov.textContent()).replace(/\s+/g,' ');
-  assert.match(pt,/架空キャラ玖 個体1/);assert.match(pt,/仮選択・適正未確定/);assert.match(pt,/亜人.*バランス型.*反射/);assert.match(pt,/撃種加命撃L/);
-  assert.doesNotMatch(await main.textContent(),/候補外/,'a provisional pick is not reported as stale');
-  assert.equal(await main.locator('.pRef .uCard').count(),0,'the picked one is not repeated in the 参考 list');
+  const card=main.locator('.uCard');
+  assert.equal(await card.count(),1);assert.equal(await main.locator('.uCard.uProv').count(),0,'not a provisional pick');
+  const pt=(await card.textContent()).replace(/\s+/g,' ');
+  assert.match(pt,/架空キャラ玖 個体1/);assert.match(pt,/形態未確認/);assert.match(pt,/出典の形態：架空キャラ玖｜架空の既知形態（同じ形態かは未確認）/);
+  assert.match(pt,/亜人.*バランス型.*反射/);assert.match(pt,/撃種加命撃L/);
+  assert.doesNotMatch(await main.textContent(),/候補外/);
   // 詳細表示（3モード）も使える
   await click('[data-act="infoMode"][data-mode="all"]');
   assert.match(await main.locator('.pAll').textContent(),/架空キャラ玖/);
   await click('[data-act="infoMode"][data-mode="all"]');
-  // スマホ幅（390px）で横にはみ出さない（仮選択のカード・参考のカードとも）
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal scroll at 390px');
   await page.screenshot({path:path.join(__dirname,'artifacts','v10-stage-provisional-390.png'),fullPage:true});
-  // 再読み込みしても仮選択のまま。適正・形態のデータは何も変わらない（推測で作らない・確定しない）
+  // 再読み込みしても選択のまま。適正・形態のデータは何も変わらない（推測で作らない・確定しない）
   await page.reload();
-  assert.equal(await page.locator('.pickDev[data-dev="メイン"] .uCard.uProv').count(),1);
+  assert.equal(await page.locator('.pickDev[data-dev="メイン"] .pickSel').inputValue(),'uRef');
   d=await snapshot();assert.deepEqual(d.suits.map(s=>s.formId),['f1','f2']);assert.equal(d.master.forms.find(f=>f.id==='fu').unknownForm,true);
-  // 仮選択は解除できる
   await page.locator('.pickDev[data-dev="メイン"] .pickSel').selectOption('');
   assert.deepEqual((await snapshot()).picks,{'禁忌の獄::一ノ獄':{'サブ1':'uRef2'}});
 });
 
-test('a provisional pick stays provisional (所持キャラ) if the unit is no longer a 参考 (e.g. its form was named later); nothing is auto-confirmed', async()=>{
+test('a picked unit whose form is named later (a different confirmed form) stays a candidate marked 別形態; nothing is auto-confirmed', async()=>{
   const K='禁忌の獄::一ノ獄';
   await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ玖'}],
       forms:[{id:'f1',characterId:'c1',name:'架空の既知形態',short:'',race:'',battleType:'',shotType:''},{id:'fu',characterId:'c1',name:'',unknownForm:true,short:'',race:'',battleType:'',shotType:''}]},
     units:[{id:'uRef',formId:'fu',device:'メイン',no:1,fruits:[]}],
     suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],
     picks:{[K]:{'メイン':'uRef'}},useDevs:{[K]:['メイン']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
-  assert.equal(await page.locator('.uCard.uProv').count(),1);
-  // 形態に別の名前を付けると、その形態には適正が無いので参考でも候補でもなくなる → 所持キャラからの仮選択として残す（自動で確定しない）
+  assert.match(await page.locator('.pickDev[data-dev="メイン"] .uCard').textContent(),/形態未確認/);
   await page.evaluate(()=>{const f=formOf('fu');f.name='架空の別形態';delete f.unknownForm;persist();render()});
   const t=await page.locator('.pickDev[data-dev="メイン"]').textContent();
-  assert.match(t,/仮選択・適正未確定/);assert.doesNotMatch(t,/候補外/);
+  assert.match(t,/別形態/);assert.doesNotMatch(t,/候補外|仮選択/);
   assert.deepEqual((await snapshot()).picks,{[K]:{'メイン':'uRef'}});
   assert.deepEqual((await snapshot()).suits.map(s=>s.formId),['f1']);
 });

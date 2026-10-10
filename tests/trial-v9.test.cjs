@@ -100,7 +100,7 @@ test('preview: 8 new, nothing saved, owned data untouched', async()=>{
   assert.equal(await owned(),ownedBefore);
 });
 
-test('after import (temporary profile): only the linked units become stage candidates', async()=>{
+test('after import (temporary profile): linked units become stage candidates; the other confirmed form of a suited character is a candidate marked 別形態', async()=>{
   await importInventory();
   const ownedBefore=await owned();
   for(const [s] of EXPECTED) assert.deepEqual(await candidates(s),[],'no candidates before suits');
@@ -112,15 +112,16 @@ test('after import (temporary profile): only the linked units become stage candi
   const c={};for(const s of ['ニギミタマ','桃源郷','コキュートス','パラノヴィア','アヴァロン']) c[s]=(await candidates(s)).sort();
   assert.deepEqual(c,{
     'ニギミタマ':['sinギルティ｜赦罪','マスター・コーヴ｜死闘に挑む森羅万象流武術師範','乙骨憂太｜現代の異能'].sort(),
-    '桃源郷':['ニケ｜ビクトリアス・フォーム','風火輪α｜波間を駆け抜けし真夏の宝貝'].sort(),
+    '桃源郷':['ニケ｜ビクトリアス・フォーム','ニケ｜グロリアス・フォーム','風火輪α｜波間を駆け抜けし真夏の宝貝'].sort(), // グロリアス＝同じキャラの確認済みの別形態（候補に入り「別形態」と明示）
     'コキュートス':['めぐみん｜爆裂魔法を操る者','自来也｜ガマ仙人'].sort(),
     'パラノヴィア':['マサムネ｜約束の焔刃'],
     'アヴァロン':[]});
-  // owned but unlinked units stay out: 物干し竿 (form-name review), ニケ グロリアス (other form), 春野サクラ (≠ 桜)
+  // owned but unlinked characters stay out: 物干し竿 (form-name review), 春野サクラ (≠ 桜). ニケ グロリアス is the same character → candidate marked 別形態
   const ownedNames=await page.evaluate(()=>db.units.filter(u=>u.device==='メイン').map(u=>{const f=formOf(u.formId);return charOf(f.characterId).name+'｜'+f.name}).join('/'));
   for(const n of ['物干し竿｜巌流の斬妻を支えし大学物干し竿','ニケ｜グロリアス・フォーム','春野サクラ｜戦場に咲く豪拳']) assert.ok(ownedNames.includes(n),n+' is owned on メイン');
   const all=Object.values(c).flat().join('/');
-  for(const n of ['物干し竿','グロリアス','春野サクラ','チェンソーマン']) assert.ok(!all.includes(n),n);
+  for(const n of ['物干し竿','春野サクラ','チェンソーマン']) assert.ok(!all.includes(n),n);
+  assert.match(await page.evaluate(()=>{db.ui.view='stage';db.ui.quest='破界の星墓';db.ui.stage={'破界の星墓':'桃源郷'};render();const s=document.querySelector('.pickSel[data-pick-dev="メイン"]');return [...s.options].map(o=>o.textContent).join('/')}),/ニケ｜グロリアス・フォーム 個体2（別形態）/);
   for(const d of ['サブ1','サブ2']) assert.deepEqual(await candidates('ニギミタマ',d),[],'other devices have no candidates');
   // re-import is a no-op
   await click('[data-act="view"][data-view="admin"]');await previewSuits();
