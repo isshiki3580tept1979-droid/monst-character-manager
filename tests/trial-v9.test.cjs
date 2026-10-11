@@ -6,6 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const {convertSuitLinks}=require('./suit-links-convert.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const FX=name=>fs.readFileSync(path.join(__dirname,'fixtures',name),'utf8');
@@ -121,7 +122,7 @@ test('after import (temporary profile): linked units become stage candidates; th
   for(const n of ['物干し竿｜巌流の斬妻を支えし大学物干し竿','ニケ｜グロリアス・フォーム','春野サクラ｜戦場に咲く豪拳']) assert.ok(ownedNames.includes(n),n+' is owned on メイン');
   const all=Object.values(c).flat().join('/');
   for(const n of ['物干し竿','春野サクラ','チェンソーマン']) assert.ok(!all.includes(n),n);
-  assert.match(await page.evaluate(()=>{db.ui.view='stage';db.ui.quest='破界の星墓';db.ui.stage={'破界の星墓':'桃源郷'};render();const s=document.querySelector('.pickSel[data-pick-dev="メイン"]');return [...s.options].map(o=>o.textContent).join('/')}),/ニケ 個体2/);
+  await candidates('桃源郷');assert.match((await teamView(page,'メイン')).cand.join('/'),/ニケ 個体2/);
   for(const d of ['サブ1','サブ2']) assert.deepEqual(await candidates('ニギミタマ',d),[],'other devices have no candidates');
   // re-import is a no-op
   await click('[data-act="view"][data-view="admin"]');await previewSuits();

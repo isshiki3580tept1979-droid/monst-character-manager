@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -63,7 +64,7 @@ async function importJson(text){
 }
 
 // ---------- 1. わくわくの実 4枠 ----------
-test('fruits: 3 slots by default, 4th slot on demand; 4 fruits save, reload, show in 全部 and 実', async()=>{
+test('fruits: 3 slots by default, 4th slot on demand; 4 fruits save, reload, all shown on the team card', async()=>{
   await seed(world({useDevs:{[STAGE]:['メイン']}}));
   await click('[data-act="view"][data-view="chara"]');await click('[data-act="charaOpen"][data-id="c-rinne"]');
   await click('[data-act="unitAdd"][data-id="c-rinne"]');
@@ -80,14 +81,11 @@ test('fruits: 3 slots by default, 4th slot on demand; 4 fruits save, reload, sho
   await click('#unitModal [data-act="close"]');
   // stage: 全部 shows 実4 only for the unit that has one; 実 shows 4 chips vs 3
   await page.evaluate(()=>{db.suits.push(normSuit({id:'sx',stageKey:'禁忌の獄::一ノ獄',formId:'f-hello',source:'GAMEWITH',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}),normSuit({id:'sy',stageKey:'禁忌の獄::一ノ獄',formId:'f-rev',source:'GAMEWITH',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}));persist();render()});
-  await click('[data-act="view"][data-view="stage"]');await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u4');
-  await click('[data-act="infoMode"][data-mode="all"]');
-  assert.deepEqual(await devRow('メイン').locator('.pAll dt').allTextContents(),['キャラ','種族','戦型','撃種','所在','実1','実2','実3','実4']);
-  assert.equal(await devRow('メイン').locator('.pAll dd').last().textContent(),'[同族]同族加撃 特級M');
-  await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u3');
-  assert.deepEqual(await devRow('メイン').locator('.pAll dt').allTextContents(),['キャラ','種族','戦型','撃種','所在','実1','実2','実3']);
-  await click('[data-act="infoMode"][data-mode="fruit"]');assert.equal(await devRow('メイン').locator('.fr').count(),3);
-  await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u4');assert.equal(await devRow('メイン').locator('.fr').count(),4);
+  await click('[data-act="view"][data-view="stage"]');await choose(page,'メイン','u4');
+  assert.equal(await devRow('メイン').locator('.pkFr .frS').count(),4,'all four fruits on the card');
+  assert.equal(await devRow('メイン').locator('.pkFr .frS').last().getAttribute('title'),'[同族]同族加撃 特級M');
+  await choose(page,'メイン','u3');assert.equal(await devRow('メイン').locator('.pkFr .frS').count(),3);
+  await choose(page,'メイン','u4');assert.equal(await devRow('メイン').locator('.pkFr .frS').count(),4);
 });
 
 test('fruits: old 4-slot ownership migrates into a unit keeping all 4; backup/restore keeps 4', async()=>{
@@ -126,10 +124,10 @@ test('suitability: verification states and evaluation types kept; missing status
   assert.match(panel,/GameWith.*ネオランクS確認済み.*リンネランクA未検証/s);assert.doesNotMatch(panel,/表記：/); // S listed before A
   assert.match(panel,/アルテマ.*ネオ3位要確認/s);assert.match(panel,/その他サイト（攻略X）.*ネオ候補未検証/s);
   assert.match(panel,/未検証・要確認の適正が3件/);
-  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="メイン"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2'],'the character has a verified suitability → no 未検証 mark');
+  assert.deepEqual(await optionList(page,'メイン',true),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2'],'the character has a verified suitability → no 未検証 mark');
   // confirm one with the button
   await click('[data-act="suitVerify"][data-id="d"]');assert.equal((await snapshot()).suits.find(x=>x.id==='d').verificationStatus,'VERIFIED');
-  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="メイン"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
+  assert.deepEqual(await optionList(page,'メイン',true),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
   // modal: GRADE keeps only grade, RANK keeps only rank (the other field is not saved)
   // the 順位 field is hidden for GRADE; even a stray value in it is not saved as a rank
   await click('[data-act="suitEdit"][data-id="a"]');assert.equal(await page.locator('#stRankField').isVisible(),false);

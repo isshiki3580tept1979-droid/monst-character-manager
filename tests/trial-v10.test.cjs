@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -284,36 +285,31 @@ test('stage cards: a same-name unit of 進化形態未確認 is a normal candida
     useDevs:{[K]:['メイン','サブ1']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
   const main=page.locator('.pickDev[data-dev="メイン"]'), sub=page.locator('.pickDev[data-dev="サブ1"]');
   // 選択肢：形態まで一致する候補 → 同じキャラで形態未確認の候補（明示）。適正の無い所持キャラは「所持キャラ」グループ（仮選択）
-  assert.deepEqual(await main.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ玖 個体1','架空キャラ拾壱 個体1','適正なしの架空キャラ 個体1（仮）']);
-  assert.deepEqual(await main.locator('.pickSel optgroup').evaluateAll(gs=>gs.map(g=>g.label)),['所持キャラ（適正未登録・仮選択）']);
-  assert.match(await main.locator('.devHead').textContent(),/候補2/);assert.doesNotMatch(await main.locator('.devHead').textContent(),/参考/);
-  assert.equal(await sub.locator('.pickSel').isDisabled(),false);
-  assert.deepEqual(await sub.locator('.pickSel option').allTextContents(),['— 使う個体を選ぶ —','架空キャラ玖 個体1']);
+  assert.deepEqual(await optionList(page,'メイン',true),['— 使う個体を選ぶ —','架空キャラ玖 個体1','架空キャラ拾壱 個体1','適正なしの架空キャラ 個体1（仮）']);
+  assert.deepEqual((await teamView(page,'メイン')).groups.map(g=>g[0]),['所持キャラ（適正未登録・仮選択）']);
+  assert.doesNotMatch(await main.locator('.devHead').textContent(),/候補|参考/);
+  assert.deepEqual(await optionList(page,'サブ1',true),['— 使う個体を選ぶ —','架空キャラ玖 個体1']);
   // 形態まで一致する候補のカードは従来どおり（印なし）
-  await main.locator('.pickSel').selectOption('uOk');
-  assert.equal(await main.locator('.uCard').count(),1);assert.doesNotMatch(await main.locator('.uCard').textContent(),/参考|仮選択|形態未確認|別形態/);
+  await choose(page,'メイン','uOk');
+  assert.equal(await main.locator('.pickCur').count(),1);assert.doesNotMatch(await main.locator('.pickCur').textContent(),/参考|仮選択|形態未確認|別形態/);
   // 形態未確認の個体を選ぶ：保存は従来どおり picks に個体IDだけ。カードに「形態未確認」と出典の形態を表示し、種族・戦型・撃種・実も表示
-  await sub.locator('.pickSel').selectOption('uRef2');
-  await main.locator('.pickSel').selectOption('uRef');
+  await choose(page,'サブ1','uRef2');
+  await choose(page,'メイン','uRef');
   let d=await snapshot();
   assert.deepEqual(d.picks,{'禁忌の獄::一ノ獄':{'メイン':'uRef','サブ1':'uRef2'}});
-  const card=main.locator('.uCard');
-  assert.equal(await card.count(),1);assert.equal(await main.locator('.uCard.uProv').count(),0,'not a provisional pick');
+  const card=main.locator('.pickCur');
+  assert.equal(await card.count(),1);assert.equal(await main.locator('.pickCur.prov').count(),0,'not a provisional pick');
   const pt=(await card.textContent()).replace(/\s+/g,' ');
-  assert.match(pt,/架空キャラ玖 個体1/);assert.doesNotMatch(pt,/形態未確認|出典の形態/);
-  assert.match(pt,/亜人.*バランス型.*反射/);assert.match(pt,/撃種加命撃L/);
+  assert.match(pt,/架空キャラ玖/);assert.doesNotMatch(pt,/個体1/,'unit number only when the same character has several units here');assert.doesNotMatch(pt,/形態未確認|出典の形態/);
+  assert.doesNotMatch(pt,/亜人|バランス型|反射/,'type info is not on the team card');assert.match(pt,/撃種加命撃L/);
   assert.doesNotMatch(await main.textContent(),/候補外/);
-  // 詳細表示（3モード）も使える
-  await click('[data-act="infoMode"][data-mode="all"]');
-  assert.match(await main.locator('.pAll').textContent(),/架空キャラ玖/);
-  await click('[data-act="infoMode"][data-mode="all"]');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal scroll at 390px');
   await page.screenshot({path:path.join(__dirname,'artifacts','v10-stage-provisional-390.png'),fullPage:true});
   // 再読み込みしても選択のまま。適正・形態のデータは何も変わらない（推測で作らない・確定しない）
   await page.reload();
-  assert.equal(await page.locator('.pickDev[data-dev="メイン"] .pickSel').inputValue(),'uRef');
+  assert.equal((await teamView(page,'メイン')).sel,'uRef');
   d=await snapshot();assert.deepEqual(d.suits.map(s=>s.formId),['f1','f2']);assert.equal(d.master.forms.find(f=>f.id==='fu').unknownForm,true);
-  await page.locator('.pickDev[data-dev="メイン"] .pickSel').selectOption('');
+  await choose(page,'メイン','');
   assert.deepEqual((await snapshot()).picks,{'禁忌の獄::一ノ獄':{'サブ1':'uRef2'}});
 });
 

@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -160,20 +161,19 @@ test('stage: with no suitability, every owned unit on that device can be picked 
       {id:'uB',formId:'fb',device:'メイン',no:1,fruits:[]},{id:'uS',formId:'fb',device:'サブ1',no:1,fruits:[]}],
     suits:[],useDevs:{[K]:['メイン','サブ2']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
   const main=page.locator('.pickDev[data-dev="メイン"]'), sub2=page.locator('.pickDev[data-dev="サブ2"]');
-  assert.equal(await main.locator('.pickSel').isDisabled(),false,'候補0 but owned units → selectable');
-  assert.equal(await main.locator('.pickSel optgroup').getAttribute('label'),'所持キャラ（適正未登録・仮選択）');
-  assert.deepEqual(await main.locator('.pickSel optgroup option').allTextContents(),['架空所持キャラA 個体1（仮）','架空所持キャラB 個体1（仮）'],'only this device');
-  assert.match(await main.textContent(),/このステージの適正が未登録です（所持キャラから仮選択できます）/);
-  assert.equal(await sub2.locator('.pickSel').isDisabled(),true,'a device with no units stays disabled');
-  await main.locator('.pickSel').selectOption('uA');
-  const card=(await main.locator('.uCard.uProv').textContent()).replace(/\s+/g,' ');
-  assert.match(card,/架空所持キャラA/);assert.match(card,/仮選択・適正未確定/);assert.match(card,/亜人/);assert.match(card,/バランス/);assert.match(card,/反射/);assert.match(card,/加命撃/);
+  const v=await teamView(page,'メイン');
+  assert.deepEqual(v.cand,[],'候補0');assert.deepEqual(v.groups,[['所持キャラ（適正未登録・仮選択）',['架空所持キャラA 個体1（仮）','架空所持キャラB 個体1（仮）']]],'owned units on this device can be chosen provisionally');
+  await openTeam(page,'メイン');assert.match(await page.locator('#pkList').textContent(),/このステージの適正はまだ登録されていません/);await closeTeam(page);
+  assert.deepEqual(await optionList(page,'サブ2',true),['候補なし'],'a device with no units has nothing to choose');
+  await choose(page,'メイン','uA');
+  const card=(await main.locator('.pickCur.prov').textContent()).replace(/\s+/g,' ');
+  assert.match(card,/架空所持キャラA/);assert.match(card,/仮選択（このステージの適正は未登録）/);assert.match(card,/加命撃/);
   let d=await snapshot();assert.deepEqual(d.picks,{[K]:{'メイン':'uA'}});assert.deepEqual(d.suits,[]);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal scroll at 390px');
   fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
   await main.screenshot({path:path.join(__dirname,'artifacts','v11-stage-owned-390.png')});
-  await page.reload();assert.equal(await page.locator('.pickDev[data-dev="メイン"] .uCard.uProv').count(),1,'kept after reload');
-  await page.locator('.pickDev[data-dev="メイン"] .pickSel').selectOption('');
+  await page.reload();assert.equal(await page.locator('.pickDev[data-dev="メイン"] .pickCur.prov').count(),1,'kept after reload');
+  await choose(page,'メイン','');
   d=await snapshot();assert.deepEqual(d.picks[K]||{},{});assert.deepEqual(d.suits,[]);
 });
 
@@ -184,13 +184,12 @@ test('stage: candidates (exact form, then same character with 形態未確認) a
     units:[{id:'u1',formId:'f1',device:'メイン',no:1,fruits:[]},{id:'u2',formId:'fu',device:'メイン',no:2,fruits:[]},{id:'u3',formId:'f2',device:'メイン',no:1,fruits:[]}],
     suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],
     useDevs:{[K]:['メイン']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
-  const sel=page.locator('.pickDev[data-dev="メイン"] .pickSel');
-  assert.deepEqual((await sel.locator(':scope > option').allTextContents()).slice(1),['架空適正キャラ 個体1','架空適正キャラ 個体2']);
-  assert.deepEqual(await sel.locator('optgroup').evaluateAll(gs=>gs.map(g=>[g.label,[...g.children].map(o=>o.textContent)])),
-    [['所持キャラ（適正未登録・仮選択）',['架空その他キャラ 個体1（仮）']]]);
-  await sel.selectOption('u1');assert.equal(await page.locator('.uCard.uProv').count(),0,'confirmed candidate is not marked');
-  await sel.selectOption('u2');assert.equal(await page.locator('.uCard.uProv').count(),0,'same character with unknown form is a normal candidate');
-  await page.locator('.pickDev[data-dev="メイン"] .pickSel').selectOption('u3');assert.equal(await page.locator('.uCard.uProv').count(),1);
+  const v=await teamView(page,'メイン');
+  assert.deepEqual(v.cand,['架空適正キャラ 個体1','架空適正キャラ 個体2']);
+  assert.deepEqual(v.groups,[['所持キャラ（適正未登録・仮選択）',['架空その他キャラ 個体1（仮）']]]);
+  await choose(page,'メイン','u1');assert.equal(await page.locator('.pickCur.prov').count(),0,'confirmed candidate is not marked');
+  await choose(page,'メイン','u2');assert.equal(await page.locator('.pickCur.prov').count(),0,'same character with unknown form is a normal candidate');
+  await choose(page,'メイン','u3');assert.equal(await page.locator('.pickCur.prov').count(),1);
   assert.deepEqual((await snapshot()).suits.map(s=>s.formId),['f1']);
 });
 

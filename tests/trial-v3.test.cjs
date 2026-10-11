@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -44,8 +45,8 @@ afterEach(async()=>{
 const click=async selector=>page.locator(selector).first().click();
 const snapshot=()=>page.evaluate(()=>JSON.parse(JSON.stringify(db)));
 async function seed(raw){await page.evaluate(({key,raw})=>localStorage.setItem(key,JSON.stringify(raw)),{key:KEY,raw});await page.reload()}
-const pickSel=dev=>page.locator(`.pickSel[data-pick-dev="${dev}"]`);
-const optionTexts=dev=>pickSel(dev).locator(':scope > option').allTextContents(); // 候補（optgroup の参考・所持キャラの仮選択は除く）
+// 候補（このステージの適正キャラ）。「キャラを選ぶ」画面を開いて読む（仮選択は除く）
+const optionTexts=dev=>optionList(page,dev);
 const devRow=dev=>page.locator(`.pickDev[data-dev="${dev}"]`);
 
 // A seeded world: ネオ has two forms; main owns two ネオ units with different forms and fruits.
@@ -97,7 +98,7 @@ test('UI: register character, two forms, two units on one device, suitability; c
   await click('[data-act="view"][data-view="stage"]');
   assert.equal(await page.locator('.pickDev').count(),0);await click('[data-act="useDev"][data-dev="メイン"]');
   // 適正が未登録でも、この端末の所持キャラから仮選択はできる（候補は0）
-  assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —'],'no suitability yet, but owned units can be chosen provisionally');
   await click('[data-act="suitAdd"]');await page.selectOption('#stForm',charId);await page.fill('#stRank','2');await click('[data-act="saveSuit"]');
   assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1（未検証）','ネオ 個体2（未検証）'],'every unit of the character is a candidate');
   await click('[data-act="suitVerify"]');
@@ -115,9 +116,9 @@ test('candidates: only owned AND suitable units per device, per-unit (not per-ch
   // main owns ルシファー, ネオ×2 (ハロー suitable, リバース = same character, other confirmed form → candidate marked 別形態), アーサー (not suitable). エル is suitable but unowned.
   assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2','ルシファー 個体1']);
   assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','ネオ 個体1','リンネ 個体1']);
-  assert.equal(await pickSel('サブ2').isDisabled(),true);
-  assert.match(await devRow('サブ2').textContent(),/この端末の所持個体が未登録です/);
-  assert.match(await devRow('メイン').textContent(),/候補3/);
+  assert.deepEqual(await optionTexts('サブ2'),['候補なし']);
+  await openTeam(page,'サブ2');assert.match(await page.locator('#pkList').textContent(),/この端末にいるキャラがいません/);await closeTeam(page);
+  assert.doesNotMatch(await devRow('メイン').textContent(),/候補\d/,'no candidate count on the card');
   // When リバース also becomes suitable (other source), main can choose between ネオ 個体1 and 個体2.
   await page.evaluate(()=>{db.suits.push(normSuit({id:'s5',stageKey:'禁忌の獄::一ノ獄',formId:'f-rev',source:'GAMEWITH',evaluationType:'GRADE',grade:'A',verificationStatus:'VERIFIED'}));persist();render()});
   assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2','ルシファー 個体1']);
@@ -125,35 +126,23 @@ test('candidates: only owned AND suitable units per device, per-unit (not per-ch
   // another stage with no suitability
   await click('[data-act="stage"][data-stage="二ノ獄"]');
   // 候補は0だが、所持キャラから仮選択はできる（理由も表示）
-  assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
-  assert.match(await devRow('メイン').textContent(),/このステージの適正が未登録です（所持キャラから仮選択できます）/);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
+  await openTeam(page,'メイン');assert.match(await page.locator('#pkList').textContent(),/このステージの適正はまだ登録されていません.*その他の所持キャラ（仮選択）/);await closeTeam(page);
   // form ownership status helper (bright / dark+！ / dark) per device
   assert.deepEqual(await page.evaluate(()=>[formStatus('f-hello','メイン'),formStatus('f-hello','サブ1'),formStatus('f-hello','サブ2'),formStatus('f-el','メイン')]),['owned','owned','not-owned','not-owned']);
 });
 
-test('info toggle: 進化形態 / 種族・戦型・撃種 / 実 / 全部 with one tap, switching unit updates info, persists',async()=>{
+test('team card: shows the chosen character and its fruits only (no detail toggle); switching follows the chosen unit; picks persist and can be removed',async()=>{
   await seed(world({suits:[...world().suits,{id:'s5',stageKey:STAGE,formId:'f-rev',source:'GAMEWITH',grade:'A',verificationStatus:'VERIFIED'}],useDevs:{[STAGE]:['メイン','サブ1']}}));
-  await pickSel('メイン').selectOption('u-neo1');
-  const info=()=>devRow('メイン').locator('.pInfo,.pAll').textContent();
-  // the detail toggle is auxiliary: off by default (the card already shows form/type/fruits)
-  assert.equal(await devRow('メイン').locator('.pInfo,.pAll').count(),0);
-  await click('[data-act="infoMode"][data-mode="type"]');assert.equal(await info(),'亜人スピード型反射');
-  await click('[data-act="infoMode"][data-mode="fruit"]');assert.equal(await info(),'1[撃種]撃種加撃 特級L2[撃種]撃種加速撃 特級3[撃種]撃種加命撃 特級EL');
-  await click('[data-act="infoMode"][data-mode="all"]');
-  const rowsOf=()=>devRow('メイン').locator('.pAll').evaluate(dl=>[...dl.querySelectorAll('dt')].map((dt,i)=>[dt.textContent,dl.querySelectorAll('dd')[i].textContent]).filter(([k])=>k!=='所在'));
-  assert.deepEqual(await rowsOf(),[['キャラ','ネオ'],['種族','亜人'],['戦型','スピード型'],['撃種','反射'],['実1','[撃種]撃種加撃 特級L'],['実2','[撃種]撃種加速撃 特級'],['実3','[撃種]撃種加命撃 特級EL']]);
-  // switch to 個体2 (リバース): every shown value follows the selected unit
-  await pickSel('メイン').selectOption('u-neo2');
-  assert.deepEqual((await rowsOf()).map(([,v])=>v),['ネオ','魔人','パワー型','貫通','[その他]速必殺 特級','[その他]将命削り 特級L','[その他]兵命削り 特級L']);
-  // selection and mode survive reload; other devices unaffected; picks stored per stage and device
-  await click('[data-act="infoMode"][data-mode="type"]');await page.reload();
-  assert.equal(await pickSel('メイン').inputValue(),'u-neo2');assert.equal(await info(),'魔人パワー型貫通');
-  assert.equal(await pickSel('サブ1').inputValue(),'');
+  assert.equal(await page.locator('[data-act="infoMode"], #infoBar').count(),0,'no detail toggle');
+  await choose(page,'メイン','u-neo1');
+  const cur=()=>devRow('メイン').locator('.pickCur').textContent();
+  assert.match(await cur(),/ネオ\s*個体1/);assert.match(await cur(),/撃種加撃L.*撃種加速撃特.*撃種加命撃EL/);assert.doesNotMatch(await cur(),/亜人|スピード型|反射/);
+  await choose(page,'メイン','u-neo2');assert.match(await cur(),/ネオ\s*個体2/);assert.match(await cur(),/速必殺特.*将命削りL.*兵命削りL/);
+  await page.reload();
+  assert.equal((await teamView(page,'メイン')).sel,'u-neo2');assert.equal((await teamView(page,'サブ1')).sel,'');
   assert.deepEqual((await snapshot()).picks,{[STAGE]:{'メイン':'u-neo2'}});
-  assert.equal(await page.locator('#infoBar .iMode.on').textContent(),'種族・戦型・撃種');
-  await click('[data-act="infoMode"][data-mode="type"]');assert.equal(await devRow('メイン').locator('.pInfo,.pAll').count(),0);
-  // un-selecting removes the pick
-  await pickSel('メイン').selectOption('');assert.deepEqual((await snapshot()).picks,{});
+  await choose(page,'メイン','');assert.deepEqual((await snapshot()).picks,{});
 });
 
 test('stage suitability: sources kept separate, ranks and grades never converted, validation, duplicates rejected',async()=>{
@@ -180,11 +169,11 @@ test('stage suitability: sources kept separate, ranks and grades never converted
 
 test('stale pick after suitability removal is shown as 候補外, not silently changed',async()=>{
   await seed(world({picks:{[STAGE]:{'メイン':'u-neo1'}}}));
-  assert.equal(await pickSel('メイン').inputValue(),'u-neo1');
+  assert.equal((await teamView(page,'メイン')).sel,'u-neo1');
   await click('[data-act="suitEdit"][data-id="s2"]');await click('[data-act="deleteSuit"]');
   // 所持はしているので、自動で外さず「仮選択・適正未確定」として残す（適正は作らない）
-  assert.match(await devRow('メイン').textContent(),/仮選択・適正未確定/);assert.equal(await pickSel('メイン').inputValue(),'u-neo1');
-  assert.match(await pickSel('メイン').locator('option:checked').textContent(),/ネオ 個体1（仮）/);
+  assert.match(await devRow('メイン').textContent(),/仮選択（このステージの適正は未登録）/);const v=await teamView(page,'メイン');assert.equal(v.sel,'u-neo1');
+  assert.ok(v.groups[0][1].includes('ネオ 個体1（仮）'));
   assert.equal((await snapshot()).picks[STAGE]['メイン'],'u-neo1');assert.equal((await snapshot()).suits.some(s=>s.formId==='f-hello'),false);
   assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ルシファー 個体1']);
 });
@@ -240,16 +229,15 @@ test('backup/restore keeps the new structure; old backups restore with empty new
   const o=await snapshot();assert.deepEqual([o.master,o.units,o.suits,o.picks],[{characters:[],forms:[]},[],[],{}]);
 });
 
-test('320/390px: stage picks with 全部, character view, unit modal fit without horizontal scroll',async()=>{
+test('320/390px: stage team cards, character view, unit modal fit without horizontal scroll',async()=>{
   fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
   await seed(world({picks:{[STAGE]:{'メイン':'u-neo1','サブ1':'u-rinne'}}}));
   for(const width of [320,390]){
     await page.setViewportSize({width,height:844});
-    await click('[data-act="view"][data-view="stage"]');await click('[data-act="infoMode"][data-mode="all"]');
+    await click('[data-act="view"][data-view="stage"]');
     const fit=()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth);
     assert.ok(await fit());
-    for(const b of await page.locator('#infoBar .iMode').all()){const r=await b.boundingBox();assert.ok(r.height>=40&&r.x>=0&&r.x+r.width<=width)}
-    const sel=await pickSel('メイン').boundingBox();assert.ok(sel.height>=44&&sel.x+sel.width<=width);
+    const sel=await devRow('メイン').locator('[data-act="openPicker"]').boundingBox();assert.ok(sel.height>=44&&sel.x+sel.width<=width);
     await page.screenshot({path:path.join(__dirname,'artifacts',`v3-stage-${width}.png`),fullPage:true});
     await click('[data-act="view"][data-view="chara"]');await click('[data-act="charaOpen"][data-id="c-neo"]');assert.ok(await fit());
     await page.screenshot({path:path.join(__dirname,'artifacts',`v3-chara-${width}.png`),fullPage:true});

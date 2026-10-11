@@ -6,6 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const STAGING=fs.readFileSync(path.join(__dirname,'fixtures','hakai_main_staging_2026-10-07.json'),'utf8');
 const KEY='monst-character-manager-trial-v2';
@@ -204,8 +205,10 @@ test('backup / restore keeps ownership checks, 図鑑No., 表示名 and unit sta
   const f=formByName(d,'乙骨憂太','現代の異能'), u=unitsOf(d,'乙骨憂太')[0];
   await page.evaluate(({fid})=>{db.suits.push(normSuit({id:'s',stageKey:'破界の星墓::ニギミタマ',formId:fid,source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}));
     db.useDevs['破界の星墓::ニギミタマ']=['メイン'];db.ui.quest='破界の星墓';db.ui.stage['破界の星墓']='ニギミタマ';db.ui.view='stage';persist();render()},{fid:f.id});
-  await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption(u.id);
-  assert.match(await page.locator('.pickDev[data-dev="メイン"] .uL1').textContent(),/個体要確認/);
+  // 編成のカードには「個体要確認」を目立たせない。キャラを選ぶ画面で確認できる
+  await openTeam(page,'メイン');assert.match(await page.locator(`#pkList .pkItem[data-id="${u.id}"]`).textContent(),/個体は要確認/);await closeTeam(page);
+  await choose(page,'メイン',u.id);assert.doesNotMatch(await page.locator('.pickDev[data-dev="メイン"]').textContent(),/要確認/);
+  assert.equal((await snapshot()).units.find(x=>x.id===u.id).verificationStatus,'NEEDS_REVIEW','the status itself is kept');
   // the form edit screen keeps 図鑑No. and offers 超戦型
   await click('[data-act="view"][data-view="chara"]');const ji=d.master.characters.find(c=>c.name==='自来也');
   await click(`[data-act="charaOpen"][data-id="${ji.id}"]`);await click(`[data-act="basicEdit"][data-id="${ji.id}"]`);

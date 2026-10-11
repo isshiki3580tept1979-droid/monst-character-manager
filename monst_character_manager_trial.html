@@ -209,7 +209,6 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .segBtn.on{background:#2563eb;border-color:#2563eb;color:#fff}
 .segBtn:disabled{opacity:.4}
 /* 新構造：ステージ画面の端末別編成選択・情報切替 */
-.infoBar{display:grid;grid-template-columns:auto repeat(4,minmax(0,1fr));gap:4px;align-items:center;padding:2px 0 6px}
 /* 今回使う端末（6台から最大4台） */
 .devPick{background:#fff;border-radius:14px;padding:8px 10px;margin-bottom:8px;box-shadow:0 2px 10px #0f172a0d}
 .dpHead{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:900;color:#334155;margin-bottom:6px}
@@ -281,11 +280,27 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .frNone{grid-column:1/-1;font-size:12px;color:#94a3b8;font-weight:700}
 .legacyStage{background:#fff;border-radius:14px;padding:8px 10px;margin-bottom:10px}
 .legacyStage summary{font-size:13px;font-weight:800;color:#475569;min-height:32px;display:flex;align-items:center}
-.infoBar .small{padding:0 2px}
 .iMode{border:1px solid #cbd5e1;background:#fff;border-radius:10px;min-height:40px;font-size:11px;font-weight:800;color:#334155;padding:3px 2px;min-width:0;line-height:1.2}
 .iMode.on{background:#0f766e;border-color:#0f766e;color:#fff}
 .cnts{display:flex;gap:4px;flex:none}
 .pickSel{margin-top:6px;padding:9px 10px;font-weight:800;font-size:14px;min-height:44px}
+.teamHead{margin:10px 2px 4px;font-size:15px}
+.pickBtn{display:block;width:100%;margin-top:8px;min-height:48px;border-radius:12px;border:1px solid #1e3a8a;background:#fff;color:#1e3a8a;font-weight:900;font-size:15px}
+.pickBtn.add{background:#eff6ff;border-style:dashed}
+.pickCur{margin-top:6px;background:#f8fafc;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.pickCur.prov{background:#fffbeb}
+.pkName{font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.pkName .uNo{margin-left:6px;font-size:13px;color:#475569;font-weight:800}
+.pkFr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.pTags{display:flex;flex-wrap:wrap;gap:4px}
+.pTag{font-size:12px;font-weight:800;border-radius:999px;padding:2px 8px;background:#f1f5f9;color:#475569}
+.pTag.prov{background:#fef3c7;color:#92400e}
+.pTag.lend{background:#fce7f3;color:#9d174d}
+.pTag.on{background:#1e3a8a;color:#fff}
+.pkSec{margin:12px 0 4px;font-weight:900;font-size:14px;color:#1e3a8a}
+.pkItem{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;margin-top:6px;padding:10px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;min-height:48px}
+.pkItem.on{border:2px solid #1e3a8a;background:#eff6ff}
+.pkEmpty{margin:8px 0}
 .pickSel:disabled{background:#f1f5f9;color:#94a3b8;font-weight:700}
 .pInfo{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;min-width:0}
 .pForm{font-size:13px;font-weight:800;color:#1e3a8a;overflow-wrap:anywhere}
@@ -328,7 +343,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .fmt{font-size:10px;background:#f8fafc;border-radius:8px;padding:6px;white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0 0}
 @media(max-width:360px){.two{grid-template-columns:1fr}
   .frRow{grid-template-columns:1.3em minmax(0,1fr) minmax(0,1fr)}.frRow input{grid-column:2/4}.frRow select:first-of-type{grid-column:2}
-  .infoBar{grid-template-columns:repeat(4,minmax(0,1fr))}.infoBar .small{display:none}}
+}
 </style>
 </head>
 <body>
@@ -361,12 +376,12 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
     <div class="stageHead">
       <div>
         <div class="stageTitle" id="stageTitle"></div>
-        <div class="stageSub">端末ごとに、所持している適正個体から使うキャラを選ぶ</div>
+        <div class="stageSub">端末ごとに使うキャラを選ぶ</div>
       </div>
       <button class="primary" data-act="quickReg">＋ キャラ登録</button>
     </div>
     <div class="devPick" id="devPick" role="group" aria-label="今回使う端末（最大4台）"></div>
-    <div class="infoBar" id="infoBar" role="group" aria-label="選んだ個体の表示内容"></div>
+    <div class="pgroup teamHead">今回の編成</div>
     <div id="stageDevices"></div>
     <details class="legacyStage" id="legacyStage" hidden></details>
     <div class="panel" id="suitPanel"></div>
@@ -753,6 +768,18 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <button class="btn-del" id="stDelete" data-act="deleteSuit" style="display:none">削除</button>
       <button class="btn-cancel" data-act="close">キャンセル</button>
       <button class="btn-save" data-act="saveSuit">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ステージ編成：キャラを選ぶ -->
+<div class="modalBack" id="pickModal">
+  <div class="modal">
+    <div class="mHead"><button type="button" class="backBtn" data-act="close">← 戻る</button><h2 id="pkTitle">キャラを選ぶ</h2></div>
+    <div id="pkList"></div>
+    <div class="btns">
+      <button class="btn-cancel" id="pkClear" data-act="pickClear">選択をやめる</button>
+      <button class="btn-cancel" data-act="close">閉じる</button>
     </div>
   </div>
 </div>
@@ -1281,11 +1308,9 @@ function renderStage(){
       return `<button type="button" class="dpBtn${on?' on':''}" role="checkbox" aria-checked="${on}" data-act="useDev" data-dev="${esc(d)}"><span class="dpBox">${on?SLOT_MARKS[use.indexOf(d)]:''}</span>${esc(devLabel(d))}</button>`}).join('')}</div>
     <div class="dpMsg" id="devPickMsg" role="status"></div>`;
   $('stageDevices').innerHTML=use.length?use.map((d,i)=>{
-    const n=candidatesFor(k,d).length;
     return `
       <div class="dev pickDev" data-dev="${esc(d)}">
-        <div class="devHead"><div class="devName"><span class="slotNo">${SLOT_MARKS[i]}</span>${devNameHtml(d)}</div>
-          <span class="cnts"><span class="cnt${n?' has':''}">候補${n}</span></span></div>
+        <div class="devHead"><div class="devName"><span class="slotNo">${SLOT_MARKS[i]}</span>${devNameHtml(d)}</div></div>
         ${pickBlock(k,d)}
       </div>`;
   }).join(''):`<div class="dev empty"><div class="devName">今回使う端末を選んでください</div><span class="none">上のチェックで最大${USE_MAX}台</span></div>`;
@@ -1845,18 +1870,7 @@ function fruitChips(u){
   return u.fruits.length?u.fruits.map((x,i)=>`<span class="fr"><b>${i+1}</b>${esc(fruitText(x))}</span>`).join('')
     :'<span class="small">実なし</span>';
 }
-function unitInfoHtml(u,mode){
-  const f=formOf(u.formId), c=f&&charOf(f.characterId);
-  if(mode==='type') return `<div class="pInfo">${typeChips(f)}</div>`;
-  if(mode==='fruit') return `<div class="pInfo">${fruitChips(u)}</div>`;
-  if(mode==='all'){
-    const rows=[['キャラ',c?.name],['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType],['所在',unitAt(u)!==u.device?`${devLabel(u.lentTo)}（貸出中・元 ${devLabel(u.device)}）`:devLabel(u.device)],
-      // 実1〜3は常に表示、4枠目は持っている個体だけ（空の4行目は出さない）
-      ...Array.from({length:Math.max(FRUIT_BASE,u.fruits.length)},(_,i)=>[`実${i+1}`,u.fruits[i]?fruitText(u.fruits[i]):''])];
-    return `<dl class="pAll">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v||'—')}</dd>`).join('')}</dl>`;
-  }
-  return '';
-}
+
 
 /* ---- ステージ画面：今回使う端末（最大4台）と、端末ごとの編成カード ---- */
 const USE_MAX=4, SLOT_MARKS=['①','②','③','④'];
@@ -1870,24 +1884,20 @@ function useDevsOf(k){
 // ステージ画面用の実の短縮表示（保存値は正式な名前のまま）。例：同族の絆・加撃＋特級L → 同族加撃L
 const GRADE_SHORT={'特級':'特','特級M':'M','特級L':'L','特級EL':'EL'};
 function fruitShort(x){
-  let n=String(x.name||'').replace(/の絆[・･]?/g,'').replace(/[・･\s]/g,'');
+  let n=String(x.name||'').replace(/の絆[・･]?/g,'').replace(/の力$/,'').replace(/[・･\s]/g,'');
   if(!n) n='名称未設定';
   if(x.kind&&x.kind!=='その他'&&!n.startsWith(x.kind)) n=x.kind+n;
   return n+(GRADE_SHORT[x.grade]||'');
 }
-function unitCardHtml(u,unverified,ref){
-  const f=formOf(u.formId), c=f&&charOf(f.characterId), lend=lendText(u);
+// ステージ編成：選んだ個体（picks）を、端末カードに「キャラ名＋わくわくの実」だけで表示する（v27）。
+// 状態の印は誤解を招くものだけ：仮選択（このステージの適正が未登録）・借用中・この端末にいない（貸出中・削除など）。
+// 確認状態（要確認・未検証）はキャラを選ぶ画面とキャラ画面で確認できる。保存データは picks に個体IDを入れるだけで、ほかは変えない
+function frChips(u){
   const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
-  return `<div class="uCard${ref?' uRef':''}${ref==='prov'?' uProv':''}">
-    <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b>
-      <span class="uNo">個体${u.no??'?'}</span>${ref==='prov'?'<span class="vb v-PROV">仮選択・適正未確定</span>':ref?'<span class="vb v-REF">参考</span>':''}${unverified?'<span class="vb v-UNVERIFIED">未検証</span>':''}${u.verificationStatus==='NEEDS_REVIEW'?'<span class="vb v-NEEDS_REVIEW">個体要確認</span>':''}${lend?`<span class="b out">${esc(lend)}</span>`:unitAt(u)!==u.device?'':''}</div>
-    <div class="uL2">${[['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
-    ${u.fruits.length?`<div class="uL3">${u.fruits.slice(0,FRUIT_BASE).map(chip).join('')}</div>${u.fruits.length>FRUIT_BASE?`<div class="uL3 uL4">${u.fruits.slice(FRUIT_BASE).map(chip).join('')}</div>`:''}`
-      :'<div class="uL3"><span class="frNone">実なし</span></div>'}
-  </div>`;
+  return u.fruits.length?`<div class="pkFr">${u.fruits.map(chip).join('')}</div>`:'<div class="pkFr"><span class="frNone">実なし</span></div>';
 }
-// ステージ編成の選択肢は2段：①適正キャラの所持個体（通常）②その端末のそれ以外の所持個体（仮選択）。
-// 保存は従来どおり picks に個体IDを入れるだけで、仮選択かどうかは表示のたびに判定する（仮選択は適正の確定を意味しない）
+function sameCharCount(u,d){const cid=formOf(u.formId)?.characterId;return db.units.filter(x=>unitAt(x)===d&&formOf(x.formId)?.characterId===cid).length}
+// ステージ編成の候補は2段：①このステージの適正キャラの個体 ②その端末のそれ以外の個体（仮選択）。仮選択は適正の確定を意味しない
 function ownUnitsFor(k,dev,exclude){
   return db.units.filter(u=>unitAt(u)===dev&&formOf(u.formId)&&!exclude.has(u.id))
     .sort((a,b)=>sortJa(unitCharName(a),unitCharName(b))||(a.no||0)-(b.no||0));
@@ -1907,42 +1917,66 @@ function pickSuggestHtml(k,owns){
   });
   return out.join('');
 }
-function pickBlock(k,d){
-  const map=suitCharMap(k), cands=candidatesFor(k,d), sel=db.picks[k]?.[d]||'';
+function pickState(k,d){
+  const cands=candidatesFor(k,d), sel=db.picks[k]?.[d]||'';
   const owns=ownUnitsFor(k,d,new Set(cands.map(u=>u.id)));
   const unit=sel?db.units.find(u=>u.id===sel):null;
   const inCand=cands.some(u=>u.id===sel), prov=!!sel&&!inCand&&owns.some(u=>u.id===sel);
-  const stale=!!sel&&!inCand&&!prov;
-  const any=cands.length||owns.length;
-  let reason='';
-  if(!cands.length){
-    const owned=db.units.filter(u=>unitAt(u)===d).length, suited=suitFormIds(k).size;
-    reason=!owned?'この端末の所持個体が未登録です'
-      :!suited?'このステージの適正が未登録です（所持キャラから仮選択できます）':'適正キャラの所持個体はありません（所持キャラから仮選択できます）';
-  }
-  // 「（未検証）」（確認済みの適正が無い）と貸出中を選択肢に明示する
-  const mark=u=>(unitVerified(u,k,map)?'':'（未検証）')+(unitAt(u)!==u.device?`（${devLabel(u.device)}から借用）`:'');
-  const group=(label,list)=>list.length?`<optgroup label="${esc(label)}">${list.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u))}（仮）</option>`).join('')}</optgroup>`:'';
-  const opts=[`<option value="">${any?'— 使う個体を選ぶ —':'候補なし'}</option>`,
-    stale?`<option value="${esc(sel)}" selected>${esc(unit?unitLabel(unit):'削除された個体')}（候補外）</option>`:'',
-    ...cands.map(u=>`<option value="${esc(u.id)}"${u.id===sel?' selected':''}>${esc(unitLabel(u)+mark(u))}</option>`),
-    group('所持キャラ（適正未登録・仮選択）',owns)].join('');
-  return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!any&&!stale?' disabled':''}>${opts}</select>`+
-    // 適正と結び付いていない所持キャラがある端末だけ：適正一覧の「同じキャラとして対応付ける」への案内（対応付けると通常の候補になる）
-    (owns.length&&suitFormIds(k).size?'<div class="pNone pickHint">適正図鑑に同じキャラが登録されている場合は、下の適正一覧から対応付けできます</div>':'')+
-    pickSuggestHtml(k,owns)+
-    (stale?'<div class="pWarn">選択中の個体は今の候補外です（適正・所持・所在を確認してください）</div>':'')+
-    // 編成判断に必要な情報（種族・戦型・撃種・実）は常時表示。下の「詳細」は補助（既定は表示なし）
-    (unit&&!stale?unitCardHtml(unit,inCand&&!unitVerified(unit,k,map),prov?'prov':false):'')+
-    (unit&&!stale&&db.ui.infoMode!=='none'?unitInfoHtml(unit,db.ui.infoMode):'')+
-    (any&&!sel?'<div class="pNone">使う個体を選んでください</div>':'')+
-    (reason?`<div class="pNone">${esc(reason)}</div>`:'');
+  return {cands,owns,sel,unit,inCand,prov,stale:!!sel&&!inCand&&!prov};
 }
-// 補助の詳細表示（正式な形態名・実の正式名など）。押すと表示、もう一度押すと閉じる
-function renderInfoBar(){
-  $('infoBar').innerHTML=`<span class="small">詳細</span>`+INFO_MODES.map(([m,l])=>
-    `<button type="button" class="iMode${m===db.ui.infoMode?' on':''}" data-act="infoMode" data-mode="${m}" aria-pressed="${m===db.ui.infoMode}">${l}</button>`).join('');
+function pickBlock(k,d){
+  const p=pickState(k,d);
+  if(!p.sel) return `<button type="button" class="pickBtn add" data-act="openPicker" data-dev="${esc(d)}">＋ キャラを選ぶ</button>`;
+  const u=p.unit, tags=[];
+  if(p.prov) tags.push('<span class="pTag prov">仮選択（このステージの適正は未登録）</span>');
+  if(u&&!p.stale&&unitAt(u)!==u.device) tags.push(`<span class="pTag lend">借用中・元 ${esc(devLabel(u.device))}</span>`);
+  const warn=p.stale?`<div class="pWarn">${u?(unitAt(u)!==d?`この個体は今${esc(devLabel(unitAt(u)))}にいます${unitAt(u)!==u.device?'（貸出中）':''}。選び直してください`:'この個体は今の候補にありません。選び直してください'):'選んでいた個体が見つかりません。選び直してください'}</div>`:'';
+  return `<div class="pickCur${p.prov?' prov':''}${p.stale?' stale':''}">
+      <div class="pkName"><b>${esc(u?unitCharName(u)||'（キャラ不明）':'（削除された個体）')}</b>${u&&sameCharCount(u,d)>1?`<span class="uNo">個体${u.no??'?'}</span>`:''}</div>
+      ${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${warn}
+      ${u?frChips(u):''}
+    </div>
+    <button type="button" class="pickBtn" data-act="openPicker" data-dev="${esc(d)}">キャラを変更</button>`;
 }
+// キャラを選ぶ画面（端末ごと）。候補はキャラ名単位の適正判定（v26）。所持端末・個体番号・実・貸出状態・確認状態を出す
+let pickerDev=null;
+function openPicker(d){
+  if(!DEVICES.includes(d)) return;
+  pickerDev={k:key(db.ui.quest,curStage()),d};
+  renderPicker();
+  $('pickModal').classList.add('open');$('pickModal').querySelector('.modal').scrollTop=0;
+}
+function renderPicker(){
+  if(!pickerDev) return;
+  const {k,d}=pickerDev, p=pickState(k,d), map=suitCharMap(k);
+  $('pkTitle').textContent=`${SLOT_MARKS[useDevsOf(k).indexOf(d)]||''} ${devLabel(d)}で使うキャラ`;
+  const item=(u,group)=>{
+    const tags=[];
+    if(u.id===p.sel) tags.push('<span class="pTag on">選択中</span>');
+    if(unitAt(u)!==u.device) tags.push(`<span class="pTag lend">借用中・元 ${esc(devLabel(u.device))}</span>`);
+    if(group==='cand'&&!unitVerified(u,k,map)) tags.push('<span class="pTag">適正は未検証</span>');
+    if(u.verificationStatus==='NEEDS_REVIEW') tags.push('<span class="pTag">個体は要確認</span>');
+    const label=unitLabel(u)+(group==='cand'?(unitVerified(u,k,map)?'':'（未検証）')+(unitAt(u)!==u.device?`（${devLabel(u.device)}から借用）`:''):'（仮）');
+    return `<button type="button" class="pkItem${u.id===p.sel?' on':''}" data-act="pickUnit" data-id="${esc(u.id)}" data-group="${group}" aria-label="${esc(label)}">
+      <div class="pkName"><b>${esc(unitCharName(u)||'（キャラ不明）')}</b><span class="uNo">個体${u.no??'?'}</span></div>
+      ${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${frChips(u)}</button>`;
+  };
+  $('pkList').innerHTML=(p.cands.length?`<div class="pkSec" data-group="cand">このステージの適正キャラ</div>${p.cands.map(u=>item(u,'cand')).join('')}`
+      :p.owns.length?`<div class="small pkEmpty">${suitFormIds(k).size?'この端末に、このステージの適正キャラはいません':'このステージの適正はまだ登録されていません'}</div>`:'')
+    +(p.owns.length?`<div class="pkSec" data-group="own">その他の所持キャラ（仮選択）</div><div class="small">このステージの適正が未登録のキャラです。仮に選んでおけます。</div>${p.owns.map(u=>item(u,'own')).join('')}${pickSuggestHtml(k,p.owns)}`:'')
+    +(!p.cands.length&&!p.owns.length?'<div class="small pkEmpty">この端末にいるキャラがいません。キャラ画面の「＋ 所持個体」で登録できます。</div>':'');
+  $('pkClear').hidden=!p.sel;
+}
+// 選んだ個体を編成に保存する（押した時点で候補にある個体だけ。古いタブでは persist が止める）
+function setPick(id){
+  if(!pickerDev) return;
+  const {k,d}=pickerDev, p=pickState(k,d);
+  if(id&&!p.cands.some(u=>u.id===id)&&!p.owns.some(u=>u.id===id)) return;
+  const byDev=db.picks[k]||(db.picks[k]={});
+  if(id) byDev[d]=id; else{delete byDev[d];if(!Object.keys(byDev).length)delete db.picks[k]}
+  closeModals();persist();render();
+}
+
 // 取り込み時に自動で付いた「GameWith表記：キャラ（形態）」などの注記は、進化形態の参考表示なので画面には出さない（保存値はそのまま）
 function shownNote(n){return /^[^：:]{0,20}表記[：:]/.test(n||'')?'':(n||'')}
 function renderSuitPanel(){
@@ -2076,8 +2110,9 @@ function renderMigration(){
 function render(){
   VIEWS.forEach(v=>$('view-'+v).classList.toggle('active',v===db.ui.view));
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===db.ui.view));
-  renderStage();renderInfoBar();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();renderOwnershipChecks();renderPending();
+  renderStage();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();renderOwnershipChecks();renderPending();renderOpenPicker();
 }
+function renderOpenPicker(){if($('pickModal').classList.contains('open'))renderPicker()}
 function scrollActiveChip(){
   const a=document.querySelector('#stageChips .chip.active');
   if(a) a.parentElement.scrollLeft=a.offsetLeft-a.parentElement.clientWidth/2+a.offsetWidth/2;
@@ -2158,7 +2193,7 @@ function returnChar(c){c.lentTo=null;persist();render()}
 function returnUnit(u){db.units=db.units.map(x=>x.id===u.id?Object.fromEntries(Object.entries(x).filter(([k])=>k!=='lentTo')):x);persist();render()}
 function closeModals(){
   document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
-  editingId=null;lendingId=null;lendingUnitId=null;rankEditing=null;pendingImport=null;mEdit=null;qrStage=null;dirtyBase=null;
+  editingId=null;lendingId=null;lendingUnitId=null;pickerDev=null;rankEditing=null;pendingImport=null;mEdit=null;qrStage=null;dirtyBase=null;
 }
 
 /* ---- 新構造の編集（キャラ・進化形態・所持個体・適正） ---- */
@@ -3443,6 +3478,9 @@ document.addEventListener('click',guardStale(e=>{
     case 'importPreset':{const p=TOP20_PRESETS.find(x=>x.id===b.dataset.preset);if(p)openImport(p.data);break}
     case 'applyImport':confirmImport();break;
     // 新構造
+    case 'openPicker':openPicker(b.dataset.dev);break;
+    case 'pickUnit':setPick(b.dataset.id);break;
+    case 'pickClear':setPick('');break;
     case 'infoMode':if(INFO_MODES.some(([m])=>m===b.dataset.mode)){db.ui.infoMode=db.ui.infoMode===b.dataset.mode?'none':b.dataset.mode;persistUi();render()}break;
     case 'useDev':{
       const k=key(db.ui.quest,curStage()), d=b.dataset.dev;

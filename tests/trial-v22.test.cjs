@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -69,9 +70,11 @@ const BASE={characters:[],deviceNames:{'メイン':'架空メイン名','サブ1
   picks:{[K]:{'メイン':'uO1'}},useDevs:{[K]:['メイン','サブ1','サブ2','サブ3'],[K2]:['メイン','サブ1','サブ2','サブ3'],'破界の星墓::コキュートス':['メイン','サブ1','サブ2','サブ3']},
   ui:{view:'stage',quest:'破界の星墓',stage:{'破界の星墓':'ラルガメンテ'}}};
 const row=id=>page.locator(`#suitPanel .sRow:has([data-act="suitEdit"][data-id="${id}"])`);
-const picks=dev=>page.evaluate(d=>{const s=document.querySelector(`.pickSel[data-pick-dev="${d}"]`);return {cand:[...s.querySelectorAll(':scope > option')].slice(1).map(o=>o.textContent),
-  groups:[...s.querySelectorAll('optgroup')].map(g=>[g.label,[...g.children].map(o=>o.textContent)]),sel:s.value}},dev);
-const sug=dev=>page.locator(`.pickDev[data-dev="${dev}"] .pickSuggest`);
+const picks=dev=>teamView(page,dev);
+// 対応付けの提案は「キャラを選ぶ」画面の中に出る
+const sugCount=async dev=>{await openTeam(page,dev);const n=await page.locator('#pkList .pickSuggest').count();await closeTeam(page);return n};
+const sugText=async dev=>{await openTeam(page,dev);const t=await txt(page.locator('#pkList .pickSuggest'));await closeTeam(page);return t};
+const sugClick=async(dev,act)=>{await openTeam(page,dev);await page.locator(`#pkList .pickSuggest [data-act="${act}"]`).click();await closeTeam(page)};
 const group=id=>page.evaluate(id=>[...charGroupOf(id)].sort(),id);
 const keepData=async()=>{const d=await stored();
   assert.deepEqual(d.master.characters.map(c=>c.id+':'+c.name),BASE.master.characters.map(c=>c.id+':'+c.name),'no merge, no rename');
@@ -100,33 +103,32 @@ test('区切り（・｜）の前の名前が一致: shown as a strong candidate
 
 test('stage picker suggests linking the provisional unit to the suitability character (strong matches only); linking makes it a normal candidate, form unconfirmed', async()=>{
   await seed(BASE);
-  const s=sug('メイン');
-  assert.equal(await s.count(),1,'only the strong match (架空ミライ), not 架空ジャヒー↔架空ジャヒーα');
-  assert.match(await txt(s),/「架空ミライ・架空ピースフルAI」は適正の「架空ミライ」と同じキャラかもしれません（区切りの前の名前が一致）/);
-  await s.locator('[data-act="linkChar"]').click();
+  assert.equal(await sugCount('メイン'),1,'only the strong match (架空ミライ), not 架空ジャヒー↔架空ジャヒーα');
+  assert.match(await sugText('メイン'),/「架空ミライ・架空ピースフルAI」は適正の「架空ミライ」と同じキャラかもしれません（区切りの前の名前が一致）/);
+  await sugClick('メイン','linkChar');
   const d=await keepData();
   assert.deepEqual(d.idLinks.filter(l=>l.basis==='USER_SELECTED').map(l=>[l.kind,l.a,l.b]),[['char','cM','cO']]);
   assert.equal(d.idLinks.filter(l=>l.kind==='form').length,0,'same character only — no form confirmation');
   const p=await picks('メイン');
   assert.ok(p.cand.some(t=>/^架空ミライ・架空ピースフルAI 個体1/.test(t)),p.cand.join('|'));
   assert.equal(p.sel,'uO1');
-  assert.equal(await sug('メイン').count(),0);
+  assert.equal(await sugCount('メイン'),0);
   assert.equal(await page.evaluate(()=>formStatus('fMs','メイン')),'owned');
   assert.equal(d.master.forms.find(f=>f.id==='fOu').unknownForm,true);
 });
 
 test('「別のキャラ」 from the suggestion records an exclusion; it is not suggested again, not listed as a candidate, and can be undone', async()=>{
   await seed(BASE);
-  await sug('メイン').locator('[data-act="excludeChar"]').click();
+  await sugClick('メイン','excludeChar');
   let d=await keepData();
   assert.ok(d.idLinks.some(l=>l.kind==='char'&&l.basis==='USER_EXCLUDED'&&[l.a,l.b].includes('cM')&&[l.a,l.b].includes('cO')));
-  assert.equal(await sug('メイン').count(),0);
+  assert.equal(await sugCount('メイン'),0);
   const r=await txt(row('s1'));
   assert.doesNotMatch(r,/所持キャラの候補：架空ミライ・架空ピースフルAI/,'an excluded pair is not offered again');
   assert.match(r,/除外中（同じキャラではない）：架空ミライ・架空ピースフルAI/);
   assert.ok((await picks('メイン')).groups.length,'still a provisional pick');
   await row('s1').locator('[data-act="unexcludeChar"]').click();
-  assert.equal(await sug('メイン').count(),1);
+  assert.equal(await sugCount('メイン'),1);
   d=await stored();assert.equal(d.idLinks.length,1,'only the seeded exclusion remains');
 });
 
@@ -147,7 +149,7 @@ test('an exclusion is not revived through a third character (架空エクス ⇔
 
 test('a confirmed link is reused: a later import for another stage with the same suitability name reaches the owned unit without linking again', async()=>{
   await seed(BASE);
-  await sug('メイン').locator('[data-act="linkChar"]').click();
+  await sugClick('メイン','linkChar');
   await page.click('[data-act="view"][data-view="admin"]');
   await page.fill('#imText',JSON.stringify({format:'monst-suitability-import-v1',stageKey:'破界の星墓::コキュートス',source:'GAMEWITH',sourceUrl:'',sourceUpdatedAt:'2026-10-11',evaluationType:'GRADE',
     entries:[{characterName:'架空ミライ',formName:'架空ピースフル',grade:'A',verificationStatus:'VERIFIED',note:''}]}));
@@ -163,9 +165,9 @@ test('a confirmed link is reused: a later import for another stage with the same
 
 test('reload and backup → restore keep links and exclusions; old data without idLinks loads and still suggests', async()=>{
   await seed(BASE);
-  await sug('メイン').locator('[data-act="linkChar"]').click();
+  await sugClick('メイン','linkChar');
   await page.reload();
-  assert.equal(await sug('メイン').count(),0);assert.equal((await picks('メイン')).sel,'uO1');
+  assert.equal(await sugCount('メイン'),0);assert.equal((await picks('メイン')).sel,'uO1');
   const bk=await page.evaluate(()=>backupJson());
   const fresh=await context.newPage();await fresh.goto(url);
   await fresh.evaluate(()=>{db.ui.view='admin';render();window.confirm=()=>true});
@@ -175,13 +177,14 @@ test('reload and backup → restore keep links and exclusions; old data without 
   assert.deepEqual(await fresh.evaluate(()=>[[...charGroupOf('cO')].sort(),[...charGroupOf('cXo')].sort()]),[['cM','cO'],['cX2','cXo']]);
   await fresh.close();
   const {idLinks,...old}=BASE;await seed(old);
-  assert.equal(await sug('メイン').count(),1);
+  assert.equal(await sugCount('メイン'),1);
   assert.deepEqual(await group('cXo'),['cX','cX2','cXo'],'without the exclusion the same-name match applies as before');
 });
 
 test('390px: the suggestion with its buttons fits the phone screen', async()=>{
   await seed(BASE);
-  assert.equal(await sug('メイン').count(),1);
+  assert.equal(await sugCount('メイン'),1);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
-  const box=await sug('メイン').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390,JSON.stringify(box));
+  await openTeam(page,'メイン');const box=await page.locator('#pkList .pickSuggest').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390,JSON.stringify(box));
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));await closeTeam(page);
 });

@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -119,7 +120,7 @@ test('saved unit appears in the stage ①〜④ candidates when the form has sui
   await click('[data-act="saveUnit"]');
   assert.match(await page.locator('#charaList .okMsg').textContent(),/所持個体を保存しました（サブ1 個体1）$/);
   await click('[data-act="view"][data-view="stage"]');
-  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="サブ1"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1']);
+  assert.deepEqual(await optionList(page,'サブ1',true),['— 使う個体を選ぶ —','ネオ 個体1']);
 });
 
 test('backup / restore keeps units with 4 fruits and grades; fruit name suggestions offered', async()=>{

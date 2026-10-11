@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -45,7 +46,8 @@ const click=async selector=>page.locator(selector).first().click();
 const snapshot=()=>page.evaluate(()=>JSON.parse(JSON.stringify(db)));
 async function seed(raw){await page.evaluate(({key,raw})=>localStorage.setItem(key,JSON.stringify(raw)),{key:KEY,raw});await page.reload()}
 const card=dev=>page.locator(`.pickDev[data-dev="${dev}"]`);
-const pickSel=dev=>page.locator(`.pickSel[data-pick-dev="${dev}"]`);
+const lines=dev=>card(dev).locator('.pickCur').evaluate(c=>({name:c.querySelector('.pkName').textContent.replace(/\s+/g,' ').trim(),
+  fruits:[...c.querySelectorAll('.pkFr .frS')].map(s=>s.textContent),none:c.querySelector('.frNone')?.textContent||'',titles:[...c.querySelectorAll('.frS')].map(s=>s.title)}));
 const shown=()=>page.locator('#stageDevices .pickDev').evaluateAll(ds=>ds.map(d=>d.querySelector('.devName').textContent));
 const fr=(name,grade,kind)=>({name,grade,kind});
 function world(extra={}){
@@ -119,47 +121,31 @@ test('device picker: without a saved selection, devices that already have a pick
   assert.equal((await snapshot()).useDevs[STAGE],undefined); // nothing written until the user changes it
 });
 
-test('cards: candidates per device unchanged; card always shows キャラ｜形態 個体N / 種族 戦型 撃種 / short fruits; follows unit change', async()=>{
+test('team cards: candidates per device unchanged; the card shows the character (unit number when several) and every fruit; follows the chosen unit', async()=>{
   await seed(world({useDevs:{[STAGE]:['メイン','サブ1','サブ3','サブ5']}}));
   // owned AND suitable only (アーサー owned but not suitable; other devices' units never listed)
-  assert.deepEqual(await pickSel('メイン').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
-  assert.deepEqual(await pickSel('メイン').locator('optgroup option').allTextContents(),['アーサー 個体1（仮）'],'others only as provisional');
-  assert.deepEqual(await pickSel('サブ3').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ヤクモ 個体1','ヤクモ 個体2'],'the character has a verified suitability → no 未検証 mark on either unit');
-  assert.match(await card('メイン').textContent(),/使う個体を選んでください/);
-  await pickSel('メイン').selectOption('u-neo1');
-  const lines=dev=>card(dev).locator('.uCard').evaluate(c=>({
-    l1:c.querySelector('.uL1').textContent.replace(/\s+/g,' ').trim(),
-    l2:[...c.querySelectorAll('.uL2 span')].map(s=>s.textContent),
-    l3:[...c.querySelectorAll('.uL3:not(.uL4) .frS')].map(s=>s.textContent),
-    l4:[...c.querySelectorAll('.uL4 .frS')].map(s=>s.textContent),
-    none:c.querySelector('.frNone')?.textContent||'',
-    titles:[...c.querySelectorAll('.frS')].map(s=>s.title)}));
+  const m=await teamView(page,'メイン');
+  assert.deepEqual(m.cand,['ネオ 個体1','ネオ 個体2']);
+  assert.deepEqual(m.groups,[['所持キャラ（適正未登録・仮選択）',['アーサー 個体1（仮）']]],'others only as provisional');
+  assert.deepEqual((await teamView(page,'サブ3')).cand,['ヤクモ 個体1','ヤクモ 個体2'],'the character has a verified suitability → no 未検証 mark on either unit');
+  assert.equal(await card('メイン').textContent().then(t=>t.replace(/\s+/g,' ').trim()),'①メイン ＋ キャラを選ぶ');
+  await choose(page,'メイン','u-neo1');
   let l=await lines('メイン');
-  assert.equal(l.l1,'ネオ 個体1');
-  assert.deepEqual(l.l2,['亜人','砲撃型','貫通']);
-  assert.deepEqual(l.l3,['同族加撃L','同族加撃速L','同族加命撃L']);
-  assert.deepEqual(l.l4,['撃種加撃EL']); // 4th fruit on its own line
-  assert.equal(l.titles[0],'[同族]同族の絆・加撃 特級L'); // full name kept (tooltip / detail)
-  // the detail toggle is not needed: it is off by default
-  assert.equal(await card('メイン').locator('.pInfo,.pAll').count(),0);
-  // switching unit switches every line; no 4th line for a 3-fruit unit
-  await pickSel('メイン').selectOption('u-neo2');l=await lines('メイン');
-  assert.deepEqual([l.l1,l.l2,l.l3,l.l4],['ネオ 個体2',['魔人','パワー型','反射'],['撃種加撃L','戦型加撃特','将命削りM'],[]]);
-  // unit without fruits -> 実なし; unverified-only candidate -> marked on the card too
-  await pickSel('サブ3').selectOption('u-yk1');l=await lines('サブ3');
-  assert.deepEqual([l.l1,l.l3,l.none],['ヤクモ 個体1',[],'実なし']);
-  await pickSel('サブ3').selectOption('u-yk2');l=await lines('サブ3');
-  assert.equal(l.l1,'ヤクモ 個体2');assert.deepEqual(l.l3,['戦型加撃L']);
-  assert.equal(await card('サブ3').locator('.uL1 .vb.v-UNVERIFIED').count(),0,'verification is judged per character');
+  assert.equal(l.name,'ネオ個体1');
+  assert.deepEqual(l.fruits,['同族加撃L','同族加撃速L','同族加命撃L','撃種加撃EL'],'all four fruits');
+  assert.equal(l.titles[0],'[同族]同族の絆・加撃 特級L'); // full name kept (tooltip)
+  assert.doesNotMatch(await card('メイン').textContent(),/亜人|砲撃型|貫通/,'no type info on the team card');
+  await choose(page,'メイン','u-neo2');l=await lines('メイン');
+  assert.deepEqual([l.name,l.fruits],['ネオ個体2',['撃種加撃L','戦型加撃特','将命削りM']]);
+  await choose(page,'サブ3','u-yk1');l=await lines('サブ3');
+  assert.deepEqual([l.name,l.fruits,l.none],['ヤクモ個体1',[],'実なし']);
+  await choose(page,'サブ3','u-yk2');l=await lines('サブ3');
+  assert.equal(l.name,'ヤクモ個体2');assert.deepEqual(l.fruits,['戦型加撃L']);
   // data unchanged: stored fruit names are the official ones
   const u=(await snapshot()).units.find(x=>x.id==='u-neo1');assert.deepEqual(u.fruits.map(x=>x.name),['同族の絆・加撃','同族の絆・加撃速','同族の絆・加命撃','撃種の絆・加撃']);
-  // picks persist across reload with the cards
-  await pickSel('サブ1').selectOption('u-rinne');await page.reload();
+  await choose(page,'サブ1','u-rinne');await page.reload();
   assert.deepEqual((await snapshot()).picks[STAGE],{'メイン':'u-neo2','サブ1':'u-rinne','サブ3':'u-yk2'});
-  l=await lines('サブ1');assert.deepEqual([l.l1,l.l2,l.l3],['リンネ 個体1',['亜人','砲撃型','貫通'],['撃種加撃L','撃種加撃速L','撃種加命撃L']]);
-  // unset type info is shown as such, not left blank
-  await page.evaluate(()=>{const f=formOf('f-rinne');f.battleType='';persist();render()});
-  l=await lines('サブ1');assert.deepEqual(l.l2,['亜人','戦型未設定','貫通']);
+  l=await lines('サブ1');assert.deepEqual([l.name,l.fruits],['リンネ',['撃種加撃L','撃種加撃速L','撃種加命撃L']]);
 });
 
 test('fruit short names: 絆 removed, kind added only when missing, grade letter appended', async()=>{
@@ -171,42 +157,38 @@ test('fruit short names: 絆 removed, kind added only when missing, grade letter
   assert.deepEqual(r,['同族加撃L','同族加撃速L','撃種加命撃L','戦型加撃L','同族加撃L','同族加撃EL','速必殺','名称未設定特']);
 });
 
-test('320/390px: picker, four stacked cards, fruit chips fit; no horizontal scroll; screenshots', async()=>{
+test('320/390px: device toggle, four stacked team cards, fruit chips and buttons fit; no horizontal scroll; screenshots', async()=>{
   fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
   await seed(world({useDevs:{[STAGE]:['メイン','サブ1','サブ3','サブ5']},picks:{[STAGE]:{'メイン':'u-neo1','サブ1':'u-rinne','サブ3':'u-yk2','サブ5':'u-neo-s5'}}}));
   for(const width of [320,390]){
     await page.setViewportSize({width,height:844});await page.reload();
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal scroll');
     for(const b of await page.locator('.dpBtn').all()){const r=await b.boundingBox();assert.ok(r.height>=44&&r.x>=0&&r.x+r.width<=width)}
-    // cards are stacked vertically in ①〜④ order, full width
     const boxes=await page.locator('#stageDevices .pickDev').evaluateAll(ds=>ds.map(d=>{const r=d.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,b:r.bottom}}));
     assert.equal(boxes.length,4);
     for(let i=1;i<4;i++){assert.ok(boxes[i].y>=boxes[i-1].b-1,'vertical stack');assert.ok(Math.abs(boxes[i].x-boxes[0].x)<1)}
     for(const d of ['メイン','サブ1','サブ3','サブ5']){
-      const s=await pickSel(d).boundingBox();assert.ok(s.x>=0&&s.x+s.width<=width&&s.height>=44,d+' select inside');
-      const inside=await card(d).evaluate(c=>{const cr=c.getBoundingClientRect();return [...c.querySelectorAll('.frS,.uL1,.uL2')].every(e=>{const r=e.getBoundingClientRect();return r.left>=cr.left-0.5&&r.right<=cr.right+0.5})});
+      const s=await card(d).locator('[data-act="openPicker"]').boundingBox();assert.ok(s.x>=0&&s.x+s.width<=width&&s.height>=44,d+' button inside');
+      const inside=await card(d).evaluate(c=>{const cr=c.getBoundingClientRect();return [...c.querySelectorAll('.frS,.pkName')].every(e=>{const r=e.getBoundingClientRect();return r.left>=cr.left-0.5&&r.right<=cr.right+0.5})});
       assert.ok(inside,d+' content inside card');
     }
-    // three fruits on one row for typical short names
-    const tops=await card('メイン').locator('.uL3:not(.uL4) .frS').evaluateAll(es=>es.map(e=>Math.round(e.getBoundingClientRect().top)));
-    assert.equal(new Set(tops).size,1,'3 fruits on one row');
     await page.screenshot({path:path.join(__dirname,'artifacts',`v5-stage-${width}.png`),fullPage:true});
   }
 });
 
 test('picks are kept when a device is removed and reused when it is added back; unsuitable pick is warned', async()=>{
   await seed(world({useDevs:{[STAGE]:['メイン','サブ3']}}));
-  await pickSel('サブ3').selectOption('u-yk1');
+  await choose(page,'サブ3','u-yk1');
   await click('[data-act="useDev"][data-dev="サブ3"]');assert.deepEqual(await shown(),['①メイン']);
   assert.equal((await snapshot()).picks[STAGE]['サブ3'],'u-yk1'); // not deleted
   await click('[data-act="useDev"][data-dev="サブ1"]');await click('[data-act="useDev"][data-dev="サブ3"]');
   assert.deepEqual(await shown(),['①メイン','②サブ1','③サブ3']);
-  assert.equal(await pickSel('サブ3').inputValue(),'u-yk1');assert.match(await card('サブ3').locator('.uL1').textContent(),/ヤクモ\s+個体1/);
+  assert.equal((await teamView(page,'サブ3')).sel,'u-yk1');assert.match(await card('サブ3').locator('.pkName').textContent(),/ヤクモ\s*個体1/);
   // the character loses every suitability while the device is out of the team: the pick is kept and shown as 仮選択 (never deleted)
   await click('[data-act="useDev"][data-dev="サブ3"]');
   await page.evaluate(()=>{db.suits=db.suits.filter(s=>!['f-yk1','f-yk2'].includes(s.formId));persist();render()});
   await click('[data-act="useDev"][data-dev="サブ3"]');
-  assert.match(await card('サブ3').textContent(),/仮選択・適正未確定/);assert.match(await pickSel('サブ3').locator('option:checked').textContent(),/ヤクモ 個体1（仮）/);
+  assert.match(await card('サブ3').textContent(),/仮選択（このステージの適正は未登録）/);assert.ok((await teamView(page,'サブ3')).groups[0][1].includes('ヤクモ 個体1（仮）'));
   assert.equal((await snapshot()).picks[STAGE]['サブ3'],'u-yk1');
 });
 
@@ -217,9 +199,9 @@ test('long character and form names stay inside the card at 320px and 390px', as
   for(const width of [320,390]){
     await page.setViewportSize({width,height:844});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    const ok=await card('メイン').evaluate(c=>{const cr=c.getBoundingClientRect();return [...c.querySelectorAll('.uL1,.uL1 *,.pickSel')].every(e=>{const r=e.getBoundingClientRect();return r.left>=cr.left-0.5&&r.right<=cr.right+0.5})});
+    const ok=await card('メイン').evaluate(c=>{const cr=c.getBoundingClientRect();return [...c.querySelectorAll('.pkName,.pkName *,.pickBtn')].every(e=>{const r=e.getBoundingClientRect();return r.left>=cr.left-0.5&&r.right<=cr.right+0.5})});
     assert.ok(ok,'inside card at '+width);
-    assert.match(await card('メイン').locator('.uL1').textContent(),new RegExp(longChar.slice(0,8)));
+    assert.match(await card('メイン').locator('.pkName').textContent(),new RegExp(longChar));
   }
 });
 
@@ -232,8 +214,7 @@ test('screenshots 320/390: before selection, 4 devices with 3 fruits / 4 fruits 
     await seed(world({useDevs:{[STAGE]:['メイン','サブ1','サブ3','サブ5']},picks:{[STAGE]:{'メイン':'u-neo1','サブ1':'u-rinne','サブ3':'u-yk2','サブ5':'u-neo-s5'}}}));
     await page.evaluate(()=>{formOf('f-yk2').name='巫女姫霊装・とても長い正式名称の例・アナザー';persist();render()});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await shot(`v5-after-${width}.png`);
-    await pickSel('サブ3').selectOption('u-yk1');assert.match(await card('サブ3').textContent(),/実なし/);await shot(`v5-nofruit-${width}.png`);
-    // native dropdown popups cannot be captured headless; show the option list in place via size and capture the card
-    await pickSel('メイン').evaluate(s=>{s.size=s.options.length});await card('メイン').screenshot({path:path.join(__dirname,'artifacts',`v5-dropdown-${width}.png`)});
+    await choose(page,'サブ3','u-yk1');assert.match(await card('サブ3').textContent(),/実なし/);await shot(`v5-nofruit-${width}.png`);
+    await openTeam(page,'メイン');await shot(`v5-picker-${width}.png`);await closeTeam(page);
   }
 });

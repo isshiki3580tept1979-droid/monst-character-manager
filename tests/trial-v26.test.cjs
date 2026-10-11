@@ -6,6 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -65,8 +66,7 @@ const BASE={characters:[],deviceNames:{'メイン':'架空メイン名','サブ1
   idLinks:[{id:'l1',kind:'char',a:'cM',b:'cO',basis:'USER_SELECTED',at:'2026-10-11T00:00:00.000Z'},{id:'l2',kind:'form',a:'fMs',b:'fOg',basis:'USER_SELECTED',at:'2026-10-11T00:00:00.000Z'}],
   picks:{[K]:{'メイン':'uO1','サブ1':'uN3'}},useDevs:{[K]:['メイン','サブ1','サブ2','サブ3'],[K2]:['メイン','サブ1','サブ2','サブ3']},ui:{view:'stage',quest:'破界の星墓',stage:{'破界の星墓':'ラルガメンテ'}}};
 const same=(a,b,msg)=>assert.deepEqual(JSON.parse(JSON.stringify(a)),JSON.parse(JSON.stringify(b)),msg);
-const picks=dev=>page.evaluate(d=>{const s=document.querySelector(`.pickSel[data-pick-dev="${d}"]`);return {cand:[...s.querySelectorAll(':scope > option')].slice(1).map(o=>o.textContent),
-  groups:[...s.querySelectorAll('optgroup')].map(g=>[g.label,[...g.children].map(o=>o.textContent)]),sel:s.value}},dev);
+const picks=dev=>teamView(page,dev);
 const stage=async name=>{await page.evaluate(n=>{db.ui.view='stage';db.ui.stage['破界の星墓']=n;render()},name)};
 const chara=async(filter='all')=>{await page.click('[data-act="view"][data-view="chara"]');if(await page.locator('#charaFilter').isVisible())await page.click(`#charaFilter [data-f="${filter}"]`)};
 const openCard=async id=>{const b=page.locator(`[data-act="charaOpen"][data-id="${id}"]`);if(await b.getAttribute('aria-expanded')!=='true')await b.click();return txt(page.locator(`.card.chara.open:has([data-act="charaOpen"][data-id="${id}"])`))};
@@ -124,7 +124,7 @@ test('lending a unit: only lentTo is added; the unit moves to the borrowing devi
   const m=await picks('メイン');
   assert.ok(!m.cand.some(t=>/架空ミライ/.test(t)&&!/候補外/.test(t)),'lent unit is not a candidate on its home device');
   assert.ok(m.cand.some(t=>/架空ミライ・架空ピースフルAI 個体1（候補外）/.test(t))&&m.sel==='uO1','the saved pick stays (shown as 候補外)');
-  assert.match(await txt(page.locator('.pickDev[data-dev="メイン"]')),/候補外/);
+  assert.match(await txt(page.locator('.pickDev[data-dev="メイン"]')),/この個体は今サブ3にいます（貸出中）/);
   const s3=await picks('サブ3');
   assert.deepEqual(s3.cand,['架空ミライ・架空ピースフルAI 個体1（架空メイン名（メイン）から借用）']);
   await page.click('[data-act="view"][data-view="device"]');

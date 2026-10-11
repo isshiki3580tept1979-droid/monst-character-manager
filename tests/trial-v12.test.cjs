@@ -6,6 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,optionList,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -95,7 +96,7 @@ test('an old tab cannot save data; the dialog and its input stay; nothing in sto
   // ステージの編成（端末ごとの個体）も保存しない
   await page.click('#mcharModal [data-act="close"]').catch(()=>{});
   await page.evaluate(()=>{closeModals();db.ui.view='stage';render()});
-  await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u1');
+  await choose(page,'メイン','u1',{dispatch:true});
   assert.equal(JSON.stringify(await stored(page)),before,'pick not written');
   await other.close();
 });
@@ -157,7 +158,7 @@ test('a single tab keeps saving normally (no false warnings); the saved format i
   await seed(BASE);
   await page.click('[data-act="view"][data-view="chara"]');
   for(const n of ['架空一','架空二','架空三']){await page.click('[data-act="mcharAdd"]');await page.fill('#mcName',n);await page.click('[data-act="saveMChar"]')}
-  await page.click('[data-act="view"][data-view="stage"]');await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u1');
+  await page.click('[data-act="view"][data-view="stage"]');await choose(page,'メイン','u1',{dispatch:true});
   await page.reload();
   await page.click('[data-act="view"][data-view="admin"]');
   await page.fill('#srText',JSON.stringify(READING));await page.click('[data-act="srPreview"]');
@@ -243,8 +244,8 @@ async function staleTabWithUnsavedChanges(){
   await page.click('[data-act="view"][data-view="chara"]');await page.click('[data-act="mcharAdd"]');
   await page.fill('#mcName','架空未保存キャラ');await page.click('[data-act="saveMChar"]');
   await page.evaluate(()=>{closeModals();db.ui.view='stage';render()});
-  await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u1');
-  assert.equal(await page.inputValue('.pickSel[data-pick-dev="メイン"]'),'u1','screen matches the content of this tab after the refused save');
+  await choose(page,'メイン','u1',{dispatch:true});
+  assert.equal(await page.evaluate(()=>db.picks[key(db.ui.quest,curStage())]?.['メイン']),'u1','screen matches the content of this tab after the refused save');
   return other;
 }
 
@@ -309,7 +310,7 @@ test('after a conflict, the unsaved input can be kept and re-entered without los
   await page.click('[data-act="view"][data-view="chara"]');await page.click('[data-act="mcharAdd"]');
   await page.fill('#mcName','架空未保存キャラ');await page.click('[data-act="saveMChar"]');
   await page.evaluate(()=>{db.ui.view='stage';render()});
-  await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u1');
+  await choose(page,'メイン','u1',{dispatch:true});
   const d=await stored(page);
   assert.deepEqual(names(d),['架空既存キャラ','架空スカアハα','架空未保存キャラ'],'latest registration kept and the re-entered one added');
   assert.deepEqual(d.picks,{'禁忌の獄::一ノ獄':{'メイン':'u1'}});

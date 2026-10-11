@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -73,8 +74,7 @@ const BASE={characters:[],deviceNames:{'メイン':'架空メイン名','サブ1
     {id:'s5',stageKey:K,formId:'fLs',source:'GAMEWITH',evaluationType:'GRADE',grade:'B',verificationStatus:'VERIFIED'}],
   picks:{[K]:{'メイン':'uO1'}},useDevs:{[K]:['メイン','サブ1','サブ2','サブ3']},ui:{view:'stage',quest:'破界の星墓',stage:{'破界の星墓':'ラルガメンテ'}}};
 const row=id=>page.locator(`#suitPanel .sRow:has([data-act="suitEdit"][data-id="${id}"])`);
-const picks=dev=>page.evaluate(d=>{const s=document.querySelector(`.pickSel[data-pick-dev="${d}"]`);return {cand:[...s.querySelectorAll(':scope > option')].slice(1).map(o=>o.textContent),
-  groups:[...s.querySelectorAll('optgroup')].map(g=>[g.label,[...g.children].map(o=>o.textContent)]),sel:s.value}},dev);
+const picks=dev=>teamView(page,dev);
 const keepData=async()=>{const d=await stored();
   assert.deepEqual(d.master.characters.map(c=>c.id+':'+c.name),BASE.master.characters.map(c=>c.id+':'+c.name),'no merge, no rename');
   assert.deepEqual(d.units.map(u=>[u.id,u.formId,u.device,u.no,u.epithet||'',u.verificationStatus||'']),BASE.units.map(u=>[u.id,u.formId,u.device,u.no,u.epithet||'',u.verificationStatus||'']));
@@ -93,10 +93,9 @@ test('二つ名付きの名前: 「架空0.2秒 架空五条」 is matched to �
   const p=await picks('メイン');
   assert.deepEqual([...p.cand].sort(),['架空ネオ 個体1','架空ネオ 個体2','架空 真キャラ 個体1','架空0.2秒 架空五条 個体1（未検証）'].sort(),'all units of matched characters, no form marks');
   assert.equal(p.sel,'uO1','the existing pick is kept and is now a normal candidate');
-  const card=await txt(page.locator('.pickDev[data-dev="メイン"] .uCard'));
-  assert.match(card,/架空0\.2秒 架空五条 個体1/);assert.doesNotMatch(card,/形態未確認|出典の形態/);
-  assert.match(card,/兵命削り.*将命削り.*熱き友撃/);assert.doesNotMatch(card,/仮選択・適正未確定/);
-  assert.equal(await page.locator('.pickDev[data-dev="メイン"] .uCard.uProv').count(),0);
+  const card=await txt(page.locator('.pickDev[data-dev="メイン"] .pickCur'));
+  assert.match(card,/架空0\.2秒 架空五条/);assert.doesNotMatch(card,/形態未確認|出典の形態/);
+  assert.match(card,/兵命削り.*将命削り.*熱き友撃/);assert.doesNotMatch(card,/仮選択/);
   const s1=await picks('サブ1');assert.deepEqual(s1.cand,['架空0.2秒 架空五条 個体1（未検証）','架空0.2秒 架空五条 個体2（未検証）']);
   assert.deepEqual((await stored()).idLinks||[],[],'automatic matches are not written as links');
   await keepData();
@@ -124,7 +123,7 @@ test('a wrong automatic match can be excluded (and the exclusion undone); explic
   const p=await picks('メイン');
   assert.ok(!p.cand.some(x=>/架空0\.2秒/.test(x)));assert.ok(p.groups.some(g=>g[0]==='所持キャラ（適正未登録・仮選択）'&&g[1].includes('架空0.2秒 架空五条 個体1（仮）')));
   assert.equal(p.sel,'uO1','the pick is kept (now provisional)');
-  assert.equal(await page.locator('.pickDev[data-dev="メイン"] .uCard.uProv').count(),1);
+  assert.equal(await page.locator('.pickDev[data-dev="メイン"] .pickCur.prov').count(),1);
   await row('s1').locator('[data-act="unexcludeChar"][data-b="cO"]').click();
   t=await txt(row('s1'));assert.match(t,/自動照合：架空0\.2秒 架空五条/);assert.deepEqual((await stored()).idLinks,[]);
   // 明示の対応付け（名前では一致しないキャラ）はこれまでどおり

@@ -7,6 +7,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const {chromium}=require('playwright');
+const {teamView,openTeam,closeTeam,choose}=require('./helpers/team.cjs');
 const source=path.resolve(process.env.TRIAL_HTML_SOURCE||path.join(__dirname,'..','monst_character_manager_trial.html'));
 const KEY='monst-character-manager-trial-v2';
 const protectedKeys=['monst-character-manager-v2','monst-character-manager-v1','monst-character-manager-device-names-v1','monst-character-manager-trial-v1'];
@@ -70,8 +71,7 @@ const BASE={characters:[],deviceNames:{'メイン':'架空メイン名','サブ1
 // 登録画面のテスト用：所持の「架空ミライ・架空ピースフルAI」がまだ無い状態
 const NO_O={...BASE,master:{characters:BASE.master.characters.filter(c=>c.id!=='cO'),forms:BASE.master.forms.filter(f=>f.id!=='fOu')},units:BASE.units.filter(u=>u.id!=='uO1'),picks:{}};
 const row=id=>page.locator(`#suitPanel .sRow:has([data-act="suitEdit"][data-id="${id}"])`);
-const picks=dev=>page.evaluate(d=>{const s=document.querySelector(`.pickSel[data-pick-dev="${d}"]`);return {cand:[...s.querySelectorAll(':scope > option')].slice(1).map(o=>o.textContent),
-  groups:[...s.querySelectorAll('optgroup')].map(g=>[g.label,[...g.children].map(o=>o.textContent)]),sel:s.value}},dev);
+const picks=dev=>teamView(page,dev);
 const chara=async(filter='all')=>{await page.click('[data-act="view"][data-view="chara"]');if(await page.locator('#charaFilter').isVisible())await page.click(`#charaFilter [data-f="${filter}"]`)};
 const head=async id=>txt(page.locator(`[data-act="charaOpen"][data-id="${id}"]`));
 const openCard=async id=>{const b=page.locator(`[data-act="charaOpen"][data-id="${id}"]`);if(await b.getAttribute('aria-expanded')!=='true')await b.click();return txt(page.locator(`.card.chara.open:has([data-act="charaOpen"][data-id="${id}"])`))};
@@ -89,11 +89,9 @@ test('「・」区切りの名前は自動照合しない: the unit stays in the
   const p=await picks('メイン');
   assert.ok(!p.cand.some(t=>/架空ミライ・架空ピースフルAI/.test(t)),'not a normal candidate');
   assert.deepEqual(p.groups.map(g=>g[0]),['所持キャラ（適正未登録・仮選択）']);assert.equal(p.sel,'uO1','the provisional pick is kept');
-  const hint=page.locator('.pickHint');
-  assert.equal(await hint.count(),1);
-  assert.match(await txt(hint),/適正図鑑に同じキャラが登録されている場合は、下の適正一覧から対応付けできます/);
-  // 候補が無い端末（所持個体なし）には案内を出さない
-  assert.equal(await page.locator(`.pickSel[data-pick-dev="サブ2"]`).count(),1);
+  // 編成のカードには「仮選択」とだけ出す（長い説明は出さない）。対応付けは適正一覧・キャラを選ぶ画面からできる
+  assert.match(await txt(page.locator('.pickDev[data-dev="メイン"]')),/仮選択（このステージの適正は未登録）/);
+  assert.doesNotMatch(await txt(page.locator('#stageDevices')),/適正図鑑に同じキャラが登録されている場合/);
   await chara();
   assert.match(await head('cO'),/適正0/);
   assert.doesNotMatch(await head('cO'),/対応付け/);
@@ -110,8 +108,7 @@ test('user links the character from the suitability list: becomes a normal candi
   const p=await picks('メイン');
   assert.ok(p.cand.some(t=>/^架空ミライ・架空ピースフルAI 個体1/.test(t)),'now a normal candidate: '+p.cand.join('|'));
   assert.equal(p.sel,'uO1');assert.deepEqual(p.groups,[]);
-  assert.equal(await page.locator('.pickHint').count(),0,'no hint once linked');
-  assert.doesNotMatch(await txt(page.locator('.pickSel[data-pick-dev="メイン"] option[value="uO1"]')),/（仮）/);
+  assert.doesNotMatch(await txt(page.locator('.pickDev[data-dev="メイン"]')),/仮選択/,'no longer provisional once linked');
   assert.match(await txt(r),/同じキャラとして対応付け済み：架空ミライ・架空ピースフルAI/);
   assert.equal((await stored()).master.forms.find(f=>f.id==='fOu').unknownForm,true,'the form is still unconfirmed (only the character identity was confirmed)');
 });
