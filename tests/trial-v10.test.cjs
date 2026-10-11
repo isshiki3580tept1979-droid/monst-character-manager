@@ -415,11 +415,11 @@ test('duplicate on the same device: never merged automatically; adding needs an 
   assert.match(r,/メインには「架空キャラ壱」の個体がすでにあります（自動では上書き・統合しません）/);
   assert.match(r,/個体1｜架空の形態・真.*（同じ進化形態）（実も同じ＝同じ個体の可能性が高い）/);
   assert.match(r,/個体2｜架空の形態・進化/);
-  assert.match(r,/登録先：メイン・個体3/);
+  assert.match(r,/登録方法：何もしない/);assert.doesNotMatch(r,/登録先：メイン・個体3/,'the new-unit plan is shown only when 別の個体として追加 is chosen');
   await click('[data-act="srApply"]');
   assert.match(await page.locator('#srMsg').textContent(),/チェックを入れてから/);
   let d=await snapshot();assert.deepEqual(d.units,before.units,'nothing added without the explicit choice');
-  await page.check('#srDupOk');await click('[data-act="srApply"]');
+  await page.check('#srDupOk');assert.match(await result(),/登録先：メイン・個体3/);await click('[data-act="srApply"]');
   d=await snapshot();
   assert.equal(d.units.length,4);
   for(const u of before.units) assert.deepEqual(d.units.find(x=>x.id===u.id),u,'existing units untouched');

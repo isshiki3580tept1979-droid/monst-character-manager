@@ -3159,17 +3159,12 @@ function checkScreenshot(){
   const plan=planInventory(j,{allowUnknownForm:true}), row=plan.rows[0], dups=srDuplicates(c), ups=srUpdateTargets(c);
   const blocked=row.cls==='conflict'||row.cls==='reject';
   const a=row.formAfter||{}, reasons=row.reasons.filter(m=>!/個体番号（unitNo）/.test(m));
+  const mode0=dups.length?'none':'add', ch0=db.master.characters.find(x=>x.name===c.characterName);
+  const view={c,a,unitNo:row.unitNo,actions:row.actions,dups:dups.length,charLine:ch0?`既存キャラ「${c.characterName}」に新しい個体を追加（登録済み：${charSummary(ch0)}）`:`新しいキャラ「${c.characterName}」を登録`};
   $('srResult').innerHTML=`<div class="invSec">登録前の確認</div>
     <div class="invRow inv-${blocked?row.cls:reasons.length||c.needsReview?'review':'ok'}">
       <div class="cname">${esc(c.characterName)}${c.formName?`｜${esc(c.formName)}`:''}</div>
-      ${blocked?'':`<div class="meta">登録先：${esc(devLabel(c.device))}・個体${esc(String(row.unitNo??'?'))}（新しい個体として追加）</div>
-      <div class="meta"><b>${db.master.characters.some(x=>x.name===c.characterName)?`既存キャラ「${esc(c.characterName)}」に新しい個体を追加（登録済み：${esc(charSummary(db.master.characters.find(x=>x.name===c.characterName)))}）`:`新しいキャラ「${esc(c.characterName)}」を登録`}</b></div>
-      ${c.epithet?`<div class="meta">二つ名：${esc(c.epithet)}</div>`:''}
-      <div class="meta">進化形態：${c.formName?esc(c.formName):'未確認'}</div>
-      <div class="meta">図鑑No.${esc(a.monsterNo||'未確認')}・${[a.race,a.battleType,a.shotType].map(v=>esc(v||'未確認')).join(' / ')}</div>
-      <div class="meta">わくわくの実：${esc(srFruitText(c.fruits))}</div>
-      <div class="meta">確認状態：${esc(VERIFY[c.needsReview?'NEEDS_REVIEW':'VERIFIED'])}</div>`}
-      ${row.actions.length&&!blocked?`<div class="meta">${esc(row.actions.join('／'))}</div>`:''}
+      ${blocked?'':`<div id="srPlan" data-mode="${mode0}">${srPlanHtml(view,mode0)}</div>`}
       ${reasons.map(m=>`<div class="meta warn">${esc(m)}</div>`).join('')}
     </div>
     ${blocked?'<div class="note">既存データと食い違うか、識別できないため登録できません（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください。</div>':''}
@@ -3181,10 +3176,35 @@ function checkScreenshot(){
       ${ups.list.map(u=>`<label class="srChk srUpdOpt"><input type="radio" name="srDupMode" value="upd:${esc(u.id)}"> 既存の個体${esc(String(u.no??'?'))}（形態未確認）の進化形態を「${esc(c.formName)}」に設定する（個体・わくわくの実・編成・確認状態はそのまま）</label>`).join('')}
       <label class="srChk"><input type="radio" name="srDupMode" id="srDupOk" value="add"> 既存の個体とは別の個体として追加する（既存の個体は変更しません）</label></div></div>`:''}`;
   if(blocked){srSetStatus('block',`登録できません：${reasons.join('／')}（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください`);return}
-  srPending={sig:srSig(),c,j,dups:dups.length,ups:ups.list.map(u=>u.id)};
+  srPending={sig:srSig(),c,j,dups:dups.length,ups:ups.list.map(u=>u.id),view,mode:mode0};
   $('srApply').disabled=false;
   srSetStatus('next',dups.length?(ups.list.length?'同じキャラの個体があります。既存の個体の形態を更新するか、別の個体として追加するかを上で選んでから「登録する」を押してください（既定は「何もしない」。押すまでは保存されません）':'同じキャラの個体があります。別の個体として追加する場合は、上のチェックを入れてから「登録する」を押してください（押すまでは保存されません）')
     :'確認画面の内容でよければ「登録する」を押してください（押すまでは保存されません）');
+}
+// 登録前の確認：選んでいる登録方法の内容だけを出す（新規追加と既存個体の更新の内容を混ぜない）。mode＝none／add／upd:個体ID
+function srPlanHtml(v,mode){
+  const c=v.c, a=v.a, m=t=>`<div class="meta">${t}</div>`, shot=`図鑑No.${esc(a.monsterNo||'未確認')}・${[a.race,a.battleType,a.shotType].map(x=>esc(x||'未確認')).join(' / ')}`;
+  if(mode==='none') return m('<b>登録方法：何もしない</b>')+m('「登録する」を押しても保存されません（既存データは変更しません）')
+    +m(`スクショの内容：進化形態 ${c.formName?esc(c.formName):'未確認'}・${shot}`);
+  if(mode.startsWith('upd:')){
+    const u=db.units.find(x=>x.id===mode.slice(4));if(!u) return m('対象の個体が見つかりません。もう一度「確認画面へ」を押してください');
+    const ch=charOf(formOf(u.formId)?.characterId), fx=ch&&formsOfChar(ch.id).find(f=>!f.unknownForm&&f.name===c.formName&&f.origin!==CATALOG);
+    const fk=x=>JSON.stringify(x.map(y=>[y.name,y.grade]));
+    return m('<b>登録方法：既存個体の進化形態を更新</b>')+m(`対象端末：${esc(devLabel(u.device))}`)+m(`対象個体：個体${esc(String(u.no??'?'))}`)
+      +m(`現在の進化形態：${formOf(u.formId)?.unknownForm?'形態未確認':esc(formName(formOf(u.formId)))}`)
+      +m(`更新後の進化形態：${esc(c.formName)}（${fx?'登録済みの進化形態へ移す':'進化形態を新しく登録'}）`)+m(shot)
+      +m('新しい個体：追加しない')+m(`個体ID・わくわくの実・編成・メモ・確認状態：維持する（確認状態：${esc(VERIFY[u.verificationStatus]||'未設定')}のまま）`)
+      +m(`この個体のわくわくの実：${esc(srFruitText(u.fruits))}${c.fruits.length&&fk(c.fruits)!==fk(u.fruits)?'（スクショの実は反映しません）':''}`);
+  }
+  return (v.dups?m('<b>登録方法：新しい個体として追加</b>'):'')+m(`登録先：${esc(devLabel(c.device))}・個体${esc(String(v.unitNo??'?'))}（新しい個体として追加）`)
+    +m(`<b>${esc(v.charLine)}</b>`)+(c.epithet?m(`二つ名：${esc(c.epithet)}`):'')+m(`進化形態：${c.formName?esc(c.formName):'未確認'}`)+m(shot)
+    +m(`わくわくの実：${esc(srFruitText(c.fruits))}`)+m(`確認状態：${esc(VERIFY[c.needsReview?'NEEDS_REVIEW':'VERIFIED'])}`)
+    +(v.actions.length?m(esc(v.actions.join('／'))):'')+(v.dups?m('既存の個体は変更しません'):'');
+}
+function srModeStatus(p){
+  if(p.mode==='none') return '「何もしない」が選ばれています。「登録する」を押しても保存されません。登録方法を選ぶと、上の確認内容が切り替わります';
+  if(p.mode.startsWith('upd:')){const u=db.units.find(x=>x.id===p.mode.slice(4));return `個体${u?.no??'?'}の進化形態を「${p.c.formName}」に更新します（新しい個体は追加しません）。上の確認内容でよければ「登録する」を押してください（押すまでは保存されません）`}
+  return p.dups?'既存の個体とは別の、新しい個体として追加します。上の確認内容でよければ「登録する」を押してください（押すまでは保存されません）':'確認画面の内容でよければ「登録する」を押してください（押すまでは保存されません）';
 }
 // 既存の「進化形態未確認」の個体を、スクショの進化形態に移す（利用者が選んだときだけ）。変えるのは個体の formId だけ。
 // 個体ID・端末・番号・実・メモ・二つ名・確認状態・編成（picks）はそのまま。進化形態は既存の同名の形態があればそれ、無ければ新しく登録（planInventory と同じ照合・空欄補完）。
@@ -3226,6 +3246,8 @@ function applyScreenshot(){
   const fail=(cls,t)=>{$('srMsg').textContent=t;srSetStatus(cls,t)};
   if(!p||p.sig!==srSig()){srPending=null;$('srApply').disabled=true;fail('block','内容が変わったため、もう一度「確認画面へ」を押してください');return}
   const mode=p.dups?(document.querySelector('input[name="srDupMode"]:checked')?.value||'none'):'add';
+  // 「登録する」は、確認画面に表示している登録方法どおりにだけ保存する（表示と選択が食い違っていれば保存しない）
+  if(mode!==p.mode||$('srPlan')?.dataset.mode!==mode){fail('block','確認画面の表示と選択が一致しません。登録方法を選び直して、表示された内容を確認してから「登録する」を押してください（保存していません）');return}
   if(mode==='none'){fail('block','「何もしない」が選ばれているため、保存していません。別の個体として追加する場合や既存の個体の形態を更新する場合は、その項目にチェックを入れてから「登録する」を押してください');return}
   if(mode.startsWith('upd:')) return applySrUpdate(p,mode.slice(4),fail);
   // 確認後にデータが変わっていても安全なように、保存直前に照合し直す
@@ -3692,6 +3714,12 @@ $('imCatalogOn').addEventListener('change',()=>{if(pendingSuitImport&&pendingSui
 $('invText').addEventListener('input',()=>{pendingInv=null;$('invApply').disabled=true});
 // スクショ読取：JSONを変えたら確認し直し。項目・端末を変えたら確認画面からやり直し
 $('srText').addEventListener('input',()=>{srState=null;srPending=null;$('srApply').disabled=true;$('srEdit').hidden=true;$('srTools').hidden=true;$('srResult').innerHTML='';srHideDone()});
+// 登録方法を切り替えたら、登録前の確認内容をその場で切り替える（保存はしない）
+$('srResult').addEventListener('change',e=>{
+  if(e.target.name!=='srDupMode'||!srPending||!$('srPlan')) return;
+  srPending.mode=e.target.value;$('srPlan').dataset.mode=srPending.mode;$('srPlan').innerHTML=srPlanHtml(srPending.view,srPending.mode);
+  $('srMsg').textContent='';srSetStatus('next',srModeStatus(srPending));
+});
 $('srEdit').addEventListener('input',e=>{if(e.target.id==='srF_characterName'||e.target.id==='srF_monsterNo')renderSrCands()});
 $('qrCharName').addEventListener('input',renderQrCands);
 ['input','change'].forEach(ev=>$('srEdit').addEventListener(ev,e=>{if(e.target.id==='srDupOk')return;if(srPending){srPending=null;$('srApply').disabled=true;$('srResult').innerHTML='';

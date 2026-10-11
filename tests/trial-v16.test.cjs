@@ -81,10 +81,11 @@ test('choosing a candidate adds a new unit to that character (same device is fin
   assert.equal(await page.inputValue('#srF_characterName'),'架空スカアハα');
   assert.equal(await page.inputValue('#srF_epithet'),'架空影炎の花嫁','the rest becomes the 二つ名 (only because the user chose the candidate)');
   await page.selectOption('#srDevice','サブ1');await page.click('[data-act="srCheck"]');
+  await page.check('#srDupOk'); // 同じ端末に個体があるので、新規追加を選ぶと追加の内容が出る
   const r=await result();
   assert.match(r,/既存キャラ「架空スカアハα」に新しい個体を追加/);assert.match(r,/二つ名：架空影炎の花嫁/);
   assert.match(r,/進化形態：未確認/);assert.match(r,/図鑑No\.99216/);assert.match(r,/撃種の絆・加命撃 特級L/);
-  await page.check('#srDupOk');await page.click('[data-act="srApply"]'); // 同じ端末に2体目（正常なケース）
+  await page.click('[data-act="srApply"]'); // 同じ端末に2体目（正常なケース）
   assert.match(await page.locator('#srDone').textContent(),/登録しました（保存済み）/);
   const d=await stored();
   assert.deepEqual(charIds(d),charIds(BASE),'no character created, renamed or merged');
