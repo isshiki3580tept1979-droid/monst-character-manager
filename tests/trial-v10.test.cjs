@@ -359,15 +359,14 @@ test('duplicate on the same device: never merged automatically; adding needs an 
   assert.doesNotMatch(await result(),/すでにあります/);
 });
 
-test('existing form values are never overwritten: differences block; blanks are supplemented', async()=>{
+test('existing form values are never overwritten: a different 戦型 goes to the new unit only; a 図鑑No. of another character blocks; blanks are supplemented', async()=>{
   await seed({characters:[],master:{characters:[{id:'c1',name:'架空キャラ壱'},{id:'c2',name:'架空キャラ弐'}],
     forms:[{id:'f1',characterId:'c1',name:'架空の形態・真',short:'',race:'',battleType:'パワー型',shotType:'',monsterNo:''},
       {id:'f2',characterId:'c2',name:'別の架空形態',short:'',race:'',battleType:'',shotType:'',monsterNo:'90002'}]},units:[]});
   const before=await snapshot();
   await preview();await toConfirm('メイン');
-  assert.match(await result(),/戦型が既存（パワー型）と違います（JSON：バランス型）/);
-  assert.match(await result(),/登録できません（既存データは変更しません）/);
-  assert.equal(await page.locator('#srApply').isDisabled(),true);
+  assert.match(await result(),/戦型が既存（パワー型）と違うため、この個体だけに記録します（既存の形態・個体は変更しません）/);
+  assert.equal(await page.locator('#srApply').isDisabled(),false);
   // 図鑑No.が別キャラの形態と同じ → 登録できない
   await page.selectOption('#srF_battleType','パワー型');await page.fill('#srF_monsterNo','90002');await click('[data-act="srCheck"]');
   assert.match(await result(),/図鑑No\.90002 が既存の「架空キャラ弐｜別の架空形態」と同じです/);
@@ -479,13 +478,16 @@ test('resume → choose device + type 進化形態 → register: the pending ent
 });
 
 test('registration failure keeps the pending entry (blocked conflict and save failure)', async()=>{
-  await seed({characters:[],master:{characters:[{id:'c1',name:'架空保留1'}],forms:[{id:'f1',characterId:'c1',name:'架空形態',short:'',race:'',battleType:'パワー型',shotType:''}]},
+  await seed({characters:[],master:{characters:[{id:'c1',name:'架空保留1'},{id:'c2',name:'架空保留2'}],forms:[{id:'f1',characterId:'c1',name:'架空形態',short:'',race:'',battleType:'パワー型',shotType:''},{id:'f2',characterId:'c2',name:'別の架空形態',short:'',race:'',battleType:'',shotType:'',monsterNo:'90002'}]},
     units:[],pendingReadings:[P(1,{battleType:'バランス型'})]});
   await click('[data-act="view"][data-view="admin"]');
   await click('[data-act="srResume"][data-id="p1"]');
   await toConfirm('メイン');
-  assert.match(await result(),/戦型が既存（パワー型）と違います/);assert.equal(await page.locator('#srApply').isDisabled(),true);
+  assert.match(await result(),/戦型が既存（パワー型）と違うため、この個体だけに記録します/);assert.equal(await page.locator('#srApply').isDisabled(),false);
+  await page.fill('#srF_monsterNo','90002');await click('[data-act="srCheck"]');
+  assert.match(await result(),/図鑑No.90002 が既存の「架空保留2｜別の架空形態」と同じです/);assert.equal(await page.locator('#srApply').isDisabled(),true);
   assert.equal((await pend()).length,1);
+  await page.fill('#srF_monsterNo','');
   // 一致させて登録 → 保存に失敗 → 個体も保留も元のまま
   await page.selectOption('#srF_battleType','パワー型');await click('[data-act="srCheck"]');
   const before=await snapshot();

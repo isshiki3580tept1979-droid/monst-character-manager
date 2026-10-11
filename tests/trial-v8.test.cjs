@@ -128,15 +128,16 @@ test('existing data: blanks are supplemented, differences are conflicts (never o
   await preview();
   const text=await page.locator('#invResult').textContent();
   // 春野サクラ: monsterNo 9234 already used by another name → conflict; 自来也: 戦型 differs → conflict; コーヴ: fruits differ → conflict
-  assert.deepEqual(await counts(),['0','8','3','1']);
+  assert.deepEqual(await counts(),['1','8','2','1']);
   assert.match(text,/図鑑No\.9234 が既存の「別キャラ｜別形態」と同じです/);
-  assert.match(text,/戦型が既存（バランス型）と違います（JSON：超バランス型）/);
+  assert.match(text,/戦型が既存（バランス型）と違うため、この個体だけに記録します（既存の形態・個体は変更しません）/);
   assert.match(text,/メインの個体1の実が既存と違います（上書きしません）/);
   assert.match(text,/空欄だった項目を補完：図鑑No\..*空だった実を補完/s);
   await click('[data-act="invApply"]');
   const d=await snapshot();
   // conflicts untouched
   assert.equal(d.master.forms.find(f=>f.id==='f-ji').battleType,'バランス型');
+  assert.equal(d.units.filter(u=>u.formId==='f-ji').length,1);assert.equal(d.units.find(u=>u.formId==='f-ji').battleType,'超バランス型','different 戦型 is kept on the new unit only');
   assert.deepEqual(d.units.find(u=>u.id==='u-ma').fruits,[{name:'別の実',grade:'特級',kind:''}]);
   assert.equal(d.master.characters.some(c=>c.name==='春野サクラ'),false);
   // blanks supplemented in place (no duplicate unit / form)

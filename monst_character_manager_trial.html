@@ -890,6 +890,13 @@ function normFormBasic(x){
   return {battleType:FORM_BATTLE_TYPES.includes(x?.battleType)?x.battleType:'',shotType:SHOT_TYPES.includes(x?.shotType)?x.shotType:''};
 }
 const SHOT_TYPES=['反射','貫通'];
+// 個体だけの種族・戦型・撃種・図鑑No.（任意）。同じキャラでも個体ごとに違うことがあるため、キャラ（形態）の値と違うときだけ個体に持つ。形態・既存の個体は書き換えない
+function unitOwnBasic(u){
+  return {...(typeof u?.race==='string'&&u.race.trim()?{race:u.race.trim().slice(0,40)}:{}),
+    ...(FORM_BATTLE_TYPES.includes(u?.battleType)?{battleType:u.battleType}:{}),
+    ...(SHOT_TYPES.includes(u?.shotType)?{shotType:u.shotType}:{}),
+    ...(typeof u?.monsterNo==='string'&&u.monsterNo.trim()?{monsterNo:u.monsterNo.trim().slice(0,10)}:{})};
+}
 function normBasic(e){
   return {race:typeof e?.race==='string'?e.race:'',
     battleType:BATTLE_TYPES.includes(e?.battleType)?e.battleType:'',
@@ -1006,7 +1013,9 @@ function normV3(raw,d){
       // 二つ名（任意）。進化形態とは別に個体ごとに持つ（進化形態の確認状態には影響しない）
       ...(clean(u.epithet,40)?{epithet:clean(u.epithet,40)}:{}),
       // 貸出先（新方式の個体の貸出・任意）。貸出中の個体は借りている端末の所持として数える
-      ...(DEVICES.includes(u.lentTo)&&u.lentTo!==u.device?{lentTo:u.lentTo}:{})};
+      ...(DEVICES.includes(u.lentTo)&&u.lentTo!==u.device?{lentTo:u.lentTo}:{}),
+      // この個体だけの種族・戦型・撃種・図鑑No.（キャラの値と違うときだけ入る・任意）
+      ...unitOwnBasic(u)};
   }).filter(u=>once(u.id));
   // 端末ごとの所持確認の記録（BOX検索で「所持／別形態／未所持」を確認した結果）。units / suits とは別に保持する
   d.ownershipChecks=(Array.isArray(raw.ownershipChecks)?raw.ownershipChecks:[]).filter(x=>x&&typeof x==='object'&&OWN_CHECK[x.status]).map(x=>({
@@ -1358,7 +1367,7 @@ function unitBoxHtml(u,here){
   return `<div class="uCard" data-unit="${esc(u.id)}">
     <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b> <span class="uNo">個体${u.no??'?'}</span> ${where}${u.verificationStatus==='NEEDS_REVIEW'?'<span class="vb v-NEEDS_REVIEW">個体要確認</span>':''}</div>
     ${u.epithet?`<div class="uEp">二つ名：${esc(u.epithet)}</div>`:''}
-    <div class="uL2">${[['種族',f?.race],['戦型',f?.battleType],['撃種',f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
+    <div class="uL2">${[['種族',u.race||f?.race],['戦型',u.battleType||f?.battleType],['撃種',u.shotType||f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
     <div class="uL3">${slots}</div>${u.fruits.length>FRUIT_BASE?`<div class="uL3 uL4">${u.fruits.slice(FRUIT_BASE).map(chip).join('')}</div>`:''}
     <div class="uMeta">${uses?`<span class="b">編成で使用 ${uses}件</span>`:'<span></span>'}<span>${lend?`<button class="mini ret" data-act="unitReturn" data-id="${esc(u.id)}">返却</button>`:`<button class="mini lend" data-act="unitLend" data-id="${esc(u.id)}">貸出</button>`}${c?`<button class="mini" data-act="goChara" data-id="${esc(c.id)}">キャラ画面で見る</button>`:''}</span></div>
   </div>`;
@@ -1912,7 +1921,7 @@ function fruitShort(x){
 // 個体の撃種・戦型・種族（v28）：個体の形態の値を優先。無ければ同じキャラの形態の値が1つに決まるときだけ使う（食い違えば「未登録」）。推測で補わない
 function unitBasic(u){
   const f=formOf(u.formId), fs=f?formsOfChar(f.characterId):[];
-  const pick=k=>{if(f&&f[k]) return f[k];const vs=[...new Set(fs.map(x=>x[k]).filter(Boolean))];return vs.length===1?vs[0]:''};
+  const pick=k=>{if(u[k]) return u[k];if(f&&f[k]) return f[k];const vs=[...new Set(fs.map(x=>x[k]).filter(Boolean))];return vs.length===1?vs[0]:''};
   return {shotType:pick('shotType'),battleType:pick('battleType'),race:pick('race')};
 }
 function basicLine(u){const b=unitBasic(u);return `<div class="pkType">${[b.shotType,b.battleType,b.race].map(v=>`<span${v?'':' class="unset"'}>${esc(v||'未登録')}</span>`).join('<span class="sep">｜</span>')}</div>`}
@@ -2077,7 +2086,7 @@ function renderChara(){
       return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>{const lend=lendText(u);return `<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
         <div class="cname">個体${u.no??'?'}${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}${lend?`<span class="b out">${esc(lend)}</span>`:'<span class="b ok">在籍</span>'}</div>
         ${u.epithet?`<div class="meta">二つ名：${esc(u.epithet)}</div>`:''}<div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}
-        <div class="meta">${esc(unitSuitText(u))}</div></div>
+        ${ownBasicMeta(u)}<div class="meta">${esc(unitSuitText(u))}</div></div>
         <span class="acts">${lend?`<button class="mini ret" data-act="unitReturn" data-id="${esc(u.id)}">返却</button>`:`<button class="mini lend" data-act="unitLend" data-id="${esc(u.id)}">貸出</button>`}
         <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></span></div>`}).join('');
     }).join('')||'<div class="small">所持個体が未登録です</div>';
@@ -2099,6 +2108,7 @@ function renderChara(){
   charaFlash=null; // 保存直後に一度だけ表示
 }
 // 個体ごとの適正の表示：同じキャラとみなす集合に適正のあるステージ数（ステージ画面の候補判定と同じ基準。進化形態は区別しない）
+function ownBasicMeta(u){const o=unitOwnBasic(u),t=[['種族','race'],['戦型','battleType'],['撃種','shotType'],['図鑑No.','monsterNo']].filter(([,k])=>o[k]).map(([l,k])=>`${l}：${o[k]}`);return t.length?`<div class="meta">この個体の基本情報（キャラの値と違う項目）：${esc(t.join('　'))}</div>`:''}
 function unitSuitText(u){
   const cid=formOf(u.formId)?.characterId;if(!cid) return '';
   const g=linkedIds('char',cid), n=new Set(db.suits.filter(s=>g.has(formOf(s.formId)?.characterId)).map(s=>s.stageKey)).size;
@@ -2355,7 +2365,8 @@ function saveUnit(){
     memo:clean($('unMemo').value,100),...(clean($('unEpithet').value,40)?{epithet:clean($('unEpithet').value,40)}:{}),
     // 編集画面に無い項目（確認状態・取り込み元・貸出先）は、既存の個体の値をそのまま引き継ぐ（勝手に変えない・消さない）
     ...(old&&VERIFY[old.verificationStatus]?{verificationStatus:old.verificationStatus}:{}),...(old&&old.importSource?{importSource:old.importSource}:{}),
-    ...(old&&DEVICES.includes(old.lentTo)&&old.lentTo!==device?{lentTo:old.lentTo}:{})};
+    ...(old&&DEVICES.includes(old.lentTo)&&old.lentTo!==device?{lentTo:old.lentTo}:{}),
+    ...(old?unitOwnBasic(old):{})};
   db.units=old?db.units.map(u=>u.id===old.id?item:u):[...db.units,item];
   // 保存後はそのキャラの詳細へ戻り、保存した個体をすぐ見えるようにする
   db.ui.charaOpen=mEdit.charId;
@@ -2846,6 +2857,8 @@ function planInventory(j,opts={}){
       // 同じキャラの中で、どちらかが進化形態未確認なら食い違いとはしない（同じ形態かもしれないが、統合もしない）
       const other=forms.find(x=>x.monsterNo===inc.monsterNo&&!(charName(x)===r.characterName&&(x.name===r.formName||x.unknownForm||!r.formName)));
       if(other) return fail('conflict',`図鑑No.${inc.monsterNo} が既存の「${charName(other)}｜${other.name}」と同じです（名前が違うため自動では直しません）`);
+      const otherU=units.find(x=>x.monsterNo===inc.monsterNo&&formById(x.formId)&&charName(formById(x.formId))!==r.characterName);
+      if(otherU) return fail('conflict',`図鑑No.${inc.monsterNo} が既存の「${charName(formById(otherU.formId))}」の個体と同じです（名前が違うため自動では直しません）`);
     }
     // 形態名が無ければキャラの既定の形態（名前の無い形態、または唯一の所持形態）へ。適正図鑑の形態は既定にしない
     let ch=cs[0], fm=ch?(r.formName?forms.find(x=>x.characterId===ch.id&&!x.unknownForm&&x.name===r.formName):defaultFormOf(ch.id,forms)):null;
@@ -2853,16 +2866,7 @@ function planInventory(j,opts={}){
     if(fm&&fm.origin===CATALOG) return fail('conflict',fm.unknownForm
       ?`「${r.characterName}」の「形態未確認」は適正図鑑のキャラです。所持個体はキャラ画面の「＋ 所持個体」か、スクショ登録のキャラ候補から登録してください`
       :`進化形態「${r.formName}」は適正図鑑の形態の表記です。所持個体の登録先にはしないため、この行は登録しません（進化形態の欄を空にしてください）`);
-    const patch={};
-    if(fm){
-      for(const [k,label] of INV_FIELDS){
-        if(!inc[k]) continue;
-        if(!fm[k]) patch[k]=inc[k];
-        else if(fm[k]!==inc[k]) return fail('conflict',`${label}が既存（${fm[k]}）と違います（JSON：${inc[k]}）`);
-      }
-      if(r.fullDisplayName&&!fm.fullDisplayName) patch.fullDisplayName=r.fullDisplayName;
-    }
-    // 個体の照合（端末＋キャラ＋進化形態＋個体番号）
+    // 個体の照合（端末＋キャラ＋進化形態＋個体番号）。種族・戦型・撃種・図鑑No.の照合より先に行う
     let unit=null, unitPatch=null;
     if(ch&&no!=null){
       const sameNo=units.filter(x=>x.device===dev&&formById(x.formId)?.characterId===ch.id&&x.no===no);
@@ -2870,11 +2874,31 @@ function planInventory(j,opts={}){
         const x=sameNo[0];
         if(!fm||x.formId!==fm.id) return fail('conflict',`${dev}の「${r.characterName}」個体${no}は別の進化形態（${formById(x.formId)?.name||'不明'}）で登録済みです`);
         unit=x;
-        if(fruitsSame(x.fruits,fruits)){r.same=true}
-        else if(!x.fruits.length&&fruits.length) unitPatch={fruits};
-        else return fail('conflict',`${dev}の個体${no}の実が既存と違います（上書きしません）`);
-        if(r.vs==='VERIFIED'&&x.verificationStatus==='NEEDS_REVIEW') unitPatch={...(unitPatch||{}),verificationStatus:'VERIFIED'};
       }
+    }
+    // 種族・戦型・撃種・図鑑No.：既存の形態・個体の値は書き換えない。
+    //  ・登録済みの同じ個体の再取り込み → 個体の値（無ければ形態の値）と違えば矛盾（上書きしない）
+    //  ・新しい個体 → 形態の値と違っても止めず、その個体だけに記録する（同じ名前でも戦型などが違う個体がある）
+    //  ・形態の空欄は、ほかに個体が無いときだけ形態へ補完。ほかの個体があれば、その個体が推測で変わらないよう新しい個体にだけ記録する
+    const patch={}, own={}, notes=[];
+    if(fm){
+      const others=units.some(x=>x!==unit&&x.formId===fm.id);
+      for(const [k,label] of INV_FIELDS){
+        if(!inc[k]) continue;
+        const cur=unit?(unit[k]||fm[k]):fm[k];
+        if(!cur){ if(others) {unit?(unitPatch={...(unitPatch||{}),[k]:inc[k]}):own[k]=inc[k]} else patch[k]=inc[k] }
+        else if(cur!==inc[k]){
+          if(unit) return fail('conflict',`${label}が既存（${cur}）と違います（JSON：${inc[k]}）`);
+          own[k]=inc[k];notes.push(`${label}が既存（${cur}）と違う`);
+        }
+      }
+      if(r.fullDisplayName&&!fm.fullDisplayName) patch.fullDisplayName=r.fullDisplayName;
+    }
+    if(unit){
+      if(fruitsSame(unit.fruits,fruits)){r.same=true}
+      else if(!unit.fruits.length&&fruits.length) unitPatch={...(unitPatch||{}),fruits};
+      else return fail('conflict',`${dev}の個体${no}の実が既存と違います（上書きしません）`);
+      if(r.vs==='VERIFIED'&&unit.verificationStatus==='NEEDS_REVIEW') unitPatch={...(unitPatch||{}),verificationStatus:'VERIFIED'};
     }
     // ここまで矛盾なし → コピーへ反映
     if(!ch){ch={id:uid(),name:r.characterName};chars.push(ch);r.actions.push('キャラを新規登録')}
@@ -2888,13 +2912,15 @@ function planInventory(j,opts={}){
     }
     if(!unit){
       const u2={id:uid(),formId:fm.id,device:dev,no:no??(()=>{const used=units.filter(x=>x.device===dev&&formById(x.formId)?.characterId===ch.id).map(x=>x.no||0);return used.length?Math.max(...used)+1:1})(),
-        fruits,memo:'',verificationStatus:VERIFY[r.vs]?r.vs:'NEEDS_REVIEW',importSource:src,...(invText(u.epithet,40)?{epithet:invText(u.epithet,40)}:{})};
+        fruits,memo:'',verificationStatus:VERIFY[r.vs]?r.vs:'NEEDS_REVIEW',importSource:src,...(invText(u.epithet,40)?{epithet:invText(u.epithet,40)}:{}),...own};
       units.push(u2);r.unitNo=u2.no;r.actions.push(`${dev} 個体${u2.no}を登録`);
+      if(notes.length) r.actions.push(`${notes.join('・')}ため、この個体だけに記録します（既存の形態・個体は変更しません）`);
     }else if(unitPatch){
-      Object.assign(unit,unitPatch);r.actions.push(unitPatch.fruits?'空だった実を補完':'確認状態を「確認済み」に更新');
+      Object.assign(unit,unitPatch);r.actions.push(unitPatch.fruits?'空だった実を補完':unitPatch.verificationStatus?'確認状態を「確認済み」に更新':'空欄だった項目を補完（この個体だけ）');
     }else r.actions.push('登録済み（変更なし）');
-    r.formAfter={race:fm.race,battleType:fm.battleType,shotType:fm.shotType,monsterNo:fm.monsterNo||''};
-    const missing=INV_FIELDS.filter(([k])=>!fm[k]).map(([,l])=>l);
+    const tu=unit||units[units.length-1], ev=k=>(tu&&tu.formId===fm.id&&tu[k])||fm[k]||'';
+    r.formAfter={race:ev('race'),battleType:ev('battleType'),shotType:ev('shotType'),monsterNo:ev('monsterNo')};
+    const missing=INV_FIELDS.filter(([k])=>!ev(k)).map(([,l])=>l);
     if(missing.length) r.reasons.push('未取得：'+missing.join('・'));
     if(r.vs!=='VERIFIED'||r.reasons.length) r.cls='review';
     return r;
