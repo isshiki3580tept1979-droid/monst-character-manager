@@ -2862,6 +2862,10 @@ function planInventory(j,opts={}){
       if(other) return fail('conflict',`図鑑No.${inc.monsterNo} が既存の「${charName(other)}｜${other.name}」と同じです（名前が違うため自動では直しません）`);
     }
     let ch=cs[0], fm=ch?(r.formName?forms.find(x=>x.characterId===ch.id&&!x.unknownForm&&x.name===r.formName):unknownFormOf(ch.id,forms)):null;
+    // 適正図鑑の形態（出典の表記）は、名前が同じだけでは所持の進化形態と同じとは決めない。同じ名前の所持形態を別に作ると見分けられなくなるため、登録を止めて理由を出す
+    if(fm&&fm.origin===CATALOG) return fail('conflict',fm.unknownForm
+      ?`「${r.characterName}」の「形態未確認」は適正図鑑の「形態未確認」のため、所持個体の登録先にしません。進化形態名を入れて登録するか、キャラ画面から登録してください`
+      :`進化形態「${r.formName}」は適正図鑑の形態と同じ名前です。所持している形態と同じかどうか確認できないため登録しません。進化形態の欄を空にすると「形態未確認」として登録できます（同じ形態かどうかは、あとで適正一覧の「同じ形態」で確認できます）`);
     const patch={};
     if(fm){
       for(const [k,label] of INV_FIELDS){
@@ -3118,6 +3122,27 @@ function srDuplicates(c){
   return db.units.filter(u=>u.device===c.device&&ids.has(formOf(u.formId)?.characterId))
     .map(u=>({no:u.no,formName:formName(formOf(u.formId)),unknown:!!formOf(u.formId)?.unknownForm,sameForm:!!c.formName&&!formOf(u.formId)?.unknownForm&&formOf(u.formId)?.name===c.formName,sameFruits:key(u.fruits)===key(c.fruits),fruits:u.fruits}));
 }
+// スクショの進化形態で更新できる既存の個体（同じ名前のキャラ・同じ端末・進化形態未確認の個体だけ）。確認済みの別形態の個体は対象外（統合しない）。
+// 図鑑No.が食い違う個体、適正図鑑の形態と同じ名前になる場合は対象にしない。どれを更新するかは利用者が選ぶ（自動では選ばない）
+function srUpdateTargets(c){
+  const out={list:[],notes:[]};
+  if(!c.formName) return out;
+  const cs=db.master.characters.filter(x=>x.name===c.characterName);if(cs.length!==1) return out;
+  const ch=cs[0], cat=formsOfChar(ch.id).find(f=>!f.unknownForm&&f.name===c.formName&&f.origin===CATALOG);
+  const us=db.units.filter(u=>u.device===c.device&&formOf(u.formId)?.characterId===ch.id&&formOf(u.formId)?.unknownForm);
+  if(!us.length) return out;
+  if(cat){out.notes.push(`適正図鑑の形態「${cat.name}」と同じ名前のため、既存の個体の形態は更新しません（同じ形態かどうかは適正一覧で確認してください）`);return out}
+  const lab={race:'種族',battleType:'戦型',shotType:'撃種'};
+  us.forEach(u=>{const f=formOf(u.formId);
+    if(f.monsterNo&&c.monsterNo&&f.monsterNo!==c.monsterNo){out.notes.push(`個体${u.no??'?'}：図鑑No.が違う（形態未確認の登録 ${f.monsterNo}／スクショ ${c.monsterNo}）ため、形態の更新候補にしません`);return}
+    out.list.push(u);
+    Object.keys(lab).forEach(k=>{if(f[k]&&c[k]&&f[k]!==c[k])out.notes.push(`個体${u.no??'?'}の${lab[k]}：形態未確認の登録は「${f[k]}」、スクショは「${c[k]}」（更新すると「${c.formName}」はスクショの値で登録し、形態未確認の登録はそのまま残します）`)});
+  });
+  if(out.list.length>1) out.notes.unshift(`形態未確認の個体が${out.list.length}体あります。どの個体か画像で確かめてから選んでください`);
+  if(out.list.length&&db.suits.some(s=>formOf(s.formId)?.origin===CATALOG&&linkedIds('char',ch.id).has(formOf(s.formId).characterId)))
+    out.notes.push(`適正図鑑の形態（${[...new Set(db.suits.map(s=>formOf(s.formId)).filter(f=>f&&f.origin===CATALOG&&linkedIds('char',ch.id).has(f.characterId)).map(f=>f.name))].join('・')}）と同じかどうかは確認しません（適正一覧の「同じ形態／別の形態」で確認できます）`);
+  return out;
+}
 function srFruitText(fr){return fr.length?fr.map(x=>`${x.name||'（名前なし）'} ${x.grade||'等級未確認'}`).join('、'):'なし'}
 function checkScreenshot(){
   srPending=null;$('srApply').disabled=true;$('srMsg').textContent='';srHideDone();
@@ -3131,7 +3156,7 @@ function checkScreenshot(){
   const j={schema:SR_FORMAT,device:c.device,scope:'',ownershipChecks:[],
     units:[{characterName:c.characterName,epithet:c.epithet,formName:c.formName,monsterNo:c.monsterNo,race:c.race,battleType:c.battleType,shotType:c.shotType,
       fruits:c.fruits,verificationStatus:c.needsReview?'NEEDS_REVIEW':'VERIFIED'}]};
-  const plan=planInventory(j,{allowUnknownForm:true}), row=plan.rows[0], dups=srDuplicates(c);
+  const plan=planInventory(j,{allowUnknownForm:true}), row=plan.rows[0], dups=srDuplicates(c), ups=srUpdateTargets(c);
   const blocked=row.cls==='conflict'||row.cls==='reject';
   const a=row.formAfter||{}, reasons=row.reasons.filter(m=>!/個体番号（unitNo）/.test(m));
   $('srResult').innerHTML=`<div class="invSec">登録前の確認</div>
@@ -3150,19 +3175,59 @@ function checkScreenshot(){
     ${blocked?'<div class="note">既存データと食い違うか、識別できないため登録できません（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください。</div>':''}
     ${!blocked&&dups.length?`<div class="note" id="srDupNote">${esc(devLabel(c.device))}には「${esc(c.characterName)}」の個体がすでにあります（自動では上書き・統合しません）：<br>${dups.map(d=>
       `個体${esc(String(d.no))}${d.unknown?'':`｜${esc(d.formName)}`}・実：${esc(srFruitText(d.fruits))}${d.sameForm?'（同じ進化形態）':''}${d.sameFruits?'<b>（実も同じ＝同じ個体の可能性が高い）</b>':''}`).join('<br>')}
-      <label class="srChk"><input type="checkbox" id="srDupOk"> 既存の個体とは別の個体として追加する（既存の個体は変更しません）</label></div>`:''}`;
+      ${ups.notes.map(m=>`<div class="meta warn">${esc(m)}</div>`).join('')}
+      <div class="srModes" role="radiogroup" aria-label="既存の個体の扱い">
+      <label class="srChk"><input type="radio" name="srDupMode" id="srDupNone" value="none" checked> 何もしない（既存データを変更しない）</label>
+      ${ups.list.map(u=>`<label class="srChk srUpdOpt"><input type="radio" name="srDupMode" value="upd:${esc(u.id)}"> 既存の個体${esc(String(u.no??'?'))}（形態未確認）の進化形態を「${esc(c.formName)}」に設定する（個体・わくわくの実・編成・確認状態はそのまま）</label>`).join('')}
+      <label class="srChk"><input type="radio" name="srDupMode" id="srDupOk" value="add"> 既存の個体とは別の個体として追加する（既存の個体は変更しません）</label></div></div>`:''}`;
   if(blocked){srSetStatus('block',`登録できません：${reasons.join('／')}（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください`);return}
-  srPending={sig:srSig(),c,j,dups:dups.length};
+  srPending={sig:srSig(),c,j,dups:dups.length,ups:ups.list.map(u=>u.id)};
   $('srApply').disabled=false;
-  srSetStatus('next',dups.length?'同じキャラの個体があります。別の個体として追加する場合は、上のチェックを入れてから「登録する」を押してください（押すまでは保存されません）'
+  srSetStatus('next',dups.length?(ups.list.length?'同じキャラの個体があります。既存の個体の形態を更新するか、別の個体として追加するかを上で選んでから「登録する」を押してください（既定は「何もしない」。押すまでは保存されません）':'同じキャラの個体があります。別の個体として追加する場合は、上のチェックを入れてから「登録する」を押してください（押すまでは保存されません）')
     :'確認画面の内容でよければ「登録する」を押してください（押すまでは保存されません）');
+}
+// 既存の「進化形態未確認」の個体を、スクショの進化形態に移す（利用者が選んだときだけ）。変えるのは個体の formId だけ。
+// 個体ID・端末・番号・実・メモ・二つ名・確認状態・編成（picks）はそのまま。進化形態は既存の同名の形態があればそれ、無ければ新しく登録（planInventory と同じ照合・空欄補完）。
+// 形態未確認の登録は削除・上書きしない。適正図鑑の形態とは結び付けない。保存前に照合し直し、失敗したら元に戻す
+function applySrUpdate(p,uid,fail){
+  const plan=planInventory(p.j,{allowUnknownForm:true}), row=plan.rows[0], ups=srUpdateTargets(p.c);
+  const ch=db.master.characters.find(x=>x.name===p.c.characterName), fm=ch&&plan.forms.find(f=>f.characterId===ch.id&&!f.unknownForm&&f.name===p.c.formName&&f.origin!==CATALOG);
+  if(row.cls==='conflict'||row.cls==='reject'||!fm||!ups.list.some(u=>u.id===uid)||!p.ups.includes(uid)||srDuplicates(p.c).length!==p.dups){
+    srPending=null;$('srApply').disabled=true;fail('block','登録前にデータが変わりました。もう一度「確認画面へ」を押してください');return}
+  const pid=srState?.pendingId&&db.pendingReadings.some(x=>x.id===srState.pendingId)?srState.pendingId:'';
+  const backupState=JSON.stringify({master:db.master,units:db.units,pendingReadings:db.pendingReadings});
+  const rollback=()=>{const b=JSON.parse(backupState);db.master=b.master;db.units=b.units;db.pendingReadings=b.pendingReadings;srPending=null;$('srApply').disabled=true;render()};
+  const u0=db.units.find(u=>u.id===uid);
+  try{
+    db.master.forms=plan.forms;
+    db.units=db.units.map(u=>u.id===uid?{...u,formId:fm.id}:u);
+    if(pid) db.pendingReadings=db.pendingReadings.filter(x=>x.id!==pid);
+    persist();
+  }catch(e){
+    rollback();
+    fail(isStale(e)?'block':'error',saveFailText(e,'更新に失敗したため、更新前の状態に戻しました')+(isStale(e)?'':'。もう一度「確認画面へ」→「登録する」を押してください'));return;
+  }
+  let saved=false;
+  try{const raw=localStorage.getItem(KEY), d=JSON.parse(raw||'null');saved=raw===lastRaw&&!!d&&Array.isArray(d.units)&&d.units.some(u=>u.id===uid&&u.formId===fm.id)}catch(e){saved=false}
+  if(!saved){markStale();rollback();fail('error','保存を確認できませんでした（更新は完了していません）。ページを再読み込みしてから、もう一度読み取ってください');return}
+  srPending=null;$('srApply').disabled=true;
+  if(pid){srState=null;$('srEdit').hidden=true;$('srTools').hidden=true}
+  render();
+  const t=`${devLabel(p.c.device)} ${p.c.characterName} 個体${u0.no??'?'} の進化形態を「${fm.name}」に設定しました（個体・わくわくの実・編成・確認状態はそのまま）`;
+  $('srMsg').textContent='更新しました：'+t+(pid?'。この読み取りの保留を一覧から消しました':'');
+  srSetStatus('ok','更新が完了しました。続けて登録するときは、新しく読み取ってください');
+  $('srDoneText').textContent='✅ 更新しました（保存済み）：'+t;
+  $('srGoChara').dataset.id=ch.id;$('srDone').hidden=false;
+  try{$('srDone').scrollIntoView({block:'center'})}catch(e){}
 }
 // 確認画面どおりに登録する。保存に失敗したら登録前の状態に戻す
 function applyScreenshot(){
   const p=srPending;
   const fail=(cls,t)=>{$('srMsg').textContent=t;srSetStatus(cls,t)};
   if(!p||p.sig!==srSig()){srPending=null;$('srApply').disabled=true;fail('block','内容が変わったため、もう一度「確認画面へ」を押してください');return}
-  if(p.dups&&!$('srDupOk')?.checked){fail('block','同じキャラの個体がすでにあります。別の個体として追加する場合は、チェックを入れてから「登録する」を押してください');return}
+  const mode=p.dups?(document.querySelector('input[name="srDupMode"]:checked')?.value||'none'):'add';
+  if(mode==='none'){fail('block','「何もしない」が選ばれているため、保存していません。別の個体として追加する場合や既存の個体の形態を更新する場合は、その項目にチェックを入れてから「登録する」を押してください');return}
+  if(mode.startsWith('upd:')) return applySrUpdate(p,mode.slice(4),fail);
   // 確認後にデータが変わっていても安全なように、保存直前に照合し直す
   const plan=planInventory(p.j,{allowUnknownForm:true}), row=plan.rows[0];
   if(row.cls==='conflict'||row.cls==='reject'||srDuplicates(p.c).length!==p.dups){srPending=null;$('srApply').disabled=true;fail('block','登録前にデータが変わりました。もう一度「確認画面へ」を押してください');return}
