@@ -76,7 +76,7 @@ test('team card: 撃種｜戦型｜種族 is shown right under the character nam
   assert.deepEqual(await typeOf(c.locator('.pickCur')),['貫通','バランス型','亜人']);
   const order=await c.locator('.pickCur').evaluate(e=>[...e.children].map(x=>x.className.split(' ')[0]));
   assert.deepEqual(order.slice(0,3),['pkName','pkType','pkFr'],'name → types → fruits');
-  assert.match(await txt(c),/架空アルファ.*貫通.*バランス型.*亜人.*熱き友撃EL.*将命削りM.*キャラを変更/);
+  assert.match(await txt(c),/キャラを変更.*架空アルファ.*貫通.*バランス型.*亜人.*熱き友撃EL.*将命削りM/);
   assert.doesNotMatch(await txt(c),/形態|獣神化|ハロー/);
   await keep();
 });

@@ -128,7 +128,7 @@ test('team cards: candidates per device unchanged; the card shows the character 
   assert.deepEqual(m.cand,['ネオ 個体1','ネオ 個体2']);
   assert.deepEqual(m.groups,[['所持キャラ（適正未登録・仮選択）',['アーサー 個体1（仮）']]],'others only as provisional');
   assert.deepEqual((await teamView(page,'サブ3')).cand,['ヤクモ 個体1','ヤクモ 個体2'],'the character has a verified suitability → no 未検証 mark on either unit');
-  assert.equal(await card('メイン').textContent().then(t=>t.replace(/\s+/g,' ').trim()),'①メイン ＋ キャラを選ぶ');
+  assert.equal(await card('メイン').textContent().then(t=>t.replace(/\s+/g,' ').trim()),'①メイン＋ キャラを選ぶ');
   await choose(page,'メイン','u-neo1');
   let l=await lines('メイン');
   assert.equal(l.name,'ネオ個体1');
@@ -188,7 +188,7 @@ test('picks are kept when a device is removed and reused when it is added back; 
   await click('[data-act="useDev"][data-dev="サブ3"]');
   await page.evaluate(()=>{db.suits=db.suits.filter(s=>!['f-yk1','f-yk2'].includes(s.formId));persist();render()});
   await click('[data-act="useDev"][data-dev="サブ3"]');
-  assert.match(await card('サブ3').textContent(),/仮選択（このステージの適正は未登録）/);assert.ok((await teamView(page,'サブ3')).groups[0][1].includes('ヤクモ 個体1（仮）'));
+  assert.match(await card('サブ3').textContent(),/仮選択｜適正未登録/);assert.ok((await teamView(page,'サブ3')).groups[0][1].includes('ヤクモ 個体1（仮）'));
   assert.equal((await snapshot()).picks[STAGE]['サブ3'],'u-yk1');
 });
 

@@ -167,7 +167,7 @@ test('stage: with no suitability, every owned unit on that device can be picked 
   assert.deepEqual(await optionList(page,'サブ2',true),['候補なし'],'a device with no units has nothing to choose');
   await choose(page,'メイン','uA');
   const card=(await main.locator('.pickCur.prov').textContent()).replace(/\s+/g,' ');
-  assert.match(card,/架空所持キャラA/);assert.match(card,/仮選択（このステージの適正は未登録）/);assert.match(card,/加命撃/);
+  assert.match(card,/架空所持キャラA/);assert.match(card,/仮選択｜適正未登録/);assert.match(card,/加命撃/);
   let d=await snapshot();assert.deepEqual(d.picks,{[K]:{'メイン':'uA'}});assert.deepEqual(d.suits,[]);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal scroll at 390px');
   fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});

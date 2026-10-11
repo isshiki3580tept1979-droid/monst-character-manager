@@ -90,7 +90,7 @@ test('「・」区切りの名前は自動照合しない: the unit stays in the
   assert.ok(!p.cand.some(t=>/架空ミライ・架空ピースフルAI/.test(t)),'not a normal candidate');
   assert.deepEqual(p.groups.map(g=>g[0]),['所持キャラ（適正未登録・仮選択）']);assert.equal(p.sel,'uO1','the provisional pick is kept');
   // 編成のカードには「仮選択」とだけ出す（長い説明は出さない）。対応付けは適正一覧・キャラを選ぶ画面からできる
-  assert.match(await txt(page.locator('.pickDev[data-dev="メイン"]')),/仮選択（このステージの適正は未登録）/);
+  assert.match(await txt(page.locator('.pickDev[data-dev="メイン"]')),/仮選択｜適正未登録/);
   assert.doesNotMatch(await txt(page.locator('#stageDevices')),/適正図鑑に同じキャラが登録されている場合/);
   await chara();
   assert.match(await head('cO'),/適正0/);

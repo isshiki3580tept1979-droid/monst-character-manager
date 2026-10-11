@@ -284,7 +284,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .iMode.on{background:#0f766e;border-color:#0f766e;color:#fff}
 .cnts{display:flex;gap:4px;flex:none}
 .pickSel{margin-top:6px;padding:9px 10px;font-weight:800;font-size:14px;min-height:44px}
-.teamHead{margin:10px 2px 4px;font-size:15px}
+.teamHead{margin:8px 2px 4px;font-size:15px}
 .pickBtn{display:block;width:100%;margin-top:8px;min-height:48px;border-radius:12px;border:1px solid #1e3a8a;background:#fff;color:#1e3a8a;font-weight:900;font-size:15px}
 .pickBtn.add{background:#eff6ff;border-style:dashed}
 .pickCur{margin-top:6px;background:#f8fafc;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -295,6 +295,20 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .pkType .sep{color:#94a3b8;font-weight:400;margin:0 4px}
 .pkType .unset{background:none;border:0;color:#94a3b8;font-weight:700}
 .pkFr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+/* v29：ステージの編成カードを縦に詰める（情報は減らさない・ボタンは押せる高さを保つ） */
+.dev.pickDev{padding:6px 8px;margin-bottom:5px}
+.pickDev .devName{font-size:14px;line-height:1.25}
+.pickDev .slotNo{font-size:15px;margin-right:4px}
+.pickDev .pickCur{margin-top:4px;padding:5px 8px;gap:3px}
+.pickDev .pkName{font-size:15px;line-height:1.25}
+.pickDev .pkType{font-size:12.5px;line-height:1.3}
+.pickDev .pkFr{display:flex;flex-wrap:wrap;gap:3px}
+.pickDev .pkFr .frS{font-size:12px;padding:2px 7px;line-height:1.3;border-radius:7px}
+.pickDev .pTag{font-size:11.5px;padding:1px 7px}
+.pickDev .pWarn{margin-top:2px;padding:3px 7px}
+.pickDev .devName{flex:1 1 auto}
+.pickDev .devId{white-space:nowrap}
+.pickDev .pickBtn{flex:none;width:auto;margin:0;min-height:44px;padding:0 12px;font-size:14px;border-radius:10px;white-space:nowrap}
 .pTags{display:flex;flex-wrap:wrap;gap:4px}
 .pTag{font-size:12px;font-weight:800;border-radius:999px;padding:2px 8px;background:#f1f5f9;color:#475569}
 .pTag.prov{background:#fef3c7;color:#92400e}
@@ -1313,7 +1327,7 @@ function renderStage(){
   $('stageDevices').innerHTML=use.length?use.map((d,i)=>{
     return `
       <div class="dev pickDev" data-dev="${esc(d)}">
-        <div class="devHead"><div class="devName"><span class="slotNo">${SLOT_MARKS[i]}</span>${devNameHtml(d)}</div></div>
+        <div class="devHead"><div class="devName"><span class="slotNo">${SLOT_MARKS[i]}</span>${devNameHtml(d)}</div>${pickButton(k,d)}</div>
         ${pickBlock(k,d)}
       </div>`;
   }).join(''):`<div class="dev empty"><div class="devName">今回使う端末を選んでください</div><span class="none">上のチェックで最大${USE_MAX}台</span></div>`;
@@ -1934,11 +1948,13 @@ function pickState(k,d){
   const inCand=cands.some(u=>u.id===sel), prov=!!sel&&!inCand&&owns.some(u=>u.id===sel);
   return {cands,owns,sel,unit,inCand,prov,stale:!!sel&&!inCand&&!prov};
 }
+// 端末名の右側のボタン：選択済みなら「キャラを変更」、未選択なら「＋ キャラを選ぶ」
+function pickButton(k,d){const sel=db.picks[k]?.[d]||'';return `<button type="button" class="pickBtn${sel?'':' add'}" data-act="openPicker" data-dev="${esc(d)}">${sel?'キャラを変更':'＋ キャラを選ぶ'}</button>`}
 function pickBlock(k,d){
   const p=pickState(k,d);
-  if(!p.sel) return `<button type="button" class="pickBtn add" data-act="openPicker" data-dev="${esc(d)}">＋ キャラを選ぶ</button>`;
+  if(!p.sel) return '';
   const u=p.unit, tags=[];
-  if(p.prov) tags.push('<span class="pTag prov">仮選択（このステージの適正は未登録）</span>');
+  if(p.prov) tags.push('<span class="pTag prov" title="仮選択：このステージの適正は未登録">仮選択｜適正未登録</span>');
   if(u&&!p.stale&&unitAt(u)!==u.device) tags.push(`<span class="pTag lend">借用中・元 ${esc(devLabel(u.device))}</span>`);
   const warn=p.stale?`<div class="pWarn">${u?(unitAt(u)!==d?`この個体は今${esc(devLabel(unitAt(u)))}にいます${unitAt(u)!==u.device?'（貸出中）':''}。選び直してください`:'この個体は今の候補にありません。選び直してください'):'選んでいた個体が見つかりません。選び直してください'}</div>`:'';
   return `<div class="pickCur${p.prov?' prov':''}${p.stale?' stale':''}">
@@ -1946,8 +1962,7 @@ function pickBlock(k,d){
       ${u?basicLine(u):''}
       ${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${warn}
       ${u?frChips(u):''}
-    </div>
-    <button type="button" class="pickBtn" data-act="openPicker" data-dev="${esc(d)}">キャラを変更</button>`;
+    </div>`;
 }
 // キャラを選ぶ画面（端末ごと）。候補はキャラ名単位の適正判定（v26）。所持端末・個体番号・実・貸出状態・確認状態を出す
 let pickerDev=null;

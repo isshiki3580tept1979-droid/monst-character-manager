@@ -172,7 +172,7 @@ test('stale pick after suitability removal is shown as 候補外, not silently c
   assert.equal((await teamView(page,'メイン')).sel,'u-neo1');
   await click('[data-act="suitEdit"][data-id="s2"]');await click('[data-act="deleteSuit"]');
   // 所持はしているので、自動で外さず「仮選択・適正未確定」として残す（適正は作らない）
-  assert.match(await devRow('メイン').textContent(),/仮選択（このステージの適正は未登録）/);const v=await teamView(page,'メイン');assert.equal(v.sel,'u-neo1');
+  assert.match(await devRow('メイン').textContent(),/仮選択｜適正未登録/);const v=await teamView(page,'メイン');assert.equal(v.sel,'u-neo1');
   assert.ok(v.groups[0][1].includes('ネオ 個体1（仮）'));
   assert.equal((await snapshot()).picks[STAGE]['メイン'],'u-neo1');assert.equal((await snapshot()).suits.some(s=>s.formId==='f-hello'),false);
   assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ルシファー 個体1']);
