@@ -1334,18 +1334,27 @@ function nameSimilarity(a,b){
   A.forEach(x=>{const i=pool.indexOf(x);if(i>=0){m++;pool.splice(i,1)}});
   return 2*m/(A.length+bi(b).length);
 }
+// 区切り記号（・｜／：空白・括弧）の前の名前（2文字以上）。例「ミライ・ピースフルAI」「ミライ｜ピースフル」→「ミライ」。区切りが無ければ ''
+function sepHead(v){const p=String(v||'').normalize('NFKC').trim().split(/[・|\/:\s()「」【】]+/).filter(Boolean);if(p.length<2)return '';const h=nameKey(p[0]);return h.length>=2?h:''}
+// 区切りの前の名前が、相手の名前（または相手の区切りの前の名前）と一致。候補に出すだけで、自動照合には使わない
+function sepHeadMatch(a,b){const ka=nameKey(a),kb=nameKey(b),ha=sepHead(a),hb=sepHead(b);if(ka===kb)return false;return !!((ha&&(ha===kb||ha===hb))||(hb&&hb===ka))}
 function charCandidates(name,monsterNo){
   const k=nameKey(name), no=clean(monsterNo,10);
   if(!k&&!no) return [];
-  return db.master.characters.map(c=>{
-    const ck=nameKey(c.name);
-    if(k&&ck===k) return c.name===String(name||'').trim()?{c,why:'同じ名前',rank:0}:{c,why:'表記ゆれ（空白・記号・全角半角）だけが違う',rank:0.5};
-    if(no&&formsOfChar(c.id).some(f=>f.monsterNo===no)) return {c,why:'図鑑No.が一致',rank:1};
-    if(k&&epithetBaseMatch({name},c)) return {c,why:'二つ名を除いた名前が一致',rank:1.5};
-    if(k&&k.length>=2&&ck.length>=2&&(k.includes(ck)||ck.includes(k))) return {c,why:'名前の一部が一致',rank:2};
-    if(k&&nameSimilarity(k,ck)>=0.5) return {c,why:'似た名前',rank:3};
-    return null;
-  }).filter(Boolean).sort((a,b)=>a.rank-b.rank||sortJa(a.c.name,b.c.name)).slice(0,6);
+  return db.master.characters.map(c=>candReason(name,monsterNo,c)).filter(Boolean).sort((a,b)=>a.rank-b.rank||sortJa(a.c.name,b.c.name)).slice(0,6);
+}
+// 名前・図鑑No.から見た、キャラ c が候補になる理由（無ければ null）。rank が小さいほど強い
+function candReason(name,monsterNo,c){
+  const k=nameKey(name), no=clean(monsterNo,10);
+  if(!k&&!no) return null;
+  const ck=nameKey(c.name);
+  if(k&&ck===k) return c.name===String(name||'').trim()?{c,why:'同じ名前',rank:0}:{c,why:'表記ゆれ（空白・記号・全角半角）だけが違う',rank:0.5};
+  if(no&&formsOfChar(c.id).some(f=>f.monsterNo===no)) return {c,why:'図鑑No.が一致',rank:1};
+  if(k&&sepHeadMatch(name,c.name)) return {c,why:'区切りの前の名前が一致',rank:1.2};
+  if(k&&epithetBaseMatch({name},c)) return {c,why:'二つ名を除いた名前が一致',rank:1.5};
+  if(k&&k.length>=2&&ck.length>=2&&(k.includes(ck)||ck.includes(k))) return {c,why:'名前の一部が一致',rank:2};
+  if(k&&nameSimilarity(k,ck)>=0.5) return {c,why:'似た名前',rank:3};
+  return null;
 }
 // 候補に出す情報：個体数・所持端末・進化形態の確認状況
 function charSummary(c){
@@ -1788,12 +1797,14 @@ function charGroupOf(cid){
     db.units.map(u=>u.formId+(u.epithet||'')).join('\u0001'),db.idLinks.map(l=>l.kind+l.a+l.b+l.basis).join('\u0001')].join('\u0002');
   if(_cg.sig!==sig){const ep=new Map();db.units.forEach(u=>{if(!u.epithet)return;const c=formOf(u.formId)?.characterId;if(!c)return;const k=nameKey(u.epithet);if(k&&!(ep.get(c)||[]).includes(k))ep.set(c,[...(ep.get(c)||[]),k])});_cg={sig,map:new Map(),ep}}
   if(_cg.map.has(cid)) return _cg.map.get(cid);
-  const out=new Set([cid]), queue=[cid];
+  // 除外したペアは、別のキャラを経由しても同じ集合に入れない（集合のどれかと除外されていれば加えない）
+  const out=new Set([cid]), queue=[cid], excl=y=>[...out].some(m=>charPairExcluded(m,y));
   while(queue.length){const x=queue.shift(), cx=charOf(x);
-    for(const l of db.idLinks){if(l.kind!=='char'||l.basis===EXCLUDED)continue;const y=l.a===x?l.b:l.b===x?l.a:null;if(y&&!out.has(y)&&charOf(y)){out.add(y);queue.push(y)}}
-    if(cx) for(const c of db.master.characters){if(out.has(c.id)||charPairExcluded(x,c.id))continue;if(autoSameChar(cx,c,_cg.ep)){out.add(c.id);queue.push(c.id)}}
+    for(const l of db.idLinks){if(l.kind!=='char'||l.basis===EXCLUDED)continue;const y=l.a===x?l.b:l.b===x?l.a:null;if(y&&!out.has(y)&&charOf(y)&&!excl(y)){out.add(y);queue.push(y)}}
+    if(cx) for(const c of db.master.characters){if(out.has(c.id)||excl(c.id))continue;if(autoSameChar(cx,c,_cg.ep)){out.add(c.id);queue.push(c.id)}}
   }
-  out.forEach(id=>_cg.map.set(id,out));
+  // 除外があると起点によって集合が変わり得るため、起点のキャラにだけ記録する
+  _cg.map.set(cid,out);
   return out;
 }
 // 利用者が確認した対応付け（同じ進化形態）をたどった集合（自分自身を含む）。kind='char' は charGroupOf を使う
@@ -1860,7 +1871,7 @@ function suitLinkHtml(f){
   }
   // 同じキャラ（対応付けを含む）の所持個体が1体もないときだけ、所持キャラの候補を出す（自動では結び付けない）
   if(!db.units.some(u=>group.has(formOf(u.formId)?.characterId))){
-    const cands=charCandidates(c.name,f.monsterNo||'').filter(x=>!group.has(x.c.id)&&db.units.some(u=>formOf(u.formId)?.characterId===x.c.id)).slice(0,3);
+    const cands=charCandidates(c.name,f.monsterNo||'').filter(x=>!group.has(x.c.id)&&!charPairExcluded(c.id,x.c.id)&&db.units.some(u=>formOf(u.formId)?.characterId===x.c.id)).slice(0,3);
     if(cands.length) out.push(`<div class="meta linkLine">所持キャラの候補：${cands.map(x=>`${esc(x.c.name)}（${esc(x.why)}・${esc(charSummary(x.c))}） <button class="mini" data-act="linkChar" data-a="${esc(c.id)}" data-b="${esc(x.c.id)}">同じキャラとして対応付ける</button>`).join('<br>')}
       <br><span class="small">名前が似ていても同じキャラとは限りません。同じキャラだと確認できた場合だけ対応付けてください（キャラの統合・削除はしません）。</span></div>`);
   }
@@ -1941,6 +1952,21 @@ function ownUnitsFor(k,dev,exclude){
   return db.units.filter(u=>u.device===dev&&formOf(u.formId)&&!exclude.has(u.id))
     .sort((a,b)=>sortJa(formLabel(formOf(a.formId)),formLabel(formOf(b.formId)))||(a.no||0)-(b.no||0));
 }
+// 仮選択の所持キャラと、このステージの適正キャラのうち、強い根拠（同じ名前の表記ゆれ・図鑑No.・区切りの前の名前・二つ名）で同じキャラかもしれないもの。
+// 押したときだけ対応付け（または除外）を保存する。名前の一部一致・似た名前はここには出さない（適正一覧の候補で確認する）。進化形態の一致は扱わない
+function pickSuggestHtml(k,owns){
+  const suitChars=[...new Set([...suitFormIds(k)].map(id=>formOf(id)?.characterId).filter(Boolean))].map(charOf).filter(Boolean), out=[];
+  [...new Set(owns.map(u=>formOf(u.formId)?.characterId))].map(charOf).filter(Boolean).forEach(o=>{
+    const no=formsOfChar(o.id).find(f=>f.monsterNo)?.monsterNo||'', g=linkedIds('char',o.id);
+    suitChars.forEach(s=>{
+      if(g.has(s.id)||charPairExcluded(o.id,s.id)) return;
+      const r=candReason(o.name,no,s);if(!r||r.rank>1.5) return;
+      out.push(`<div class="meta linkLine pickSuggest">「${esc(o.name)}」は適正の「${esc(s.name)}」と同じキャラかもしれません（${esc(r.why)}）<br>
+        <button class="mini" data-act="linkChar" data-a="${esc(s.id)}" data-b="${esc(o.id)}">同じキャラとして対応付ける</button> <button class="mini" data-act="excludeChar" data-a="${esc(s.id)}" data-b="${esc(o.id)}">別のキャラ</button></div>`);
+    });
+  });
+  return out.join('');
+}
 function pickBlock(k,d){
   const map=suitCharMap(k), cands=candidatesFor(k,d), sel=db.picks[k]?.[d]||'';
   const owns=ownUnitsFor(k,d,new Set(cands.map(u=>u.id)));
@@ -1966,6 +1992,7 @@ function pickBlock(k,d){
   return `<select class="pickSel" data-pick-dev="${esc(d)}" aria-label="${esc(d)}で使う個体"${!any&&!stale?' disabled':''}>${opts}</select>`+
     // 適正と結び付いていない所持キャラがある端末だけ：適正一覧の「同じキャラとして対応付ける」への案内（対応付けると通常の候補になる）
     (owns.length&&suitFormIds(k).size?'<div class="pNone pickHint">適正図鑑に同じキャラが登録されている場合は、下の適正一覧から対応付けできます</div>':'')+
+    pickSuggestHtml(k,owns)+
     (stale?'<div class="pWarn">選択中の個体は今の候補外です（適正・所持・形態を確認してください）</div>':'')+
     // 編成判断に必要な情報（形態・種族・戦型・撃種・実）は常時表示。下の「詳細」は補助（既定は表示なし）
     (unit&&!stale?unitCardHtml(unit,inCand&&!unitVerified(unit,k,map),prov?'prov':false,fm):'')+

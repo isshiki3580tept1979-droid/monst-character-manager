@@ -103,7 +103,7 @@ test('「・」区切りの名前は自動照合しない: the unit stays in the
 test('user links the character from the suitability list: becomes a normal candidate (形態未確認), picks kept, no merge; the hint disappears', async()=>{
   await seed(BASE);
   const r=row('s1');
-  assert.match(await txt(r),/所持キャラの候補：架空ミライ・架空ピースフルAI（名前の一部が一致/);
+  assert.match(await txt(r),/所持キャラの候補：架空ミライ・架空ピースフルAI（区切りの前の名前が一致/);
   await r.locator('[data-act="linkChar"][data-b="cO"]').click();
   const d=await keepData();
   assert.deepEqual(d.idLinks.map(l=>[l.kind,l.a,l.b,l.basis]),[['char','cM','cO','USER_SELECTED']]);
@@ -175,7 +175,7 @@ test('registration candidates show the catalog character\'s suitability (stage, 
   await page.evaluate(()=>openQuickReg());
   await page.fill('#qrCharName','架空ミライ・架空ピースフルAI');
   const list=await txt(page.locator('#qrCands'));
-  assert.match(list,/架空ミライ.*名前の一部が一致/);
+  assert.match(list,/架空ミライ.*区切りの前の名前が一致/);
   assert.match(list,/適正：.*ラルガメンテ：ランク S（GameWith・架空ピースフル）/);
   assert.match(list,/ニギミタマ：ランク A（GameWith・架空ピースフル）/);
   assert.match(list,/この候補を選ぶと登録済みの適正情報につながります/);
@@ -192,7 +192,7 @@ test('registration candidates show the catalog character\'s suitability (stage, 
   await page.fill('#srText',JSON.stringify({format:'monst-screenshot-reading-v1',characterName:'架空ミライ・架空ピースフルAI',formName:null,monsterNo:'99069',race:'亜人',battleType:'超バランス型',shotType:'貫通',fruit1:null,fruit2:null,fruit3:null,confidence:'HIGH',needsReview:false,reviewNotes:[],uncertainFields:[]}));
   await page.click('[data-act="srPreview"]');
   const sr=await txt(page.locator('#srCands'));
-  assert.match(sr,/架空ミライ.*名前の一部が一致.*適正：.*ラルガメンテ：ランク S（GameWith・架空ピースフル）/);
+  assert.match(sr,/架空ミライ.*区切りの前の名前が一致.*適正：.*ラルガメンテ：ランク S（GameWith・架空ピースフル）/);
   assert.match(sr,/この候補を選ぶと登録済みの適正情報につながります/);
   const d=await stored();assert.deepEqual(d.master.characters.map(c=>c.id),NO_O.master.characters.map(c=>c.id));assert.deepEqual(d.units.map(u=>u.id),NO_O.units.map(u=>u.id));
 });
