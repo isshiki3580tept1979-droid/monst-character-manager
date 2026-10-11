@@ -291,6 +291,9 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .pickCur.prov{background:#fffbeb}
 .pkName{font-size:16px;line-height:1.3;overflow-wrap:anywhere}
 .pkName .uNo{margin-left:6px;font-size:13px;color:#475569;font-weight:800}
+.pkType{display:flex;flex-wrap:wrap;align-items:center;font-size:13px;font-weight:800;color:#075985;line-height:1.4}
+.pkType .sep{color:#94a3b8;font-weight:400;margin:0 4px}
+.pkType .unset{background:none;border:0;color:#94a3b8;font-weight:700}
 .pkFr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
 .pTags{display:flex;flex-wrap:wrap;gap:4px}
 .pTag{font-size:12px;font-weight:800;border-radius:999px;padding:2px 8px;background:#f1f5f9;color:#475569}
@@ -1892,6 +1895,13 @@ function fruitShort(x){
 // ステージ編成：選んだ個体（picks）を、端末カードに「キャラ名＋わくわくの実」だけで表示する（v27）。
 // 状態の印は誤解を招くものだけ：仮選択（このステージの適正が未登録）・借用中・この端末にいない（貸出中・削除など）。
 // 確認状態（要確認・未検証）はキャラを選ぶ画面とキャラ画面で確認できる。保存データは picks に個体IDを入れるだけで、ほかは変えない
+// 個体の撃種・戦型・種族（v28）：個体の形態の値を優先。無ければ同じキャラの形態の値が1つに決まるときだけ使う（食い違えば「未登録」）。推測で補わない
+function unitBasic(u){
+  const f=formOf(u.formId), fs=f?formsOfChar(f.characterId):[];
+  const pick=k=>{if(f&&f[k]) return f[k];const vs=[...new Set(fs.map(x=>x[k]).filter(Boolean))];return vs.length===1?vs[0]:''};
+  return {shotType:pick('shotType'),battleType:pick('battleType'),race:pick('race')};
+}
+function basicLine(u){const b=unitBasic(u);return `<div class="pkType">${[b.shotType,b.battleType,b.race].map(v=>`<span${v?'':' class="unset"'}>${esc(v||'未登録')}</span>`).join('<span class="sep">｜</span>')}</div>`}
 function frChips(u){
   const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
   return u.fruits.length?`<div class="pkFr">${u.fruits.map(chip).join('')}</div>`:'<div class="pkFr"><span class="frNone">実なし</span></div>';
@@ -1933,6 +1943,7 @@ function pickBlock(k,d){
   const warn=p.stale?`<div class="pWarn">${u?(unitAt(u)!==d?`この個体は今${esc(devLabel(unitAt(u)))}にいます${unitAt(u)!==u.device?'（貸出中）':''}。選び直してください`:'この個体は今の候補にありません。選び直してください'):'選んでいた個体が見つかりません。選び直してください'}</div>`:'';
   return `<div class="pickCur${p.prov?' prov':''}${p.stale?' stale':''}">
       <div class="pkName"><b>${esc(u?unitCharName(u)||'（キャラ不明）':'（削除された個体）')}</b>${u&&sameCharCount(u,d)>1?`<span class="uNo">個体${u.no??'?'}</span>`:''}</div>
+      ${u?basicLine(u):''}
       ${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${warn}
       ${u?frChips(u):''}
     </div>
@@ -1959,7 +1970,7 @@ function renderPicker(){
     const label=unitLabel(u)+(group==='cand'?(unitVerified(u,k,map)?'':'（未検証）')+(unitAt(u)!==u.device?`（${devLabel(u.device)}から借用）`:''):'（仮）');
     return `<button type="button" class="pkItem${u.id===p.sel?' on':''}" data-act="pickUnit" data-id="${esc(u.id)}" data-group="${group}" aria-label="${esc(label)}">
       <div class="pkName"><b>${esc(unitCharName(u)||'（キャラ不明）')}</b><span class="uNo">個体${u.no??'?'}</span></div>
-      ${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${frChips(u)}</button>`;
+      ${basicLine(u)}${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${frChips(u)}</button>`;
   };
   $('pkList').innerHTML=(p.cands.length?`<div class="pkSec" data-group="cand">このステージの適正キャラ</div>${p.cands.map(u=>item(u,'cand')).join('')}`
       :p.owns.length?`<div class="small pkEmpty">${suitFormIds(k).size?'この端末に、このステージの適正キャラはいません':'このステージの適正はまだ登録されていません'}</div>`:'')

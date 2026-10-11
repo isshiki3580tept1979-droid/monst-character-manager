@@ -132,12 +132,12 @@ test('candidates: only owned AND suitable units per device, per-unit (not per-ch
   assert.deepEqual(await page.evaluate(()=>[formStatus('f-hello','メイン'),formStatus('f-hello','サブ1'),formStatus('f-hello','サブ2'),formStatus('f-el','メイン')]),['owned','owned','not-owned','not-owned']);
 });
 
-test('team card: shows the chosen character and its fruits only (no detail toggle); switching follows the chosen unit; picks persist and can be removed',async()=>{
+test('team card: shows the chosen character, 撃種｜戦型｜種族 and its fruits (no detail toggle); switching follows the chosen unit; picks persist and can be removed',async()=>{
   await seed(world({suits:[...world().suits,{id:'s5',stageKey:STAGE,formId:'f-rev',source:'GAMEWITH',grade:'A',verificationStatus:'VERIFIED'}],useDevs:{[STAGE]:['メイン','サブ1']}}));
   assert.equal(await page.locator('[data-act="infoMode"], #infoBar').count(),0,'no detail toggle');
   await choose(page,'メイン','u-neo1');
   const cur=()=>devRow('メイン').locator('.pickCur').textContent();
-  assert.match(await cur(),/ネオ\s*個体1/);assert.match(await cur(),/撃種加撃L.*撃種加速撃特.*撃種加命撃EL/);assert.doesNotMatch(await cur(),/亜人|スピード型|反射/);
+  assert.match(await cur(),/ネオ\s*個体1/);assert.match(await cur(),/撃種加撃L.*撃種加速撃特.*撃種加命撃EL/);assert.match(await cur(),/反射｜スピード型｜亜人/,'撃種｜戦型｜種族 under the name');
   await choose(page,'メイン','u-neo2');assert.match(await cur(),/ネオ\s*個体2/);assert.match(await cur(),/速必殺特.*将命削りL.*兵命削りL/);
   await page.reload();
   assert.equal((await teamView(page,'メイン')).sel,'u-neo2');assert.equal((await teamView(page,'サブ1')).sel,'');

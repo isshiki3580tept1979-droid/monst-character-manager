@@ -76,15 +76,15 @@ const keep=async()=>{const d=await stored();
   const sv=x=>[x.id,x.formId,x.grade||'',x.verificationStatus,x.note||''];assert.deepEqual(d.suits.map(sv),BASE.suits.map(sv),'suitability kept');
   same(d.idLinks,BASE.idLinks,'links kept');same(d.deviceNames,BASE.deviceNames);return d};
 
-test('stage screen shows only the team: device name, chosen character, all fruits and one button per device (no counts, no type info, no detail toggle)', async()=>{
+test('stage screen shows only the team: device name, chosen character, 撃種｜戦型｜種族, all fruits and one button per device (no counts, no detail toggle)', async()=>{
   await seed(BASE);
   assert.match(await txt(page.locator('#view-stage')),/今回の編成/);
   const c1=await txt(card('メイン'));
   assert.match(c1,/①\s*架空マフティー（メイン）/);
   assert.match(c1,/架空ミライ・架空ピースフルAI/);
-  assert.match(c1,/熱き友撃EL.*同族加命撃L.*同族加撃L/);
+  assert.match(c1,/架空ミライ・架空ピースフルAI.*貫通.*バランス型.*亜人.*熱き友撃EL.*同族加命撃L.*同族加撃L/,'name → 撃種｜戦型｜種族 → fruits');
   assert.match(c1,/キャラを変更/);
-  assert.doesNotMatch(c1,/候補\d|個体要確認|亜人|バランス型|貫通|使う個体を選んでください|適正図鑑に同じキャラ|適正キャラの所持個体はありません/);
+  assert.doesNotMatch(c1,/候補\d|個体要確認|使う個体を選んでください|適正図鑑に同じキャラ|適正キャラの所持個体はありません/);
   for(const d of ['サブ1','サブ3','サブ2']) assert.equal(await txt(card(d)),`${['②','③','④'][['サブ1','サブ3','サブ2'].indexOf(d)]}${d==='サブ1'?'架空iPad（サブ1）':d} ＋ キャラを選ぶ`);
   assert.equal(await page.locator('#infoBar, [data-act="infoMode"], .pickSel').count(),0,'no detail toggle and no select box');
   assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#stageDevices .pickDev')].map(x=>x.dataset.dev)),['メイン','サブ1','サブ3','サブ2'],'only the chosen devices, in team order');
@@ -97,7 +97,7 @@ test('choosing: the list shows suitability characters first (name, unit number, 
   assert.deepEqual(await sections(),['cand','own']);
   assert.deepEqual(await items(),['架空ネオ 個体1（未検証）','架空ネオ 個体2（未検証）','架空ミライ・架空ピースフルAI 個体1','架空借用キャラ 個体1（架空iPad（サブ1）から借用）','架空アーサー 個体1（仮）']);
   const neo=await txt(page.locator('#pkList .pkItem[data-id="uN1"]'));
-  assert.match(neo,/架空ネオ\s*個体1\s*適正は未検証\s*熱き友撃EL\s*同族加命撃L\s*同族加撃L\s*将命削りM/,'all four fruits');
+  assert.match(neo,/架空ネオ\s*個体1\s*未登録｜未登録｜亜人\s*適正は未検証\s*熱き友撃EL\s*同族加命撃L\s*同族加撃L\s*将命削りM/,'all four fruits');
   assert.match(await txt(page.locator('#pkList .pkItem[data-id="uO1"]')),/選択中.*個体は要確認/);
   assert.match(await txt(page.locator('#pkList .pkItem[data-id="uB1"]')),/借用中・元 架空iPad（サブ1）/);
   assert.equal(await page.locator('#pkList .pkItem[data-id="uL1"]').count(),0,'a unit lent to another device is not offered here');
@@ -115,9 +115,9 @@ test('仮選択 and borrowed units are marked on the card; choosing again never 
   await seed(BASE);
   await open('サブ1');assert.match(await txt(page.locator('#pkList')),/この端末にいるキャラがいません/);await page.click('#pickModal [data-act="close"]');
   await choose('メイン','uA1');
-  assert.match(await txt(card('メイン')),/架空アーサー 仮選択（このステージの適正は未登録）/);
+  assert.match(await txt(card('メイン')),/架空アーサー.*仮選択（このステージの適正は未登録）/);
   await choose('メイン','uB1');
-  assert.match(await txt(card('メイン')),/架空借用キャラ 借用中・元 架空iPad（サブ1）/);
+  assert.match(await txt(card('メイン')),/架空借用キャラ.*借用中・元 架空iPad（サブ1）/);
   await open('メイン');await page.click('[data-act="pickClear"]');
   assert.equal(await txt(card('メイン')),'①架空マフティー（メイン） ＋ キャラを選ぶ');
   const d=await keep();assert.deepEqual(d.picks,{});

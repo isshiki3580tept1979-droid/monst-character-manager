@@ -134,9 +134,9 @@ test('team cards: candidates per device unchanged; the card shows the character 
   assert.equal(l.name,'ネオ個体1');
   assert.deepEqual(l.fruits,['同族加撃L','同族加撃速L','同族加命撃L','撃種加撃EL'],'all four fruits');
   assert.equal(l.titles[0],'[同族]同族の絆・加撃 特級L'); // full name kept (tooltip)
-  assert.doesNotMatch(await card('メイン').textContent(),/亜人|砲撃型|貫通/,'no type info on the team card');
+  assert.match(await card('メイン').locator('.pkType').textContent(),/貫通｜砲撃型｜亜人/,'撃種｜戦型｜種族 under the name');
   await choose(page,'メイン','u-neo2');l=await lines('メイン');
-  assert.deepEqual([l.name,l.fruits],['ネオ個体2',['撃種加撃L','戦型加撃特','将命削りM']]);
+  assert.deepEqual([l.name,l.fruits],['ネオ個体2',['撃種加撃L','戦型加撃特','将命削りM']]);assert.match(await card('メイン').locator('.pkType').textContent(),/反射｜パワー型｜魔人/);
   await choose(page,'サブ3','u-yk1');l=await lines('サブ3');
   assert.deepEqual([l.name,l.fruits,l.none],['ヤクモ個体1',[],'実なし']);
   await choose(page,'サブ3','u-yk2');l=await lines('サブ3');

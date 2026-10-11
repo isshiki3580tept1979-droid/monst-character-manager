@@ -301,7 +301,7 @@ test('stage cards: a same-name unit of 進化形態未確認 is a normal candida
   assert.equal(await card.count(),1);assert.equal(await main.locator('.pickCur.prov').count(),0,'not a provisional pick');
   const pt=(await card.textContent()).replace(/\s+/g,' ');
   assert.match(pt,/架空キャラ玖/);assert.doesNotMatch(pt,/個体1/,'unit number only when the same character has several units here');assert.doesNotMatch(pt,/形態未確認|出典の形態/);
-  assert.doesNotMatch(pt,/亜人|バランス型|反射/,'type info is not on the team card');assert.match(pt,/撃種加命撃L/);
+  assert.match(pt,/反射｜バランス型｜亜人/,'撃種｜戦型｜種族 on the team card');assert.match(pt,/撃種加命撃L/);
   assert.doesNotMatch(await main.textContent(),/候補外/);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal scroll at 390px');
   await page.screenshot({path:path.join(__dirname,'artifacts','v10-stage-provisional-390.png'),fullPage:true});
