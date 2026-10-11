@@ -941,8 +941,8 @@ const EVAL_TYPES={RANK:'順位',GRADE:'ランク',CANDIDATE:'候補'};
 const VERIFY={VERIFIED:'確認済み',UNVERIFIED:'未検証',NEEDS_REVIEW:'要確認'};
 const OWN_CHECK={OWNED_EXACT:'所持',OWNED_OTHER_FORM:'所持',NOT_OWNED:'未所持',NEEDS_REVIEW:'要確認'};
 // スクショ読取の「保留中の読み取り」（pendingReadings）。キャラ・進化形態・所持個体は作らないので、所持数・ステージの所持判定には入らない。画像は持たない
-const PENDING_MAX=200, PENDING_FRUITS=3;
-const PENDING_FIELD_KEYS=['characterName','formName','monsterNo','race','battleType','shotType','fruit1','fruit2','fruit3'];
+const PENDING_MAX=200, PENDING_FRUITS=4;
+const PENDING_FIELD_KEYS=['characterName','formName','monsterNo','race','battleType','shotType','fruit1','fruit2','fruit3','fruit4'];
 const READ_CONFIDENCE=['HIGH','MEDIUM','LOW'];
 function normPending(x){
   return {id:clean(x.id,40)||uid(),at:clean(x.at,40),updatedAt:clean(x.updatedAt,40),device:DEVICES.includes(x.device)?x.device:'',
@@ -2982,8 +2982,8 @@ function confirmInventory(){
    ・照合・補完・矛盾判定は所持データの取り込み（planInventory）をそのまま使う。既存の進化形態の値・所持個体は上書き・削除しない
    ・登録先の端末に同じキャラの個体が既にあるときは、別の個体として追加することを明示的に選んでもらう */
 const SR_FORMAT='monst-screenshot-reading-v1';
-const SR_TEXT=[['characterName','キャラ名',40],['formName','進化形態',60],['monsterNo','図鑑No.',10],['race','種族',40],['battleType','戦型',20],['shotType','撃種',20],['fruit1','わくわくの実1',40],['fruit2','わくわくの実2',40],['fruit3','わくわくの実3',40]];
-const SR_FRUITS=3;
+const SR_TEXT=[['characterName','キャラ名',40],['formName','進化形態',60],['monsterNo','図鑑No.',10],['race','種族',40],['battleType','戦型',20],['shotType','撃種',20],['fruit1','わくわくの実1',40],['fruit2','わくわくの実2',40],['fruit3','わくわくの実3',40],['fruit4','わくわくの実4',40]];
+const SR_FRUITS=4;
 let srState=null;   // 内容を確認した読み取り結果 {text, reading}。保留から再開したときは pendingId と preset（端末・実・要確認）も持つ
 let srPending=null; // 確認画面の内容 {sig, c, j, dups}
 function parseScreenshotReading(text){
@@ -3053,12 +3053,13 @@ function renderSrEdit(){
   if(!r.characterName) warns.push('キャラ名が読み取れていません。画像で確認して入力してください');
   const infos=[];
   // 保留から再開したときは、保留した時点の実（名前・等級）をそのまま使う（もう一度変換・分割はしない）
-  const fr=pre?[0,1,2].map(i=>({name:pre.fruits[i]?.name||'',grade:pre.fruits[i]?.grade||''})):[1,2,3].map(i=>{
+  const fr=pre?[0,1,2,3].map(i=>({name:pre.fruits[i]?.name||'',grade:pre.fruits[i]?.grade||''})):[1,2,3,4].map(i=>{
     const f=splitFruit(r['fruit'+i]);
     if(!f.exact) warns.push(`わくわくの実${i}「${r['fruit'+i]}」の等級が分からない表記のため、等級は空欄です（推測で変換しません）。名前と等級を確認してください`);
     if(f.converted) infos.push(`わくわくの実${i}の等級「${f.converted}」を「${f.grade}」に変換しました`);
     return f;
   });
+  const show4=!!(fr[3].name||fr[3].grade||r.uncertainFields.includes('fruit4')); // 4つ目は、読み取れたとき・保留にあるとき・確認が必要なときだけ最初から開く
   const field=(k,label,input)=>`<div class="srField${unc(k)}"><label for="srF_${k}"><span>${label}</span></label>${input}</div>`;
   const text=(k,max)=>`<input id="srF_${k}" maxlength="${max}" placeholder="未確認（空欄）">`;
   $('srEdit').innerHTML=`${pre?`<div class="note" id="srResumeNote">保留から再開しています（保留：${esc(pre.at.slice(0,16).replace('T',' '))}）。登録に成功したときだけ、この保留を一覧から消します。「保留に入れる」を押すと、この保留を今の内容で更新します。</div>`:''}
@@ -3076,8 +3077,9 @@ function renderSrEdit(){
     ${field('race','種族',`<input id="srF_race" maxlength="40" placeholder="未確認（空欄）" list="srRaceList"><datalist id="srRaceList">${RACES.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`)}
     ${field('battleType','戦型',`<select id="srF_battleType">${srOptions(FORM_BATTLE_TYPES,bt,'未確認')}</select>`)}
     ${field('shotType','撃種',`<select id="srF_shotType">${srOptions(SHOT_TYPES,st,'未確認')}</select>`)}
-    ${[1,2,3].map(i=>`<div class="srField${unc('fruit'+i)}"><label for="srFr${i}Name"><span>わくわくの実${i}</span></label>
+    ${[1,2,3,4].map(i=>`<div class="srField${unc('fruit'+i)}"${i===4?` id="srFr4Field"${show4?'':' hidden'}`:''}><label for="srFr${i}Name"><span>わくわくの実${i}</span></label>
       <div class="srFr"><input id="srFr${i}Name" maxlength="20" placeholder="実の名前（無ければ空欄）"><select id="srFr${i}Grade" aria-label="わくわくの実${i}の等級">${srOptions(GRADES,fr[i-1].grade,'等級未確認')}</select></div></div>`).join('')}
+    <button type="button" class="tool" id="srFr4Btn" data-act="srShowFr4"${show4?' hidden':''}>＋ 4枠目を追加</button>
     <label class="srChk"><input type="checkbox" id="srNeedsReview"${(pre?pre.needsReview:r.needsReview||r.confidence!=='HIGH')?' checked':''}> 「要確認」として登録する</label>`;
   for(const k of ['characterName','monsterNo','race']) $('srF_'+k).value=r[k];
   fr.forEach((f,i)=>{$('srFr'+(i+1)+'Name').value=f.name});
@@ -3094,7 +3096,7 @@ function srSetStatus(cls,text){const e=$('srStatus');e.className=cls?'s-'+cls:''
 function srHideDone(){$('srDone').hidden=true;$('srDoneText').textContent='';delete $('srGoChara').dataset.id}
 function srCollect(){
   const v=(id,max)=>clean($(id).value,max);
-  const fruits=[1,2,3].map(i=>({name:v('srFr'+i+'Name',20),grade:GRADES.includes($('srFr'+i+'Grade').value)?$('srFr'+i+'Grade').value:''})).filter(x=>x.name||x.grade);
+  const fruits=Array.from({length:SR_FRUITS},(_,k)=>k+1).map(i=>({name:v('srFr'+i+'Name',20),grade:GRADES.includes($('srFr'+i+'Grade').value)?$('srFr'+i+'Grade').value:''})).filter(x=>x.name||x.grade);
   // 進化形態は管理しない（読み取った形態名は使わず、キャラの既定の形態に登録する）
   return {device:$('srDevice').value,characterName:v('srF_characterName',40),epithet:v('srF_epithet',40),formName:'',monsterNo:v('srF_monsterNo',10),race:v('srF_race',40),
     battleType:$('srF_battleType').value,shotType:$('srF_shotType').value,fruits,needsReview:$('srNeedsReview').checked};
@@ -3287,7 +3289,7 @@ function resumePending(id){
   srPending=null;srHoldDupSig='';$('srApply').disabled=true;$('srResult').innerHTML='';$('srText').value='';
   srState={text:'',pendingId:x.id,preset:{device:x.device,fruits:x.fruits,needsReview:x.needsReview,at:x.at},
     reading:{characterName:x.characterName,formName:x.formName,monsterNo:x.monsterNo,race:x.race,battleType:x.battleType,shotType:x.shotType,
-      fruit1:'',fruit2:'',fruit3:'',confidence:x.confidence,needsReview:x.needsReview,reviewNotes:x.reviewNotes,uncertainFields:x.uncertainFields}};
+      fruit1:'',fruit2:'',fruit3:'',fruit4:'',confidence:x.confidence,needsReview:x.needsReview,reviewNotes:x.reviewNotes,uncertainFields:x.uncertainFields}};
   renderSrEdit();renderPending();
   $('srMsg').textContent=`保留から再開しました：${pendingLabel(x)}。登録先の端末を確認して「確認画面へ」を押してください`;
   $('srPanel').scrollIntoView({block:'start'});
@@ -3538,6 +3540,7 @@ document.addEventListener('click',guardStale(e=>{
     case 'deleteSuit':deleteSuit();break;
     case 'migrate':migrateEntry(b.dataset.id);break;
     case 'suitVerify':verifySuit(b.dataset.id);break;
+    case 'srShowFr4':$('srFr4Field').hidden=false;b.hidden=true;$('srFr4Name').focus();$('srFr4Name').scrollIntoView({block:'center'});break;
     case 'showFruit4':document.querySelectorAll('#unFruits .frRow[hidden]').forEach(r=>{r.hidden=false});b.hidden=true;$('unFrName3').focus();$('unFrName3').scrollIntoView({block:'center'});break;
     case 'imPreview':$('imMsg').textContent='';previewSuitImport();break;
     case 'imApply':confirmSuitImport();break;
