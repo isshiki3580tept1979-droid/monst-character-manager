@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>モンスト スクショ読取（試作）</title>
+<style>
+  body { margin: 0; padding: 12px 16px 40px; font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 15px; color: #1d2329; background: #f6f7f9; }
+  h1 { font-size: 18px; margin: 4px 0 4px; }
+  .small { font-size: 12px; color: #5b6570; line-height: 1.5; }
+  .card { background: #fff; border: 1px solid #d9dee4; border-radius: 8px; padding: 12px; margin-top: 12px; }
+  button { font-size: 15px; padding: 10px 14px; border-radius: 6px; border: 1px solid #8a96a3; background: #fff; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: bold; }
+  button:disabled { opacity: .45; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .pv { margin: 10px 0 0; }
+  .pv figcaption { font-size: 13px; font-weight: bold; color: #3c4650; }
+  .pv img { display: block; max-width: 100%; max-height: 360px; margin-top: 4px; border: 1px solid #d9dee4; }
+  #status { margin-top: 10px; font-weight: bold; }
+  #error { margin-top: 10px; padding: 10px; border-radius: 6px; background: #fdecec; color: #8a1c1c; border: 1px solid #f0b4b4; white-space: pre-line; }
+  #reviewBanner { padding: 10px; border-radius: 6px; font-weight: bold; margin-bottom: 10px; }
+  #reviewBanner.needs { background: #fff1d6; border: 2px solid #e08a00; color: #7a4a00; }
+  #reviewBanner.ok { background: #e6f4ea; border: 1px solid #8cc79a; color: #1e5b2c; }
+  label.f { display: block; margin-top: 8px; font-size: 13px; color: #3c4650; }
+  label.f input, textarea { box-sizing: border-box; width: 100%; font-size: 16px; padding: 8px; border: 1px solid #b9c2cc; border-radius: 6px; margin-top: 2px; }
+  label.f.uncertain input { border: 2px solid #e08a00; background: #fff8e8; }
+  label.f.uncertain::after { content: "（Gemini が自信なし）"; color: #b36b00; font-size: 12px; }
+  textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+  .hidden { display: none !important; }
+  .modes { display: flex; gap: 8px; }
+  .modes button { flex: 1; font-weight: bold; font-size: 14px; padding: 10px 4px; }
+  .modes button[aria-pressed="true"] { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .modes .ic { display: block; font-size: 20px; line-height: 1.2; }
+  #modeHint { margin-top: 6px; }
+  .pane { margin-top: 10px; }
+  .slot { border: 1px dashed #b9c2cc; border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
+  .slot .row { margin-top: 6px; }
+  .pick { position: relative; display: inline-block; font-size: 15px; padding: 10px 14px; border-radius: 6px; border: 1px solid #8a96a3; background: #fff; cursor: pointer; }
+  .pick.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: bold; }
+  .vh { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+</style>
+</head>
+<body>
+<h1>モンスト スクショ読取（試作）</h1>
+<div class="small">同じキャラのキャラクター詳細画面を2枚（スクショ2枚、またはカメラで撮影した2枚）用意し、Gemini で1キャラ分の文字を読み取ります。結果は確定値ではありません。必ず画像と見比べて確認・修正してから「JSONをコピー」してください。画像は保存しません。</div>
+
+<div class="card">
+  <div class="modes" role="group" aria-label="読取方法">
+    <button type="button" id="modeShot" aria-pressed="true"><span class="ic">🖼</span>スクショから読み取る</button>
+    <button type="button" id="modeCam" aria-pressed="false"><span class="ic">📷</span>カメラで撮影する</button>
+  </div>
+  <div id="modeHint" class="small hidden"></div>
+  <div id="shotPane" class="pane">
+    <div class="small">同じキャラのスクショを2枚まとめて選んでください。</div>
+    <input type="file" id="file" accept="image/*" multiple>
+  </div>
+  <div id="camPane" class="pane hidden">
+    <div class="small">別の端末に表示したキャラ詳細画面を、背面カメラで1枚ずつ撮影します（2枚で1キャラ分）。画面全体がまっすぐ写るように、映り込み・手ぶれに気をつけてください。カメラが起動しないときは「画像から選ぶ」を使ってください。</div>
+    <div class="slot" id="slot1"><b>1枚目</b> <span id="slotState1" class="small">未撮影</span>
+      <div class="row"><label class="pick primary"><span id="camLabel1">📷 撮影する</span><input type="file" id="cam1" class="vh" accept="image/*" capture="environment"></label><label class="pick">画像から選ぶ<input type="file" id="pick1" class="vh" accept="image/*"></label></div></div>
+    <div class="slot" id="slot2"><b>2枚目</b> <span id="slotState2" class="small">未撮影</span>
+      <div class="row"><label class="pick primary"><span id="camLabel2">📷 撮影する</span><input type="file" id="cam2" class="vh" accept="image/*" capture="environment"></label><label class="pick">画像から選ぶ<input type="file" id="pick2" class="vh" accept="image/*"></label></div></div>
+  </div>
+  <div id="previews" class="hidden">
+    <figure class="pv" id="pv1"><figcaption>画像1</figcaption><img id="preview1" alt="画像1"><div id="imageInfo1" class="small"></div></figure>
+    <figure class="pv" id="pv2"><figcaption>画像2</figcaption><img id="preview2" alt="画像2"><div id="imageInfo2" class="small"></div></figure>
+  </div>
+  <div id="imageInfo" class="small"></div>
+  <div class="row">
+    <button id="readBtn" class="primary" disabled>画像を読み取る</button>
+    <button id="clearBtn">クリア</button>
+  </div>
+  <div id="status" class="hidden"></div>
+  <div id="error" class="hidden"></div>
+</div>
+
+<div id="result" class="card hidden">
+  <div id="reviewBanner"></div>
+  <div class="small">確信度：<b id="confidence"></b>　<span id="modelInfo"></span></div>
+  <div id="fields"></div>
+  <label class="f">確認メモ（1行に1つ）<textarea id="reviewNotes" rows="4"></textarea></label>
+  <label class="f" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="needsReview" style="width:auto;margin:0"> 要確認（NEEDS_REVIEW）</label>
+  <label class="f">コピーされる JSON<textarea id="jsonOut" rows="12" readonly></textarea></label>
+  <div class="row"><button id="sendBtn" class="primary hidden">管理アプリへ送る</button><button id="copyBtn" class="primary">JSONをコピー</button></div>
+  <div id="copyMsg" class="small"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var FORMAT = 'monst-screenshot-reading-v1';
+  var FIELDS = [
+    ['characterName', 'キャラ名'], ['formName', '進化形態'], ['monsterNo', '図鑑No.'], ['race', '種族'],
+    ['battleType', '戦型'], ['shotType', '撃種'], ['fruit1', 'わくわくの実1'], ['fruit2', 'わくわくの実2'], ['fruit3', 'わくわくの実3'], ['fruit4', 'わくわくの実4']
+  ];
+  var CONFIDENCE = ['HIGH', 'MEDIUM', 'LOW'];
+  // 管理アプリ（GitHub Pages）から開かれたときだけ「管理アプリへ送る」を出す。送り先のオリジンは固定（他のサイトには送らない）
+  var MANAGER_ORIGIN = 'https://isshiki3580tept1979-droid.github.io';
+  var managerNonce = null;
+  var MAX_DIM = 2000;              // 長辺がこれより大きければ縮小する
+  var PASS_THROUGH_BYTES = 3 * 1024 * 1024;
+  var MAX_BASE64_CHARS = 7 * 1024 * 1024; // サーバー側の上限と同じ
+  var JPEG_QUALITY = 0.9;
+  var PAIR_SIZE = 2;               // 1キャラ＝スクショ2枚
+  // 登録先の端末（管理アプリから渡された場合だけ）。サブ1〜サブ5 はカメラ撮影、メインはスクショを最初に選んでおく（どちらも切り替えて使える）
+  var DEVICES = ['メイン', 'サブ1', 'サブ2', 'サブ3', 'サブ4', 'サブ5'];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { images: [], objectUrls: [], reading: null, busy: false, token: 0, mode: 'shot', modeTouched: false, slots: [null, null], slotSeq: [0, 0] };
+
+  function show(el, on) { el.classList.toggle('hidden', !on); }
+  function setStatus(text) { $('status').textContent = text || ''; show($('status'), !!text); }
+  function setError(text) { $('error').textContent = text || ''; show($('error'), !!text); }
+  function updateButtons() { $('readBtn').disabled = state.images.length !== PAIR_SIZE || state.busy; }
+
+  // 画像を必要に応じて縮小し、Base64（data: の前置きなし）にする
+  function loadImage(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('画像を開けませんでした（対応していない形式の可能性があります）')); };
+      img.src = url;
+    });
+  }
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { var s = String(r.result), i = s.indexOf(','); resolve(i === -1 ? '' : s.slice(i + 1)); };
+      r.onerror = function () { reject(new Error('画像を読み込めませんでした')); };
+      r.readAsDataURL(blob);
+    });
+  }
+  function prepareImage(file) {
+    return loadImage(file).then(function (img) {
+      var w = img.naturalWidth, h = img.naturalHeight, scale = Math.min(1, MAX_DIM / Math.max(w, h));
+      var passThrough = scale >= 1 && file.size <= PASS_THROUGH_BYTES && (file.type === 'image/jpeg' || file.type === 'image/png');
+      if (passThrough) return blobToBase64(file).then(function (b64) { return { base64Data: b64, mimeType: file.type, width: w, height: h }; });
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      return new Promise(function (resolve, reject) {
+        c.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error('画像を変換できませんでした')); }, 'image/jpeg', JPEG_QUALITY);
+      }).then(blobToBase64).then(function (b64) { return { base64Data: b64, mimeType: 'image/jpeg', width: c.width, height: c.height }; });
+    });
+  }
+
+  // プレビュー・送信サイズ表示を空にする（画像1・画像2とも）
+  function resetImages() {
+    state.images = [];
+    state.objectUrls.forEach(function (u) { URL.revokeObjectURL(u); }); state.objectUrls = [];
+    for (var n = 1; n <= PAIR_SIZE; n++) { $('preview' + n).removeAttribute('src'); $('imageInfo' + n).textContent = ''; }
+    show($('previews'), false); $('imageInfo').textContent = '';
+  }
+  function showPreviews() {
+    var any = false;
+    for (var n = 1; n <= PAIR_SIZE; n++) { var has = !!$('preview' + n).getAttribute('src'); show($('pv' + n), has); any = any || has; }
+    show($('previews'), any);
+  }
+
+  // 1回の選択で2枚（同じキャラのスクショ）を受け取る。2枚そろったときだけ読み取れる
+  function onFile() {
+    var files = Array.prototype.slice.call($('file').files || []);
+    var token = ++state.token; // 読み取り中に選び直した場合、前の結果は捨てる
+    state.busy = false;
+    resetResult(); setError(''); setStatus(''); resetImages(); updateButtons();
+    if (!files.length) return;
+    if (files.length !== PAIR_SIZE) {
+      setError(files.length === 1
+        ? '画像が1枚しか選ばれていません。同じキャラのスクショを2枚まとめて選んでください'
+        : '画像が' + files.length + '枚選ばれています。同じキャラのスクショを2枚だけ選んでください');
+      return;
+    }
+    for (var i = 0; i < files.length; i++) {
+      if (!files[i].type || files[i].type.indexOf('image/') !== 0) { setError('画像' + (i + 1) + 'は画像ファイルではありません（対応していない形式です）'); return; }
+    }
+    files.forEach(function (file, i) {
+      var url = URL.createObjectURL(file); state.objectUrls.push(url); $('preview' + (i + 1)).src = url;
+    });
+    showPreviews();
+    setStatus('画像を準備しています…');
+    Promise.all(files.map(function (file, i) {
+      return prepareImage(file).catch(function (e) { throw new Error('画像' + (i + 1) + '：' + e.message); });
+    })).then(function (imgs) {
+      if (token !== state.token) return;
+      setStatus('');
+      for (var k = 0; k < imgs.length; k++) {
+        if (imgs[k].base64Data.length > MAX_BASE64_CHARS) { setError('画像' + (k + 1) + '：画像が大きすぎます'); return; }
+      }
+      imgs.forEach(function (img, k) {
+        $('imageInfo' + (k + 1)).textContent = '送信サイズ：' + img.width + '×' + img.height + '（' + img.mimeType + '、約' + Math.round(img.base64Data.length * 3 / 4 / 1024) + 'KB）';
+      });
+      state.images = imgs;
+      $('imageInfo').textContent = '2枚そろいました（1キャラ分として読み取ります）';
+      updateButtons();
+    }).catch(function (e) { if (token === state.token) { setStatus(''); setError(e.message); } });
+  }
+
+  // ---- カメラで撮影（1枚ずつ。撮り直し・画像から選ぶもできる）----
+  function resetSlots() {
+    state.slots = [null, null];
+    for (var n = 1; n <= PAIR_SIZE; n++) {
+      state.slotSeq[n - 1]++;
+      $('cam' + n).value = ''; $('pick' + n).value = '';
+      $('slotState' + n).textContent = '未撮影'; $('camLabel' + n).textContent = '📷 撮影する';
+    }
+  }
+  function syncSlots() {
+    var ready = state.slots.filter(Boolean).length;
+    state.images = ready === PAIR_SIZE ? state.slots.slice() : [];
+    $('imageInfo').textContent = ready === PAIR_SIZE ? '2枚そろいました（1キャラ分として読み取ります）'
+      : ready === 1 ? (state.slots[0] ? '1枚目の準備ができました。2枚目を撮影してください' : '2枚目の準備ができました。1枚目を撮影してください') : '';
+    updateButtons();
+  }
+  function onSlot(n, input, how) {
+    var file = input.files && input.files[0];
+    input.value = ''; // 同じ写真を選び直しても反応するように
+    if (!file) return;
+    state.token++; state.busy = false; // 読み取り中に撮り直した場合、前の結果は捨てる
+    resetResult(); setError(''); setStatus('');
+    if (!file.type || file.type.indexOf('image/') !== 0) {
+      setError(n + '枚目：画像ファイルではありません（対応していない形式です）'); return;
+    }
+    var seq = ++state.slotSeq[n - 1];
+    state.slots[n - 1] = null; syncSlots();
+    if (state.objectUrls[n - 1]) URL.revokeObjectURL(state.objectUrls[n - 1]);
+    state.objectUrls[n - 1] = URL.createObjectURL(file); $('preview' + n).src = state.objectUrls[n - 1];
+    $('imageInfo' + n).textContent = ''; showPreviews();
+    $('slotState' + n).textContent = '準備中…';
+    prepareImage(file).then(function (img) {
+      if (seq !== state.slotSeq[n - 1]) return;
+      if (img.base64Data.length > MAX_BASE64_CHARS) throw new Error('画像が大きすぎます');
+      state.slots[n - 1] = img;
+      $('imageInfo' + n).textContent = '送信サイズ：' + img.width + '×' + img.height + '（' + img.mimeType + '、約' + Math.round(img.base64Data.length * 3 / 4 / 1024) + 'KB）';
+      $('slotState' + n).textContent = how === 'cam' ? '撮影済み' : '選択済み';
+      $('camLabel' + n).textContent = '📷 撮り直す';
+      syncSlots();
+    }).catch(function (e) {
+      if (seq !== state.slotSeq[n - 1]) return;
+      state.slots[n - 1] = null; $('slotState' + n).textContent = 'もう一度撮影してください';
+      setError(n + '枚目：' + e.message); syncSlots();
+    });
+  }
+  // 読取方法の切り替え。選んでいた画像はクリアする（読み取り結果・修正内容は残す）
+  function setMode(mode, byUser) {
+    if (byUser) state.modeTouched = true;
+    if (mode === state.mode) return;
+    state.mode = mode; state.token++; state.busy = false;
+    $('modeShot').setAttribute('aria-pressed', String(mode === 'shot'));
+    $('modeCam').setAttribute('aria-pressed', String(mode === 'cam'));
+    show($('shotPane'), mode === 'shot'); show($('camPane'), mode === 'cam');
+    $('file').value = ''; resetSlots(); resetImages();
+    setStatus(''); setError(''); updateButtons();
+  }
+
+  function identityText(who) {
+    who = who || {};
+    return (who.characterName || 'キャラ名不明') + '（図鑑No.' + (who.monsterNo || '不明') + '）';
+  }
+  function errorText(res) {
+    if (!res || !res.error) return '読み取りに失敗しました';
+    if (res.code === 'CHARACTER_MISMATCH' && res.mismatch) {
+      var m = res.mismatch;
+      return [res.error].concat(Array.isArray(m.reasons) ? m.reasons : [])
+        .concat(['画像1：' + identityText(m.image1), '画像2：' + identityText(m.image2)]).join('\n');
+    }
+    return res.error;
+  }
+  function read() {
+    if (state.images.length !== PAIR_SIZE || state.busy) { if (state.images.length !== PAIR_SIZE) setError(state.mode === 'cam' ? '先に1枚目・2枚目とも撮影してください' : '先に同じキャラのスクショを2枚選んでください'); return; }
+    state.busy = true; updateButtons(); setError(''); resetResult();
+    setStatus('読み取り中…（数十秒かかることがあります）');
+    var token = state.token;
+    var done = function (res) {
+      if (token !== state.token) return;
+      state.busy = false; updateButtons(); setStatus('');
+      if (!res || !res.ok) { setError(errorText(res)); return; }
+      renderReading(res.reading, res.model);
+    };
+    google.script.run
+      .withSuccessHandler(done)
+      .withFailureHandler(function (err) { done({ ok: false, error: '通信に失敗しました：' + (err && err.message ? err.message : '') }); })
+      .msrReadScreenshot({ images: state.images.map(function (img) { return { base64Data: img.base64Data, mimeType: img.mimeType }; }) });
+  }
+
+  // 結果の表示（Gemini の文字は textContent / value でだけ扱い、HTML として解釈しない）
+  function renderReading(reading, model) {
+    state.reading = reading;
+    var box = $('fields'); box.textContent = '';
+    var uncertain = Array.isArray(reading.uncertainFields) ? reading.uncertainFields : [];
+    FIELDS.forEach(function (f) {
+      var label = document.createElement('label'); label.className = 'f' + (uncertain.indexOf(f[0]) !== -1 ? ' uncertain' : '');
+      label.appendChild(document.createTextNode(f[1]));
+      var input = document.createElement('input'); input.type = 'text'; input.id = 'f_' + f[0];
+      input.value = reading[f[0]] == null ? '' : String(reading[f[0]]);
+      input.placeholder = '（読み取れず：空欄は null）';
+      input.addEventListener('input', updateJson);
+      label.appendChild(input); box.appendChild(label);
+    });
+    $('confidence').textContent = CONFIDENCE.indexOf(reading.confidence) !== -1 ? reading.confidence : 'LOW';
+    $('modelInfo').textContent = model ? '使用モデル：' + model : '';
+    $('reviewNotes').value = (reading.reviewNotes || []).join('\n');
+    $('needsReview').checked = reading.needsReview !== false;
+    show($('result'), true);
+    updateJson();
+  }
+
+  // コピー用データ：読み取り項目と確認情報だけ。画像・Base64・モデル名・APIキーは入れない
+  function buildCopyData() {
+    var r = state.reading || {}, out = { format: FORMAT };
+    FIELDS.forEach(function (f) {
+      var el = $('f_' + f[0]), v = el ? el.value.trim() : '';
+      out[f[0]] = v ? v : null;
+    });
+    out.confidence = CONFIDENCE.indexOf(r.confidence) !== -1 ? r.confidence : 'LOW';
+    out.needsReview = $('needsReview').checked;
+    out.reviewNotes = $('reviewNotes').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    out.uncertainFields = (Array.isArray(r.uncertainFields) ? r.uncertainFields : []).filter(function (k) { return FIELDS.some(function (f) { return f[0] === k; }); });
+    return out;
+  }
+  function updateJson() {
+    var data = buildCopyData();
+    $('jsonOut').value = JSON.stringify(data, null, 2);
+    var b = $('reviewBanner');
+    b.className = data.needsReview ? 'needs' : 'ok';
+    b.textContent = data.needsReview ? '⚠ 要確認（NEEDS_REVIEW）：画像と見比べて確認してください' : '要確認の印はありません（それでも画像と見比べてください）';
+    $('copyMsg').textContent = '';
+  }
+
+  function copyJson() {
+    var text = $('jsonOut').value;
+    var ok = function () { $('copyMsg').textContent = 'コピーしました'; };
+    var fallback = function () {
+      var t = $('jsonOut'); t.removeAttribute('readonly'); t.select();
+      var done = false; try { done = document.execCommand('copy'); } catch (e) { done = false; }
+      t.setAttribute('readonly', ''); t.setSelectionRange(0, 0);
+      $('copyMsg').textContent = done ? 'コピーしました' : 'コピーできませんでした。上の欄を長押しして全選択・コピーしてください';
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, fallback);
+    else fallback();
+  }
+
+  // 管理アプリのタブ（このタブを開いた元）へ、読み取り結果だけを送る。画像・APIキーは送らない
+  function sendToManager() {
+    var opener = null;
+    try { opener = window.top.opener; } catch (e) { opener = null; }
+    if (!managerNonce || !opener || opener.closed) { $('copyMsg').textContent = '管理アプリのタブが見つかりません。「JSONをコピー」して、管理アプリの貼り付け欄に貼り付けてください'; return; }
+    try { opener.postMessage({ type: 'msr-reading', nonce: managerNonce, reading: buildCopyData() }, MANAGER_ORIGIN); }
+    catch (e) { $('copyMsg').textContent = '送れませんでした。「JSONをコピー」して貼り付けてください'; return; }
+    managerNonce = null; show($('sendBtn'), false);
+    $('copyMsg').textContent = '管理アプリへ送りました。管理アプリのタブに戻って、確認画面で内容を確認してください';
+    try { window.top.close(); } catch (e) {}
+  }
+
+  function resetResult() {
+    state.reading = null; $('fields').textContent = ''; $('reviewNotes').value = ''; $('jsonOut').value = '';
+    $('copyMsg').textContent = ''; show($('result'), false);
+  }
+  function clearAll() {
+    state.token++; state.busy = false;
+    $('file').value = ''; resetSlots(); resetImages();
+    setStatus(''); setError(''); resetResult(); updateButtons();
+  }
+
+  $('file').addEventListener('change', onFile);
+  $('readBtn').addEventListener('click', read);
+  $('clearBtn').addEventListener('click', clearAll);
+  $('copyBtn').addEventListener('click', copyJson);
+  $('sendBtn').addEventListener('click', sendToManager);
+  $('modeShot').addEventListener('click', function () { setMode('shot', true); });
+  $('modeCam').addEventListener('click', function () { setMode('cam', true); });
+  [1, 2].forEach(function (n) {
+    $('cam' + n).addEventListener('change', function () { onSlot(n, this, 'cam'); });
+    $('pick' + n).addEventListener('change', function () { onSlot(n, this, 'pick'); });
+  });
+  if (window.google && google.script && google.script.url) {
+    google.script.url.getLocation(function (loc) {
+      var p = (loc && loc.parameter) || {};
+      if (p['return'] === 'manager' && /^[A-Za-z0-9]{20,80}$/.test(p.nonce || '')) { managerNonce = p.nonce; show($('sendBtn'), true); }
+      var dev = DEVICES.indexOf(p.device) !== -1 ? p.device : '';
+      if (dev) {
+        var cam = dev !== 'メイン';
+        $('modeHint').textContent = '登録先：' + dev + (cam ? '（カメラ撮影を選んでいます。スクショも使えます）' : '（スクショからの読み取りを選んでいます。カメラも使えます）');
+        show($('modeHint'), true);
+        // まだ何も選んでいなければ、端末に合った読取方法にしておく
+        if (cam && !state.modeTouched && !state.images.length && !$('file').files.length && !state.slots.some(Boolean)) setMode('cam', false);
+      }
+    });
+  }
+  $('needsReview').addEventListener('change', updateJson);
+  $('reviewNotes').addEventListener('input', updateJson);
+
+  // テスト用に一部の関数を公開する
+  window.MSR = { buildCopyData: buildCopyData, renderReading: renderReading, read: read };
+})();
+</script>
+</body>
+</html>
