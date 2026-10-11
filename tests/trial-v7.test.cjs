@@ -54,25 +54,20 @@ test('no form yet: ＋所持個体 reacts (never disabled), guides to the form s
   await seed(chara());
   const btn=page.locator('[data-act="unitAdd"][data-id="c-neo"]');
   assert.equal(await btn.isDisabled(),false);
-  assert.match(await page.locator('#charaList .guide').textContent(),/「＋ 進化形態」で進化形態を登録 → ② 「＋ 所持個体」で端末とわくわくの実を登録/);
+  assert.match(await page.locator('#charaList .guide').textContent(),/「＋ 所持個体」で、どの端末にいるかと、わくわくの実を登録してください/);
   await btn.click();
-  assert.equal(await isOpen('formModal'),true);assert.equal(await isOpen('unitModal'),false);
-  assert.match(await page.locator('#fmGuide').textContent(),/先に進化形態を登録してください/);
-  await page.fill('#fmName','ハローワールド・モード');await page.fill('#fmShort','ハロー');
-  await click('[data-act="saveFormNext"]');
-  // continues straight to the unit screen with that (only) form selected
+  // 進化形態は登録しない：そのまま所持個体の画面が開く
   assert.equal(await isOpen('formModal'),false);assert.equal(await isOpen('unitModal'),true);
   assert.equal(await page.locator('#unChar').textContent(),'キャラ：ネオ');
-  const fid=(await snapshot()).master.forms[0].id;
-  assert.equal(await page.inputValue('#unForm'),fid);assert.equal(await page.locator('#unFormNote').textContent(),'この進化形態で登録します');
+  assert.equal(await page.locator('#unForm').isVisible(),false,'no form choice');
+  await page.selectOption('#unDevice','メイン');await click('[data-act="saveUnit"]');
+  const d=await snapshot();assert.equal(d.units.length,1);assert.equal(d.master.forms.length,1);assert.equal(d.master.forms[0].unknownForm,true,'a nameless form is created for the unit');
 });
 
 test('whole flow from ＋キャラ追加: キャラ → 進化形態 → 所持個体 with device, 4 fruits (name + grade), memo; back to detail with the saved unit shown', async()=>{
   await seed({characters:[],ui:{view:'chara'}});
   await click('[data-act="mcharAdd"]');await page.fill('#mcName','ヤクモ');await click('[data-act="saveMCharNext"]');
-  assert.equal(await isOpen('formModal'),true);assert.match(await page.locator('#fmGuide').textContent(),/キャラ「ヤクモ」を登録しました/);
-  await page.fill('#fmName','大荒神武装');await page.selectOption('#fmRace','神');await click('[data-act="saveFormNext"]');
-  assert.equal(await isOpen('unitModal'),true);
+  assert.equal(await isOpen('formModal'),false);assert.equal(await isOpen('unitModal'),true,'goes straight to the unit screen');
   // the unit screen: キャラ名 / 進化形態 / 所持端末 / 個体番号 / 実1〜3 (実名 + 等級) / ＋4枠目 / メモ / 保存 / キャンセル / 戻る
   assert.equal(await page.locator('#unitModal .backBtn').isVisible(),true);
   assert.deepEqual(await page.locator('#unFruits .frSlot:visible .frHead').allTextContents(),['わくわくの実1','わくわくの実2','わくわくの実3']);
@@ -90,7 +85,7 @@ test('whole flow from ＋キャラ追加: キャラ → 進化形態 → 所持�
   assert.deepEqual(u.fruits.map(x=>[x.name,x.grade]),[['同族の絆・加撃','特級L'],['同族の絆・加撃速','特級L'],['同族の絆・加命撃','特級EL'],['将命削り','特級M']]);
   // back on the character detail, the saved unit is highlighted and its fruits / stage status are visible
   assert.equal(d.ui.view,'chara');assert.equal(d.ui.charaOpen,d.master.characters[0].id);
-  assert.match(await page.locator('#charaList .okMsg').textContent(),/所持個体を保存しました（サブ2 個体1・大荒神武装）。この進化形態のステージ適正は未登録/);
+  assert.match(await page.locator('#charaList .okMsg').textContent(),/所持個体を保存しました（サブ2 個体1）/);
   const row=page.locator(`#charaList [data-unit="${u.id}"]`);
   assert.equal(await row.evaluate(r=>r.classList.contains('justSaved')),true);
   assert.match(await row.textContent(),/個体1.*同族の絆・加撃 特級L.*将命削り 特級M.*ステージ適正 未登録/s);
@@ -98,20 +93,6 @@ test('whole flow from ＋キャラ追加: キャラ → 進化形態 → 所持�
   await page.reload();
   assert.deepEqual((await snapshot()).units[0].fruits.length,4);
   assert.match(await page.locator(`#charaList [data-unit="${u.id}"]`).textContent(),/同族の絆・加命撃 特級EL/);
-});
-
-test('several forms: chosen in the unit screen; device selectable; unit number follows device; no fruits is fine', async()=>{
-  await seed(chara({master:{characters:[{id:'c-neo',name:'ネオ'}],forms:[hello,rev]},units:[{id:'u1',formId:'f-hello',device:'メイン',no:1,fruits:[]}]}));
-  await click('[data-act="unitAdd"][data-id="c-neo"]');
-  assert.match(await page.locator('#unFormNote').textContent(),/2つの進化形態から選んでください/);
-  assert.deepEqual(await page.locator('#unForm option').allTextContents(),['ハロー（ハローワールド・モード）','リバース（リバース・モード）']);
-  await page.selectOption('#unForm','f-rev');
-  await page.selectOption('#unDevice','メイン');assert.equal(await page.inputValue('#unNo'),'2');
-  await page.selectOption('#unDevice','サブ5');assert.equal(await page.inputValue('#unNo'),'1');
-  await click('[data-act="saveUnit"]');
-  const u=(await snapshot()).units.find(x=>x.device==='サブ5');
-  assert.deepEqual([u.formId,u.no,u.fruits],['f-rev',1,[]]);
-  assert.match(await page.locator(`#charaList [data-unit="${u.id}"]`).textContent(),/実なし/);
 });
 
 test('cancel / back: nothing saved; with typed input a discard confirmation is shown and can keep the input', async()=>{
@@ -136,9 +117,9 @@ test('saved unit appears in the stage ①〜④ candidates when the form has sui
     suits:[{id:'s1',stageKey:STAGE,formId:'f-hello',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],useDevs:{[STAGE]:['サブ1']}}));
   await click('[data-act="unitAdd"][data-id="c-neo"]');await page.selectOption('#unDevice','サブ1');await fill(0,'撃種の絆・加撃','特級L');
   await click('[data-act="saveUnit"]');
-  assert.match(await page.locator('#charaList .okMsg').textContent(),/所持個体を保存しました（サブ1 個体1・ハロー）$/);
+  assert.match(await page.locator('#charaList .okMsg').textContent(),/所持個体を保存しました（サブ1 個体1）$/);
   await click('[data-act="view"][data-view="stage"]');
-  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="サブ1"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1']);
+  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="サブ1"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1']);
 });
 
 test('backup / restore keeps units with 4 fruits and grades; fruit name suggestions offered', async()=>{
@@ -166,7 +147,7 @@ test('320/390px: unit screen with 4 fruit blocks fits, inputs and buttons are fi
     await click('[data-act="unitAdd"][data-id="c-neo"]');await click('#unFruit4Btn');
     assert.ok(await page.evaluate(()=>{const el=document.querySelector('#unitModal .modal');return el.scrollWidth<=el.clientWidth}),'modal no horizontal scroll');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    for(const id of ['unForm','unDevice','unNo','unMemo',...[0,1,2,3].flatMap(i=>['unFrName'+i,'unFrGrade'+i,'unFrKind'+i])]){
+    for(const id of ['unDevice','unNo','unMemo',...[0,1,2,3].flatMap(i=>['unFrName'+i,'unFrGrade'+i,'unFrKind'+i])]){
       const r=await page.locator('#'+id).boundingBox();assert.ok(r&&r.height>=40&&r.x>=0&&r.x+r.width<=width,id);
     }
     const nameBox=await page.locator('#unFrName0').boundingBox();assert.ok(nameBox.width>=width*0.6,'fruit name field is wide');

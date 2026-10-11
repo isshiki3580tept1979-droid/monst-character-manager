@@ -122,9 +122,9 @@ test('device picker: without a saved selection, devices that already have a pick
 test('cards: candidates per device unchanged; card always shows キャラ｜形態 個体N / 種族 戦型 撃種 / short fruits; follows unit change', async()=>{
   await seed(world({useDevs:{[STAGE]:['メイン','サブ1','サブ3','サブ5']}}));
   // owned AND suitable only (アーサー owned but not suitable; other devices' units never listed)
-  assert.deepEqual(await pickSel('メイン').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2']);
-  assert.deepEqual(await pickSel('メイン').locator('optgroup option').allTextContents(),['アーサー｜アーサー（獣神化） 個体1（仮）'],'others only as provisional');
-  assert.deepEqual(await pickSel('サブ3').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ヤクモ｜大荒神武装 個体1','ヤクモ｜巫女姫霊装 個体2（未検証）']);
+  assert.deepEqual(await pickSel('メイン').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
+  assert.deepEqual(await pickSel('メイン').locator('optgroup option').allTextContents(),['アーサー 個体1（仮）'],'others only as provisional');
+  assert.deepEqual(await pickSel('サブ3').locator(':scope > option').allTextContents(),['— 使う個体を選ぶ —','ヤクモ 個体1','ヤクモ 個体2'],'the character has a verified suitability → no 未検証 mark on either unit');
   assert.match(await card('メイン').textContent(),/使う個体を選んでください/);
   await pickSel('メイン').selectOption('u-neo1');
   const lines=dev=>card(dev).locator('.uCard').evaluate(c=>({
@@ -135,7 +135,7 @@ test('cards: candidates per device unchanged; card always shows キャラ｜形�
     none:c.querySelector('.frNone')?.textContent||'',
     titles:[...c.querySelectorAll('.frS')].map(s=>s.title)}));
   let l=await lines('メイン');
-  assert.equal(l.l1,'ネオ｜ハロー 個体1');
+  assert.equal(l.l1,'ネオ 個体1');
   assert.deepEqual(l.l2,['亜人','砲撃型','貫通']);
   assert.deepEqual(l.l3,['同族加撃L','同族加撃速L','同族加命撃L']);
   assert.deepEqual(l.l4,['撃種加撃EL']); // 4th fruit on its own line
@@ -144,19 +144,19 @@ test('cards: candidates per device unchanged; card always shows キャラ｜形�
   assert.equal(await card('メイン').locator('.pInfo,.pAll').count(),0);
   // switching unit switches every line; no 4th line for a 3-fruit unit
   await pickSel('メイン').selectOption('u-neo2');l=await lines('メイン');
-  assert.deepEqual([l.l1,l.l2,l.l3,l.l4],['ネオ｜リバース 個体2',['魔人','パワー型','反射'],['撃種加撃L','戦型加撃特','将命削りM'],[]]);
+  assert.deepEqual([l.l1,l.l2,l.l3,l.l4],['ネオ 個体2',['魔人','パワー型','反射'],['撃種加撃L','戦型加撃特','将命削りM'],[]]);
   // unit without fruits -> 実なし; unverified-only candidate -> marked on the card too
   await pickSel('サブ3').selectOption('u-yk1');l=await lines('サブ3');
-  assert.deepEqual([l.l1,l.l3,l.none],['ヤクモ｜大荒神武装 個体1',[],'実なし']);
+  assert.deepEqual([l.l1,l.l3,l.none],['ヤクモ 個体1',[],'実なし']);
   await pickSel('サブ3').selectOption('u-yk2');l=await lines('サブ3');
-  assert.equal(l.l1,'ヤクモ｜巫女姫霊装 個体2未検証');assert.deepEqual(l.l3,['戦型加撃L']);
-  assert.equal(await card('サブ3').locator('.uL1 .vb.v-UNVERIFIED').count(),1);
+  assert.equal(l.l1,'ヤクモ 個体2');assert.deepEqual(l.l3,['戦型加撃L']);
+  assert.equal(await card('サブ3').locator('.uL1 .vb.v-UNVERIFIED').count(),0,'verification is judged per character');
   // data unchanged: stored fruit names are the official ones
   const u=(await snapshot()).units.find(x=>x.id==='u-neo1');assert.deepEqual(u.fruits.map(x=>x.name),['同族の絆・加撃','同族の絆・加撃速','同族の絆・加命撃','撃種の絆・加撃']);
   // picks persist across reload with the cards
   await pickSel('サブ1').selectOption('u-rinne');await page.reload();
   assert.deepEqual((await snapshot()).picks[STAGE],{'メイン':'u-neo2','サブ1':'u-rinne','サブ3':'u-yk2'});
-  l=await lines('サブ1');assert.deepEqual([l.l1,l.l2,l.l3],['リンネ｜獣神化 個体1',['亜人','砲撃型','貫通'],['撃種加撃L','撃種加撃速L','撃種加命撃L']]);
+  l=await lines('サブ1');assert.deepEqual([l.l1,l.l2,l.l3],['リンネ 個体1',['亜人','砲撃型','貫通'],['撃種加撃L','撃種加撃速L','撃種加命撃L']]);
   // unset type info is shown as such, not left blank
   await page.evaluate(()=>{const f=formOf('f-rinne');f.battleType='';persist();render()});
   l=await lines('サブ1');assert.deepEqual(l.l2,['亜人','戦型未設定','貫通']);
@@ -201,12 +201,12 @@ test('picks are kept when a device is removed and reused when it is added back; 
   assert.equal((await snapshot()).picks[STAGE]['サブ3'],'u-yk1'); // not deleted
   await click('[data-act="useDev"][data-dev="サブ1"]');await click('[data-act="useDev"][data-dev="サブ3"]');
   assert.deepEqual(await shown(),['①メイン','②サブ1','③サブ3']);
-  assert.equal(await pickSel('サブ3').inputValue(),'u-yk1');assert.match(await card('サブ3').locator('.uL1').textContent(),/ヤクモ｜大荒神武装/);
-  // the suitability for that form is removed while the device is out of the team: warned, still not deleted
+  assert.equal(await pickSel('サブ3').inputValue(),'u-yk1');assert.match(await card('サブ3').locator('.uL1').textContent(),/ヤクモ\s+個体1/);
+  // the character loses every suitability while the device is out of the team: the pick is kept and shown as 仮選択 (never deleted)
   await click('[data-act="useDev"][data-dev="サブ3"]');
-  await page.evaluate(()=>{db.suits=db.suits.filter(s=>s.formId!=='f-yk1');persist();render()});
+  await page.evaluate(()=>{db.suits=db.suits.filter(s=>!['f-yk1','f-yk2'].includes(s.formId));persist();render()});
   await click('[data-act="useDev"][data-dev="サブ3"]');
-  assert.match(await card('サブ3').textContent(),/形態未確認/);assert.match(await pickSel('サブ3').locator('option:checked').textContent(),/（形態未確認）/);
+  assert.match(await card('サブ3').textContent(),/仮選択・適正未確定/);assert.match(await pickSel('サブ3').locator('option:checked').textContent(),/ヤクモ 個体1（仮）/);
   assert.equal((await snapshot()).picks[STAGE]['サブ3'],'u-yk1');
 });
 
@@ -219,7 +219,7 @@ test('long character and form names stay inside the card at 320px and 390px', as
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     const ok=await card('メイン').evaluate(c=>{const cr=c.getBoundingClientRect();return [...c.querySelectorAll('.uL1,.uL1 *,.pickSel')].every(e=>{const r=e.getBoundingClientRect();return r.left>=cr.left-0.5&&r.right<=cr.right+0.5})});
     assert.ok(ok,'inside card at '+width);
-    assert.match(await card('メイン').locator('.uL1').textContent(),new RegExp(longForm.slice(0,8)));
+    assert.match(await card('メイン').locator('.uL1').textContent(),new RegExp(longChar.slice(0,8)));
   }
 });
 

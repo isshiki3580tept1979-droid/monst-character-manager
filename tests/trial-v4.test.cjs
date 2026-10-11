@@ -82,10 +82,10 @@ test('fruits: 3 slots by default, 4th slot on demand; 4 fruits save, reload, sho
   await page.evaluate(()=>{db.suits.push(normSuit({id:'sx',stageKey:'禁忌の獄::一ノ獄',formId:'f-hello',source:'GAMEWITH',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}),normSuit({id:'sy',stageKey:'禁忌の獄::一ノ獄',formId:'f-rev',source:'GAMEWITH',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}));persist();render()});
   await click('[data-act="view"][data-view="stage"]');await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u4');
   await click('[data-act="infoMode"][data-mode="all"]');
-  assert.deepEqual(await devRow('メイン').locator('.pAll dt').allTextContents(),['キャラ','形態','種族','戦型','撃種','実1','実2','実3','実4']);
+  assert.deepEqual(await devRow('メイン').locator('.pAll dt').allTextContents(),['キャラ','種族','戦型','撃種','所在','実1','実2','実3','実4']);
   assert.equal(await devRow('メイン').locator('.pAll dd').last().textContent(),'[同族]同族加撃 特級M');
   await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u3');
-  assert.deepEqual(await devRow('メイン').locator('.pAll dt').allTextContents(),['キャラ','形態','種族','戦型','撃種','実1','実2','実3']);
+  assert.deepEqual(await devRow('メイン').locator('.pAll dt').allTextContents(),['キャラ','種族','戦型','撃種','所在','実1','実2','実3']);
   await click('[data-act="infoMode"][data-mode="fruit"]');assert.equal(await devRow('メイン').locator('.fr').count(),3);
   await page.locator('.pickSel[data-pick-dev="メイン"]').selectOption('u4');assert.equal(await devRow('メイン').locator('.fr').count(),4);
 });
@@ -123,13 +123,13 @@ test('suitability: verification states and evaluation types kept; missing status
   assert.deepEqual([s.d.evaluationType,s.d.verificationStatus,s.d.sourceUrl],['CANDIDATE','UNVERIFIED','']);  // unsafe URL dropped
   // sources are shown separately; badges show the verification state; unverified marker on candidates
   const panel=(await page.locator('#suitPanel').textContent()).replace(/[ \n\t]+/g,'');
-  assert.match(panel,/GameWith.*ネオ｜ハローランクS確認済み.*リンネ｜リンネ（獣神化）ランクA未検証/s); // S listed before A
-  assert.match(panel,/アルテマ.*ネオ｜ハロー3位要確認/s);assert.match(panel,/その他サイト（攻略X）.*ネオ｜リバース候補未検証/s);
+  assert.match(panel,/GameWith.*ネオランクS確認済み.*リンネランクA未検証/s);assert.doesNotMatch(panel,/表記：/); // S listed before A
+  assert.match(panel,/アルテマ.*ネオ3位要確認/s);assert.match(panel,/その他サイト（攻略X）.*ネオ候補未検証/s);
   assert.match(panel,/未検証・要確認の適正が3件/);
-  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="メイン"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（未検証）']);
+  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="メイン"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2'],'the character has a verified suitability → no 未検証 mark');
   // confirm one with the button
   await click('[data-act="suitVerify"][data-id="d"]');assert.equal((await snapshot()).suits.find(x=>x.id==='d').verificationStatus,'VERIFIED');
-  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="メイン"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2']);
+  assert.deepEqual(await page.locator('.pickSel[data-pick-dev="メイン"] option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
   // modal: GRADE keeps only grade, RANK keeps only rank (the other field is not saved)
   // the 順位 field is hidden for GRADE; even a stray value in it is not saved as a rank
   await click('[data-act="suitEdit"][data-id="a"]');assert.equal(await page.locator('#stRankField').isVisible(),false);
@@ -183,20 +183,19 @@ test('import: unknown character, character-only match, unknown/ambiguous form ar
     {characterName:'ネオ',formName:'獣神化改',grade:'S'},
     {characterName:'双子',formName:'何か',grade:'S'},
     {characterName:'リンネ',formName:'リンネ（獣神化）',grade:'A'}]}));
-  assert.match(await page.locator('#imResult').textContent(),/追加 1件／更新 0件／変更なし 0件／要確認（取り込まない） 4件/);
+  assert.match(await page.locator('#imResult').textContent(),/追加 3件／更新 0件／変更なし 0件／要確認（取り込まない） 2件/,'rows of a known character are attached by name; the source form label is recorded as a form of that character');
   await click('[data-act="imApply"]');
   const d=await snapshot();
   assert.deepEqual(d.master.characters.map(c=>c.name),['ネオ','リンネ','双子','双子']); // nothing created
-  assert.equal(d.master.forms.length,3);
-  assert.deepEqual(d.suits.map(s=>s.formId),['f-rinne']);
+  assert.equal(d.master.forms.length,5,'nameless form + 獣神化改 recorded for ネオ');
+  assert.equal(d.suits.length,3);assert.ok(d.suits.some(s=>s.formId==='f-rinne'));assert.ok(d.suits.every(s=>d.master.forms.find(f=>f.id===s.formId)));
   assert.deepEqual(d.importIssues.map(x=>[x.characterName,x.reason]),[
-    ['未登録キャラ','未登録のキャラ（自動では作成しません）'],['ネオ','進化形態の指定がありません（キャラ名だけでは紐づけません）'],
-    ['ネオ','進化形態が一致しません（正式名・短縮名と完全一致のみ）'],['双子','同じ名前のキャラが複数あります']]);
-  assert.match(await page.locator('#imIssues').textContent(),/取り込めなかった行（要確認・4件）/);
+    ['未登録キャラ','未登録のキャラ（自動では作成しません）'],['双子','同じ名前のキャラが複数あります']]);
+  assert.match(await page.locator('#imIssues').textContent(),/取り込めなかった行（要確認・2件）/);
   // re-importing the same file does not pile up duplicate issues
   await page.fill('#imText','');await importJson(imp({entries:[{characterName:'未登録キャラ',formName:'獣神化',grade:'S'}]}));await click('[data-act="imApply"]');
-  const issues=(await snapshot()).importIssues;assert.equal(issues.length,4);
-  await click(`[data-act="issueDone"][data-id="${issues[0].id}"]`);assert.equal((await snapshot()).importIssues.length,3);
+  const issues=(await snapshot()).importIssues;assert.equal(issues.length,2);
+  await click(`[data-act="issueDone"][data-id="${issues[0].id}"]`);assert.equal((await snapshot()).importIssues.length,1);
 });
 
 test('import: format errors (rank in GRADE, grade in RANK, bad source/stage/url, GAME_CLEAR not RANK) change nothing', async()=>{

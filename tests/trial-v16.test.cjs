@@ -68,7 +68,7 @@ test('screenshot: candidates for a name with 二つ名 (part match / same 図鑑
   await seed(BASE);await preview();
   assert.equal(await page.inputValue('#srF_epithet'),'','二つ名 is not filled in automatically');
   const list=await txt(page.locator('#srCands'));
-  assert.match(list,/架空スカアハα.*図鑑No\.が一致.*1体.*架空タブレット（サブ1）×1.*進化形態：未確認/);
+  assert.match(list,/架空スカアハα.*図鑑No\.が一致.*1体.*架空タブレット（サブ1）×1/);
   assert.match(list,/架空スカアハ（?.*名前の一部が一致/);
   assert.match(list,/候補を選ばない場合は、新しいキャラ「架空影炎の花嫁 架空スカアハα」として登録します/);
   assert.equal(await page.locator('#srSplit').isVisible(),true,'split is offered but not applied');
@@ -84,7 +84,7 @@ test('choosing a candidate adds a new unit to that character (same device is fin
   await page.check('#srDupOk'); // 同じ端末に個体があるので、新規追加を選ぶと追加の内容が出る
   const r=await result();
   assert.match(r,/既存キャラ「架空スカアハα」に新しい個体を追加/);assert.match(r,/二つ名：架空影炎の花嫁/);
-  assert.match(r,/進化形態：未確認/);assert.match(r,/図鑑No\.99216/);assert.match(r,/撃種の絆・加命撃 特級L/);
+  assert.match(r,/図鑑No\.99216/);assert.match(r,/撃種の絆・加命撃 特級L/);
   await page.click('[data-act="srApply"]'); // 同じ端末に2体目（正常なケース）
   assert.match(await page.locator('#srDone').textContent(),/登録しました（保存済み）/);
   const d=await stored();
@@ -209,9 +209,6 @@ test('editing a unit (二つ名・実・メモ) keeps its 確認状態 and 取�
   assert.match(await page.locator('#charaList .card.open [data-unit="uR"]').textContent(),/要確認/,'status badge still shown');
   await editUnit('uV',async()=>{await page.fill('#unMemo','架空メモ2');await page.selectOption('#unDevice','サブ3')});
   u=await unitOf('uV');assert.equal(u.verificationStatus,'VERIFIED');assert.equal(u.importSource,'monst-hakai-main-staging-v1');assert.equal(u.device,'サブ3');
-  // 進化形態を選び直しても、確認状態・取り込み元は勝手に変えない
-  await editUnit('uR',async()=>{await page.selectOption('#unForm','fB')});
-  u=await unitOf('uR');assert.equal(u.formId,'fB');assert.equal(u.verificationStatus,'NEEDS_REVIEW');assert.equal(u.importSource,'monst-screenshot-reading-v1');
 });
 
 test('clearing 二つ名 removes only 二つ名; a unit without 確認状態／取り込み元 stays without them', async()=>{

@@ -77,60 +77,58 @@ function world(extra={}){
 test('UI: register character, two forms, two units on one device, suitability; candidates and reload',async()=>{
   await click('[data-act="view"][data-view="chara"]');
   await click('[data-act="mcharAdd"]');await page.fill('#mcName','ネオ');await click('[data-act="saveMChar"]');
-  for(const [name,short,race,battle,shot] of [['ハローワールド・モード','ハロー','亜人','スピード型','反射'],['リバース・モード','リバース','魔人','パワー型','貫通']]){
-    await click('[data-act="formAdd"]');await page.fill('#fmName',name);await page.fill('#fmShort',short);
-    await page.selectOption('#fmRace',race);await page.selectOption('#fmBattle',battle);await page.selectOption('#fmShot',shot);await click('[data-act="saveForm"]');
-  }
-  const formIds=await page.evaluate(()=>db.master.forms.map(f=>f.id));
-  const units=[[formIds[0],['撃種加撃','撃種加速撃','撃種加命撃']],[formIds[1],['速必殺','将命削り','兵命削り']]];
-  for(const [formId,fruits] of units){
-    await click('[data-act="unitAdd"]');await page.selectOption('#unDevice','メイン');await page.selectOption('#unForm',formId);
+  // 基本情報（種族・戦型・撃種）はキャラにつき1つ。進化形態は登録しない
+  await click('[data-act="basicEdit"]');await page.selectOption('#fmRace','亜人');await page.selectOption('#fmBattle','スピード型');await page.selectOption('#fmShot','反射');await click('[data-act="saveForm"]');
+  const charId=await page.evaluate(()=>db.master.characters[0].id);
+  const units=[[null,['撃種加撃','撃種加速撃','撃種加命撃']],[null,['速必殺','将命削り','兵命削り']]];
+  for(const [,fruits] of units){
+    await click('[data-act="unitAdd"]');await page.selectOption('#unDevice','メイン');
     fruits.forEach(()=>{});for(let i=0;i<3;i++){await page.fill('#unFrName'+i,fruits[i]);await page.selectOption('#unFrGrade'+i,'特級L')}
     await click('[data-act="saveUnit"]');
   }
   let d=await snapshot();
   assert.deepEqual(d.master.characters.map(c=>c.name),['ネオ']);
-  assert.deepEqual(d.master.forms.map(f=>[f.name,f.short,f.race,f.battleType,f.shotType]),[['ハローワールド・モード','ハロー','亜人','スピード型','反射'],['リバース・モード','リバース','魔人','パワー型','貫通']]);
+  assert.deepEqual(d.master.forms.map(f=>[f.name,!!f.unknownForm,f.race,f.battleType,f.shotType]),[['',true,'亜人','スピード型','反射']],'one nameless form per character');
   assert.deepEqual(d.units.map(u=>[u.device,u.no,u.fruits.map(x=>x.name)]),[['メイン',1,['撃種加撃','撃種加速撃','撃種加命撃']],['メイン',2,['速必殺','将命削り','兵命削り']]]);
   // character view: device -> units with form and fruits
   const card=await page.locator('#charaList .card.open').textContent();
-  assert.match(card,/メイン（2体）/);assert.match(card,/個体1ハロー/);assert.match(card,/個体2リバース/);assert.match(card,/撃種加命撃/);
+  assert.match(card,/メイン（2体）/);assert.match(card,/個体1/);assert.match(card,/個体2/);assert.match(card,/撃種加命撃/);assert.match(card,/亜人.*スピード型.*反射/);
   // suitability for the ハロー form only (GAME_CLEAR_MONSTERS, rank 2)
   await click('[data-act="view"][data-view="stage"]');
   assert.equal(await page.locator('.pickDev').count(),0);await click('[data-act="useDev"][data-dev="メイン"]');
   // 適正が未登録でも、この端末の所持キャラから仮選択はできる（候補は0）
   assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
-  await click('[data-act="suitAdd"]');await page.selectOption('#stForm',formIds[0]);await page.fill('#stRank','2');await click('[data-act="saveSuit"]');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）','ネオ｜リバース 個体2（形態未確認）（未検証）'],'same character, other named form without 図鑑No.: candidate marked 形態未確認 (not 別形態)');
+  await click('[data-act="suitAdd"]');await page.selectOption('#stForm',charId);await page.fill('#stRank','2');await click('[data-act="saveSuit"]');
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1（未検証）','ネオ 個体2（未検証）'],'every unit of the character is a candidate');
   await click('[data-act="suitVerify"]');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（形態未確認）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
   assert.equal(await page.locator('.pickDev').count(),1); // only the chosen device is shown
   await page.reload();
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2（形態未確認）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
   d=await snapshot();assert.deepEqual(d.suits.map(s=>[s.stageKey,s.source,s.evaluationType,s.rank,s.grade,s.verificationStatus]),[[STAGE,'GAME_CLEAR_MONSTERS','RANK',2,'','VERIFIED']]);
   // character view lists the suitable stage
-  await click('[data-act="view"][data-view="chara"]');assert.match(await page.locator('#charaList').textContent(),/禁忌 一ノ獄・ハロー・みんなのクリアモンスター 2位/);
+  await click('[data-act="view"][data-view="chara"]');assert.match(await page.locator('#charaList').textContent(),/禁忌 一ノ獄・みんなのクリアモンスター 2位/);
 });
 
 test('candidates: only owned AND suitable units per device, per-unit (not per-character), reasons when none',async()=>{
   await seed(world({useDevs:{'禁忌の獄::一ノ獄':['メイン','サブ1','サブ2'],'禁忌の獄::二ノ獄':['メイン']}}));
   // main owns ルシファー, ネオ×2 (ハロー suitable, リバース = same character, other confirmed form → candidate marked 別形態), アーサー (not suitable). エル is suitable but unowned.
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ルシファー｜獣神化改 個体1','ネオ｜リバース 個体2（形態未確認）']);
-  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','リンネ｜リンネ（獣神化） 個体1','ネオ｜リバース 個体1（形態未確認）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2','ルシファー 個体1']);
+  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','ネオ 個体1','リンネ 個体1']);
   assert.equal(await pickSel('サブ2').isDisabled(),true);
   assert.match(await devRow('サブ2').textContent(),/この端末の所持個体が未登録です/);
   assert.match(await devRow('メイン').textContent(),/候補3/);
   // When リバース also becomes suitable (other source), main can choose between ネオ 個体1 and 個体2.
   await page.evaluate(()=>{db.suits.push(normSuit({id:'s5',stageKey:'禁忌の獄::一ノ獄',formId:'f-rev',source:'GAMEWITH',evaluationType:'GRADE',grade:'A',verificationStatus:'VERIFIED'}));persist();render()});
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜リバース 個体2','ルシファー｜獣神化改 個体1']);
-  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','ネオ｜リバース 個体1','リンネ｜リンネ（獣神化） 個体1']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2','ルシファー 個体1']);
+  assert.deepEqual(await optionTexts('サブ1'),['— 使う個体を選ぶ —','ネオ 個体1','リンネ 個体1']);
   // another stage with no suitability
   await click('[data-act="stage"][data-stage="二ノ獄"]');
   // 候補は0だが、所持キャラから仮選択はできる（理由も表示）
   assert.equal(await pickSel('メイン').isDisabled(),false);assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —']);
   assert.match(await devRow('メイン').textContent(),/このステージの適正が未登録です（所持キャラから仮選択できます）/);
   // form ownership status helper (bright / dark+！ / dark) per device
-  assert.deepEqual(await page.evaluate(()=>[formStatus('f-hello','メイン'),formStatus('f-hello','サブ1'),formStatus('f-hello','サブ2'),formStatus('f-el','メイン')]),['owned','unconfirmed','not-owned','not-owned']);
+  assert.deepEqual(await page.evaluate(()=>[formStatus('f-hello','メイン'),formStatus('f-hello','サブ1'),formStatus('f-hello','サブ2'),formStatus('f-el','メイン')]),['owned','owned','not-owned','not-owned']);
 });
 
 test('info toggle: 進化形態 / 種族・戦型・撃種 / 実 / 全部 with one tap, switching unit updates info, persists',async()=>{
@@ -139,17 +137,14 @@ test('info toggle: 進化形態 / 種族・戦型・撃種 / 実 / 全部 with o
   const info=()=>devRow('メイン').locator('.pInfo,.pAll').textContent();
   // the detail toggle is auxiliary: off by default (the card already shows form/type/fruits)
   assert.equal(await devRow('メイン').locator('.pInfo,.pAll').count(),0);
-  await click('[data-act="infoMode"][data-mode="form"]');assert.equal(await info(),'ハローワールド・モード');
   await click('[data-act="infoMode"][data-mode="type"]');assert.equal(await info(),'亜人スピード型反射');
   await click('[data-act="infoMode"][data-mode="fruit"]');assert.equal(await info(),'1[撃種]撃種加撃 特級L2[撃種]撃種加速撃 特級3[撃種]撃種加命撃 特級EL');
   await click('[data-act="infoMode"][data-mode="all"]');
-  const all=await devRow('メイン').locator('.pAll').evaluate(dl=>[...dl.querySelectorAll('dt')].map((dt,i)=>[dt.textContent,dl.querySelectorAll('dd')[i].textContent]));
-  assert.deepEqual(all,[['キャラ','ネオ'],['形態','ハローワールド・モード'],['種族','亜人'],['戦型','スピード型'],['撃種','反射'],['実1','[撃種]撃種加撃 特級L'],['実2','[撃種]撃種加速撃 特級'],['実3','[撃種]撃種加命撃 特級EL']]);
+  const rowsOf=()=>devRow('メイン').locator('.pAll').evaluate(dl=>[...dl.querySelectorAll('dt')].map((dt,i)=>[dt.textContent,dl.querySelectorAll('dd')[i].textContent]).filter(([k])=>k!=='所在'));
+  assert.deepEqual(await rowsOf(),[['キャラ','ネオ'],['種族','亜人'],['戦型','スピード型'],['撃種','反射'],['実1','[撃種]撃種加撃 特級L'],['実2','[撃種]撃種加速撃 特級'],['実3','[撃種]撃種加命撃 特級EL']]);
   // switch to 個体2 (リバース): every shown value follows the selected unit
   await pickSel('メイン').selectOption('u-neo2');
-  const all2=await devRow('メイン').locator('.pAll dd').allTextContents();
-  assert.deepEqual(all2,['ネオ','リバース・モード','魔人','パワー型','貫通','[その他]速必殺 特級','[その他]将命削り 特級L','[その他]兵命削り 特級L']);
-  await click('[data-act="infoMode"][data-mode="form"]');assert.equal(await info(),'リバース・モード');
+  assert.deepEqual((await rowsOf()).map(([,v])=>v),['ネオ','魔人','パワー型','貫通','[その他]速必殺 特級','[その他]将命削り 特級L','[その他]兵命削り 特級L']);
   // selection and mode survive reload; other devices unaffected; picks stored per stage and device
   await click('[data-act="infoMode"][data-mode="type"]');await page.reload();
   assert.equal(await pickSel('メイン').inputValue(),'u-neo2');assert.equal(await info(),'魔人パワー型貫通');
@@ -164,23 +159,23 @@ test('info toggle: 進化形態 / 種族・戦型・撃種 / 実 / 全部 with o
 test('stage suitability: sources kept separate, ranks and grades never converted, validation, duplicates rejected',async()=>{
   await seed(world());
   const panel=await page.locator('#suitPanel').textContent();
-  assert.match(panel,/みんなのクリアモンスター・ゲーム内の順位.*1位.*2位.*3位/s);assert.match(panel,/GameWith.*エル｜エル（獣神化）ランク S/s);
+  assert.match(panel,/みんなのクリアモンスター・ゲーム内の順位.*1位.*2位.*3位/s);assert.match(panel,/GameWith.*エルランク S/s);assert.doesNotMatch(panel,/表記：/);
   // GameWith "S" stays a grade (no rank invented); GAME_CLEAR_MONSTERS requires a rank 1..20
   let s=(await snapshot()).suits.find(x=>x.id==='s4');assert.equal(s.grade,'S');assert.equal(s.rank,null);assert.equal(s.evaluationType,'GRADE');
-  await click('[data-act="suitAdd"]');await page.selectOption('#stForm','f-rev');
+  await click('[data-act="suitAdd"]');await page.selectOption('#stForm','c-neo');
   assert.equal(await page.locator('#stGradeField').isVisible(),false);assert.equal(await page.locator('#stEval').isDisabled(),true);
   await click('[data-act="saveSuit"]');assert.match(await page.locator('#stMsg').textContent(),/順位を入力/);
   await page.fill('#stRank','25');await click('[data-act="saveSuit"]');assert.match(await page.locator('#stMsg').textContent(),/1〜20/);
   await page.selectOption('#stSource','OTHER_SITE');assert.equal(await page.locator('#stSiteField').isVisible(),true);
   await page.selectOption('#stEval','GRADE');assert.equal(await page.locator('#stRankField').isVisible(),false);
   await page.fill('#stGrade','B+');await page.fill('#stSite','攻略サイトX');await click('[data-act="saveSuit"]');
-  s=(await snapshot()).suits.find(x=>x.formId==='f-rev');assert.deepEqual([s.source,s.evaluationType,s.rank,s.grade,s.site],['OTHER_SITE','GRADE',null,'B+','攻略サイトX']);
+  s=(await snapshot()).suits.find(x=>x.site==='攻略サイトX');assert.deepEqual([s.source,s.evaluationType,s.rank,s.grade,s.site],['OTHER_SITE','GRADE',null,'B+','攻略サイトX']);assert.equal((await snapshot()).master.forms.find(f=>f.id===s.formId).characterId,'c-neo');
   // duplicate (same stage, form and source) is refused
-  await click('[data-act="suitAdd"]');await page.selectOption('#stForm','f-hello');await page.fill('#stRank','5');await click('[data-act="saveSuit"]');
+  await click('[data-act="suitAdd"]');await page.selectOption('#stForm','c-neo');await page.fill('#stRank','5');await click('[data-act="saveSuit"]');
   assert.match(await page.locator('#stMsg').textContent(),/既にあります/);await click('#suitModal [data-act="close"]');
-  assert.equal((await snapshot()).suits.filter(x=>x.formId==='f-hello').length,1);
+  assert.equal((await snapshot()).suits.filter(x=>x.formId==='f-hello'&&x.source==='GAME_CLEAR_MONSTERS').length,1);
   // ownership marks per device: main owns ハロー, サブ1 owns only another ネオ form (！)
-  assert.match(await page.locator('#suitPanel').textContent(),/ネオ｜ハロー2位.*所持：メイン×1 サブ1（所持・形態未確認）/s);
+  assert.match(await page.locator('#suitPanel').textContent(),/ネオ2位.*所持：メイン×2 サブ1×1/s);
 });
 
 test('stale pick after suitability removal is shown as 候補外, not silently changed',async()=>{
@@ -189,9 +184,9 @@ test('stale pick after suitability removal is shown as 候補外, not silently c
   await click('[data-act="suitEdit"][data-id="s2"]');await click('[data-act="deleteSuit"]');
   // 所持はしているので、自動で外さず「仮選択・適正未確定」として残す（適正は作らない）
   assert.match(await devRow('メイン').textContent(),/仮選択・適正未確定/);assert.equal(await pickSel('メイン').inputValue(),'u-neo1');
-  assert.match(await pickSel('メイン').locator('option:checked').textContent(),/ネオ｜ハロー 個体1（仮）/);
+  assert.match(await pickSel('メイン').locator('option:checked').textContent(),/ネオ 個体1（仮）/);
   assert.equal((await snapshot()).picks[STAGE]['メイン'],'u-neo1');assert.equal((await snapshot()).suits.some(s=>s.formId==='f-hello'),false);
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ルシファー｜獣神化改 個体1']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ルシファー 個体1']);
 });
 
 test('old data: read without writes, nothing auto-converted, explicit migration keeps old data and records 要確認',async()=>{
@@ -217,17 +212,18 @@ test('old data: read without writes, nothing auto-converted, explicit migration 
   await click(`[data-act="migrate"][data-id="${id}"]`);
   const d=await snapshot();
   assert.deepEqual(d.suits.map(s=>[s.stageKey,s.formId,s.source,s.evaluationType,s.rank,s.verificationStatus]),[[STAGE,'f-hello','GAME_CLEAR_MONSTERS','RANK',2,'UNVERIFIED']]);
-  assert.deepEqual(d.units.map(u=>[u.device,u.formId,u.no,u.fruits.map(x=>x.name)]),[['メイン','f-hello',1,['撃種加撃','撃種加速撃','撃種加命撃','4つ目']]]);
-  assert.equal(d.migrated[id].units,1);
-  assert.deepEqual(d.migrated[id].pending,['メイン：旧所持数3体のうち1体だけ作成','サブ1：別形態で所持（形態が分からないため個体は未作成）']);
+  // 進化形態は区別しない：旧データの「別形態で所持」（サブ1）も所持として個体を作る
+  assert.deepEqual(d.units.map(u=>[u.device,u.formId,u.no,u.fruits.map(x=>x.name)]),[['メイン','f-hello',1,['撃種加撃','撃種加速撃','撃種加命撃','4つ目']],['サブ1','f-hello',1,[]]]);
+  assert.equal(d.migrated[id].units,2);
+  assert.deepEqual(d.migrated[id].pending,['メイン：旧所持数3体のうち1体だけ作成']);
   // old structures untouched; form basic info not guessed from the old rank entry
   assert.deepEqual([d.rankings,d.ownership,d.characters],[before.rankings,before.ownership,before.characters]);
   assert.equal(d.master.forms[0].race,'');
   assert.match(await page.locator('#migCount').textContent(),/未変換・要確認 2件／全3件/);
-  assert.match(await page.locator('#migList').textContent(),/取り込み済み：ネオ｜ハロー/);
+  assert.match(await page.locator('#migList').textContent(),/取り込み済み：ネオ/);
   // the migrated unit is now selectable on the stage screen
   await click('[data-act="view"][data-view="stage"]');await click('[data-act="useDev"][data-dev="メイン"]');
-  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）']);
+  assert.deepEqual(await optionTexts('メイン'),['— 使う個体を選ぶ —','ネオ 個体1（未検証）']);
 });
 
 test('backup/restore keeps the new structure; old backups restore with empty new structure; orphans kept',async()=>{
@@ -273,8 +269,8 @@ test('unit edit: fruits up to 3, kinds kept, unit number auto per device+charact
   assert.equal(await page.locator('#unFruits .frRow').count(),4);assert.equal(await page.locator('#unFruits .frRow:visible').count(),3);
   await page.fill('#unFrName0','同族加命撃');await page.selectOption('#unFrKind0','同族');await click('[data-act="saveUnit"]');
   let u=(await snapshot()).units.at(-1);assert.deepEqual([u.device,u.no,u.fruits],['サブ2',1,[{name:'同族加命撃',grade:'',kind:'同族'}]]);
-  // change form of 個体1 on メイン from ハロー to リバース: same unit id/number, now listed under リバース
-  await click('[data-act="unitEdit"][data-id="u-neo1"]');await page.selectOption('#unForm','f-rev');await click('[data-act="saveUnit"]');
-  u=(await snapshot()).units.find(x=>x.id==='u-neo1');assert.deepEqual([u.formId,u.no,u.fruits.length],['f-rev',1,3]);
+  // 個体の編集では形態を変えない（既存の形態のまま）
+  await click('[data-act="unitEdit"][data-id="u-neo1"]');await page.fill('#unMemo','架空メモ');await click('[data-act="saveUnit"]');
+  u=(await snapshot()).units.find(x=>x.id==='u-neo1');assert.deepEqual([u.formId,u.no,u.fruits.length,u.memo],['f-hello',1,3,'架空メモ']);
   assert.equal(await page.evaluate(()=>normFruits(Array.from({length:5},(_,i)=>({name:'実'+i}))).length),4);
 });

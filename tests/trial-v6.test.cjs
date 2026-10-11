@@ -59,7 +59,7 @@ test('stage "＋ キャラ登録" opens the new flow (not the old characters[] f
   assert.match(await page.locator('#qrStageNote').textContent(),/禁忌の獄・一ノ獄/);
   assert.match(await page.locator('#qrSuitLabel').textContent(),/一ノ獄の適正として登録する/);
   // sections in order: キャラ → 進化形態 → 所持端末 → わくわくの実（4 rows） → このステージの適正
-  assert.deepEqual(await page.locator('#qrModal legend').allTextContents(),['1. キャラ','2. 種族・戦型・撃種（進化形態は任意）','3. 所持端末','4. わくわくの実（最大4つ）','5. このステージの適正']);
+  assert.deepEqual(await page.locator('#qrModal legend').allTextContents(),['1. キャラ','2. 種族・戦型・撃種','3. 所持端末','4. わくわくの実（最大4つ）','5. このステージの適正']);
   assert.equal(await page.locator('#qrFruits .frRow:visible').count(),4);
   // defaults: new character, first chosen device without a pick, own-judgment suitability (MANUAL / 候補 / 確認済み)
   assert.deepEqual([await page.inputValue('#qrChar'),await page.inputValue('#qrDevice'),await page.inputValue('#qrSource'),await page.inputValue('#qrEval'),await page.inputValue('#qrVerify')],
@@ -75,7 +75,6 @@ test('new character + new form + unit with 4 fruits + this stage suitability, th
   const legacyBefore=(await snapshot()).characters;
   await openReg();
   await page.fill('#qrCharName','ネオ');
-  await page.fill('#qrFormName','ハローワールド・モード');await page.fill('#qrFormShort','ハロー');
   await page.selectOption('#qrRace','亜人');await page.selectOption('#qrBattle','砲撃型');await page.selectOption('#qrShot','貫通');
   await page.selectOption('#qrDevice','サブ1');assert.equal(await page.inputValue('#qrNo'),'1');
   await fillFruits([['同族の絆・加撃','特級L','同族'],['同族の絆・加撃速','特級L','同族'],['同族の絆・加命撃','特級EL','同族'],['将命削り','特級M','その他']]);
@@ -83,13 +82,13 @@ test('new character + new form + unit with 4 fruits + this stage suitability, th
   assert.equal(await page.locator('#qrModal').evaluate(m=>m.classList.contains('open')),false);
   const d=await snapshot();
   assert.deepEqual(d.master.characters.map(c=>c.name),['ネオ']);
-  assert.deepEqual(d.master.forms.map(f=>[f.name,f.short,f.race,f.battleType,f.shotType]),[['ハローワールド・モード','ハロー','亜人','砲撃型','貫通']]);
+  assert.deepEqual(d.master.forms.map(f=>[f.name,!!f.unknownForm,f.race,f.battleType,f.shotType]),[['',true,'亜人','砲撃型','貫通']],'one nameless form carries the basic info');
   assert.deepEqual(d.units.map(u=>[u.device,u.no,u.fruits.map(x=>x.name)]),[['サブ1',1,['同族の絆・加撃','同族の絆・加撃速','同族の絆・加命撃','将命削り']]]);
   assert.deepEqual(d.suits.map(s=>[s.stageKey,s.source,s.evaluationType,s.rank,s.grade,s.verificationStatus]),[[STAGE,'MANUAL','CANDIDATE',null,'','VERIFIED']]);
   assert.deepEqual(d.characters,legacyBefore); // old characters[] untouched, nothing added there
   // immediately selectable in ② サブ1, without the 未検証 marker (own judgment = 確認済み)
-  assert.deepEqual(await pickSel('サブ1').locator('option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1']);
-  assert.match(await page.locator('#devPickMsg').textContent(),/ネオ｜ハロー 個体1を登録しました。② サブ1の候補に追加されました/);
+  assert.deepEqual(await pickSel('サブ1').locator('option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1']);
+  assert.match(await page.locator('#devPickMsg').textContent(),/ネオ 個体1を登録しました。② サブ1の候補に追加されました/);
   await pickSel('サブ1').selectOption({index:1});
   const card=page.locator('.pickDev[data-dev="サブ1"] .uCard');
   assert.deepEqual(await card.locator('.uL3:not(.uL4) .frS').allTextContents(),['同族加撃L','同族加撃速L','同族加命撃EL']);
@@ -104,27 +103,22 @@ test('existing character: existing form adds another unit (number auto), new for
     suits:[{id:'s1',stageKey:STAGE,formId:'f-hello',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],useDevs:{[STAGE]:['メイン']}});
   await openReg();
   await page.selectOption('#qrChar','c-neo');
-  assert.equal(await page.inputValue('#qrForm'),'f-hello');assert.equal(await page.locator('#qrFormNew').isVisible(),false);
+  assert.equal(await page.locator('#qrForm').isVisible(),false,'no form choice');assert.equal(await page.locator('#qrFormNew').isVisible(),false,'basic info already known');
   assert.match(await page.locator('#qrFormInfo').textContent(),/亜人　砲撃型　貫通/);
   await page.selectOption('#qrDevice','メイン');assert.equal(await page.inputValue('#qrNo'),'2');
   await click('[data-act="qrSave"]');
   let d=await snapshot();
   assert.equal(d.master.characters.length,1);assert.equal(d.master.forms.length,1);assert.equal(d.suits.length,1); // same MANUAL suitability reused
   assert.deepEqual(d.units.map(u=>[u.device,u.no]),[['メイン',1],['メイン',2]]);
-  assert.deepEqual(await pickSel('メイン').locator('option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1','ネオ｜ハロー 個体2']);
+  assert.deepEqual(await pickSel('メイン').locator('option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1','ネオ 個体2']);
   assert.match(await page.locator('#devPickMsg').textContent(),/登録済みのため、そのまま使います/);
-  // new form for the same character on another device; unit number continues per device + character
-  await openReg();await page.selectOption('#qrChar','c-neo');await page.selectOption('#qrForm','__new__');
-  await page.fill('#qrFormName','リバース・モード');await page.fill('#qrFormShort','リバース');await page.selectOption('#qrDevice','メイン');
+  // a third unit on the same device: number continues per device + character; no form is created
+  await openReg();await page.selectOption('#qrChar','c-neo');await page.selectOption('#qrDevice','メイン');
   assert.equal(await page.inputValue('#qrNo'),'3');
   await click('[data-act="qrSave"]');
   d=await snapshot();
-  assert.deepEqual(d.master.forms.map(f=>f.name),['ハローワールド・モード','リバース・モード']);
+  assert.equal(d.master.forms.length,1,'no form is created');
   assert.equal(d.units.at(-1).no,3);
-  // a duplicate form name for the same character is refused
-  await openReg();await page.selectOption('#qrChar','c-neo');await page.selectOption('#qrForm','__new__');await page.fill('#qrFormName','リバース・モード');
-  const before=await snapshot();await click('[data-act="qrSave"]');
-  assert.match(await page.locator('#qrMsg').textContent(),/同じ名前の進化形態が既にあります/);assert.deepEqual(await snapshot(),before);
 });
 
 test('validation errors write nothing: missing names, duplicate character, rank/grade rules per source', async()=>{
@@ -136,9 +130,9 @@ test('validation errors write nothing: missing names, duplicate character, rank/
   await tryErr(async()=>{await page.fill('#qrCharName','ネオ')},/同じ名前のキャラが既にあります/);
   // 進化形態名は任意（空欄なら「進化形態未確認」）になったので、空欄はエラーにならず次の検証へ進む
   await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.selectOption('#qrSource','OTHER_SITE')},/サイト名を入力してください/);
-  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.fill('#qrFormName','獣神化');await page.selectOption('#qrSource','GAME_CLEAR_MONSTERS')},/順位を入力してください/);
-  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.fill('#qrFormName','獣神化');await page.selectOption('#qrSource','GAMEWITH');await page.selectOption('#qrEval','GRADE')},/ランク（S\/A\/B など）を入力してください/);
-  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.fill('#qrFormName','獣神化');await page.selectOption('#qrSource','OTHER_SITE')},/サイト名を入力してください/);
+  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.selectOption('#qrSource','GAME_CLEAR_MONSTERS')},/順位を入力してください/);
+  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.selectOption('#qrSource','GAMEWITH');await page.selectOption('#qrEval','GRADE')},/ランク（S\/A\/B など）を入力してください/);
+  await tryErr(async()=>{await page.fill('#qrCharName','新キャラ');await page.selectOption('#qrSource','OTHER_SITE')},/サイト名を入力してください/);
   // GAME_CLEAR_MONSTERS is RANK only (the evaluation select is locked)
   await openReg();await page.selectOption('#qrSource','GAME_CLEAR_MONSTERS');
   assert.equal(await page.inputValue('#qrEval'),'RANK');assert.equal(await page.locator('#qrEval').isDisabled(),true);
@@ -152,23 +146,23 @@ test('source / rank / grade / verification kept as entered; unverified shows （
   await page.selectOption('#qrSource','GAMEWITH');await page.selectOption('#qrEval','GRADE');await page.fill('#qrGrade','S');await page.selectOption('#qrVerify','UNVERIFIED');
   await click('[data-act="qrSave"]');
   let s=(await snapshot()).suits[0];assert.deepEqual([s.source,s.evaluationType,s.rank,s.grade,s.verificationStatus],['GAMEWITH','GRADE',null,'S','UNVERIFIED']);
-  assert.deepEqual(await pickSel('メイン').locator('option').allTextContents(),['— 使う個体を選ぶ —','ネオ｜ハロー 個体1（未検証）']);
+  assert.deepEqual(await pickSel('メイン').locator('option').allTextContents(),['— 使う個体を選ぶ —','ネオ 個体1（未検証）']);
   // GAME_CLEAR_MONSTERS rank 3 for another character: the rank is stored as a rank
-  await openReg();await page.fill('#qrCharName','リンネ');await page.fill('#qrFormName','リンネ（獣神化）');await page.selectOption('#qrDevice','サブ1');
+  await openReg();await page.fill('#qrCharName','リンネ');await page.selectOption('#qrDevice','サブ1');
   await page.selectOption('#qrSource','GAME_CLEAR_MONSTERS');await page.fill('#qrRank','3');await click('[data-act="qrSave"]');
   s=(await snapshot()).suits.find(x=>x.source==='GAME_CLEAR_MONSTERS');assert.deepEqual([s.evaluationType,s.rank,s.grade],['RANK',3,'']);
   // without the stage suitability: unit saved, not a candidate, message says why
-  await openReg();await page.fill('#qrCharName','ヤクモ');await page.fill('#qrFormName','大荒神武装');await page.selectOption('#qrDevice','サブ1');
+  await openReg();await page.fill('#qrCharName','ヤクモ');await page.selectOption('#qrDevice','サブ1');
   await page.uncheck('#qrSuitOn');assert.equal(await page.locator('#qrSuitFields').isVisible(),false);await click('[data-act="qrSave"]');
   const d=await snapshot();assert.equal(d.units.length,3);assert.equal(d.suits.length,2);
   assert.match(await page.locator('#devPickMsg').textContent(),/このステージの適正が無いため、候補には出ません（「所持キャラ」から仮選択はできます）/);
   assert.equal((await pickSel('サブ1').locator(':scope > option').allTextContents()).some(t=>t.includes('ヤクモ')),false);
-  assert.deepEqual((await pickSel('サブ1').locator('optgroup option').allTextContents()).filter(t=>t.includes('ヤクモ')),['ヤクモ｜大荒神武装 個体1（仮）']);
+  assert.deepEqual((await pickSel('サブ1').locator('optgroup option').allTextContents()).filter(t=>t.includes('ヤクモ')),['ヤクモ 個体1（仮）']);
   // device not among this stage's chosen devices: saved, message points to the checkbox
   await openReg();await page.selectOption('#qrChar',{label:'リンネ'});await page.selectOption('#qrDevice','サブ4');await page.selectOption('#qrSource','MANUAL');await click('[data-act="qrSave"]');
   assert.match(await page.locator('#devPickMsg').textContent(),/サブ4は今回使う端末に入っていません/);
   await click('[data-act="useDev"][data-dev="サブ4"]');
-  assert.deepEqual(await pickSel('サブ4').locator('option').allTextContents(),['— 使う個体を選ぶ —','リンネ｜リンネ（獣神化） 個体1']);
+  assert.deepEqual(await pickSel('サブ4').locator('option').allTextContents(),['— 使う個体を選ぶ —','リンネ 個体1']);
 });
 
 test('old characters[] stay readable/editable in their own places and are never converted', async()=>{
@@ -190,7 +184,7 @@ test('320/390px: registration screen fits, controls are usable, no horizontal sc
     await page.setViewportSize({width,height:844});await openReg();
     const m=await page.evaluate(()=>{const el=document.querySelector('#qrModal .modal');return el.scrollWidth<=el.clientWidth});assert.ok(m,'modal no horizontal scroll');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    for(const id of ['qrChar','qrCharName','qrFormName','qrDevice','qrNo','qrFrName3','qrFrGrade3','qrFrKind3','qrSource','qrEval','qrVerify']){
+    for(const id of ['qrChar','qrCharName','qrDevice','qrNo','qrFrName3','qrFrGrade3','qrFrKind3','qrSource','qrEval','qrVerify']){
       const r=await page.locator('#'+id).boundingBox();assert.ok(r&&r.width>=40&&r.x>=0&&r.x+r.width<=width,id);
     }
     const cb=await page.locator('#qrSuitOn').boundingBox();assert.ok(cb.width>=20&&cb.height>=20);

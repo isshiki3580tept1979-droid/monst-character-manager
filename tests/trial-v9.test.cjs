@@ -44,7 +44,7 @@ async function importInventory(){
 }
 async function previewSuits(text=SUITS){await page.fill('#imText',text);await click('[data-act="imPreview"]')}
 const planRows=()=>page.evaluate(()=>{
-  const p=pendingSuitImport.plan,row=(it,cls)=>{const f=formOf(it.formId),c=charOf(f.characterId);
+  const p=pendingSuitImport.plan,row=(it,cls)=>{const f=formOf(it.formId)||p.newForms.find(x=>x.id===it.formId),c=charOf(f.characterId)||p.newChars.find(x=>x.id===f.characterId);
     return [cls,it.stageKey,c.name,f.name,it.evaluationType,it.grade,it.source,it.verificationStatus,it.sourceUrl,it.sourceUpdatedAt]};
   return {add:p.add.map(x=>row(x,'add')),update:p.update.length,same:p.same.length,issues:p.issues.map(x=>[x.characterName,x.formName,x.reason])};
 });
@@ -121,14 +121,14 @@ test('after import (temporary profile): linked units become stage candidates; th
   for(const n of ['物干し竿｜巌流の斬妻を支えし大学物干し竿','ニケ｜グロリアス・フォーム','春野サクラ｜戦場に咲く豪拳']) assert.ok(ownedNames.includes(n),n+' is owned on メイン');
   const all=Object.values(c).flat().join('/');
   for(const n of ['物干し竿','春野サクラ','チェンソーマン']) assert.ok(!all.includes(n),n);
-  assert.match(await page.evaluate(()=>{db.ui.view='stage';db.ui.quest='破界の星墓';db.ui.stage={'破界の星墓':'桃源郷'};render();const s=document.querySelector('.pickSel[data-pick-dev="メイン"]');return [...s.options].map(o=>o.textContent).join('/')}),/ニケ｜グロリアス・フォーム 個体2（別形態）/);
+  assert.match(await page.evaluate(()=>{db.ui.view='stage';db.ui.quest='破界の星墓';db.ui.stage={'破界の星墓':'桃源郷'};render();const s=document.querySelector('.pickSel[data-pick-dev="メイン"]');return [...s.options].map(o=>o.textContent).join('/')}),/ニケ 個体2/);
   for(const d of ['サブ1','サブ2']) assert.deepEqual(await candidates('ニギミタマ',d),[],'other devices have no candidates');
   // re-import is a no-op
   await click('[data-act="view"][data-view="admin"]');await previewSuits();
   const again=await planRows();assert.deepEqual([again.add.length,again.update,again.same,again.issues.length],[0,0,8,0]);
 });
 
-test('app import never links 物干し竿 / ネオ / 桜 by reference names', async()=>{
+test('app import attaches rows by character name only (物干し竿 / ネオ); a different name (桜 ≠ 春野サクラ) is never linked', async()=>{
   await importInventory();
   const ownedBefore=await owned();
   const block=(stage,entries)=>({format:'monst-suitability-import-v1',stageKey:'破界の星墓::'+stage,source:'GAMEWITH',evaluationType:'GRADE',entries});
@@ -137,10 +137,8 @@ test('app import never links 物干し竿 / ネオ / 桜 by reference names', as
     block('パラノヴィア',[{characterName:'ネオ',formName:'獣神化改',grade:'A'},{characterName:'桜',formName:'戦場に咲く豪拳',grade:'A'}])]);
   await previewSuits(text);
   const r=await planRows();
-  assert.equal(r.add.length,0);
-  assert.deepEqual(r.issues.map(x=>x[0]+':'+x[2]),[
-    '物干し竿:進化形態が一致しません（正式名・短縮名と完全一致のみ）','物干し竿:進化形態の指定がありません（キャラ名だけでは紐づけません）',
-    'ネオ:未登録のキャラ（自動では作成しません）','桜:未登録のキャラ（自動では作成しません）']);
+  assert.equal(r.add.length,2,'物干し竿 ×2 are attached by character name (the source form label is recorded as a form of that character, not matched to the owned form)');
+  assert.deepEqual(r.issues.map(x=>x[0]+':'+x[2]),['ネオ:未登録のキャラ（自動では作成しません）','桜:未登録のキャラ（自動では作成しません）'],'unregistered names (ネオ not in this inventory, 桜 ≠ 春野サクラ) are never linked');
   assert.equal(await owned(),ownedBefore);
 });
 

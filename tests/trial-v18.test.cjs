@@ -79,8 +79,8 @@ const WITHZ={...BASE,master:{characters:[...BASE.master.characters,ZED],forms:[.
 
 test('name matches are automatic now (二つ名 / notation); a character with a different name is offered as a manual candidate only when nothing matched', async()=>{
   await seed(WITHZ);
-  assert.match(await txt(row('s1')),/所持：メイン（所持・形態未確認） サブ1（所持・形態未確認×2）.*自動照合：架空0\.2秒 架空五条（二つ名を除いた名前が一致/);
-  assert.match(await txt(row('s2')),/所持：メイン（所持・形態未確認）.*自動照合：架空 真キャラ（名前が一致/);
+  assert.match(await txt(row('s1')),/所持：メイン×1 サブ1×2.*自動照合：架空0\.2秒 架空五条（二つ名を除いた名前が一致/);
+  assert.match(await txt(row('s2')),/所持：メイン×1.*自動照合：架空 真キャラ（名前が一致/);
   assert.doesNotMatch(await txt(row('s1')),/所持キャラの候補|架空五条β/,'similar names are not offered once the character has units');
   assert.equal(await page.locator('#suitPanel [data-act="linkChar"]').count(),0);
   assert.deepEqual((await groups('サブ2')).groups,[['所持キャラ（適正未登録・仮選択）',['架空まったく別名 個体1（仮）']]],'a different name stays provisional');
@@ -101,30 +101,12 @@ test('manual link for a different name: ownership shows 所持・形態未確認
   assert.deepEqual((await groups('サブ2')).groups.map(g=>g[0]),['所持キャラ（適正未登録・仮選択）']);
   await row('s1').locator('[data-act="linkChar"][data-b="cY"]').click();
   const t=await txt(row('s1'));
-  assert.match(t,/所持：サブ2（所持・形態未確認）/);assert.match(t,/同じキャラとして対応付け済み：架空五条の弟子/);assert.match(t,/要確認/);
-  assert.deepEqual((await groups('サブ2')).cand,['架空五条の弟子 個体1（形態未確認）（未検証）']);
+  assert.match(t,/所持：サブ2×1/);assert.match(t,/同じキャラとして対応付け済み：架空五条の弟子/);assert.match(t,/要確認/);
+  assert.deepEqual((await groups('サブ2')).cand,['架空五条の弟子 個体1（未検証）']);
   const d=await stored();assert.deepEqual(d.idLinks.map(l=>[l.kind,[l.a,l.b].sort().join('-'),l.basis]),[['char','cG-cY','USER_SELECTED']]);
   assert.deepEqual(d.master.characters.map(c=>c.name),['架空五条','架空五条の弟子']);assert.equal(d.suits[0].verificationStatus,'NEEDS_REVIEW');
   await row('s1').locator('[data-act="unlinkChar"][data-b="cY"]').click();
   assert.match(await txt(row('s1')),/所持個体の登録なし/);assert.deepEqual((await stored()).idLinks,[]);
-});
-
-test('confirmed forms on an automatically matched character: not judged 別形態 until the user confirms the same form; then it is a normal candidate', async()=>{
-  await seed(BASE);
-  let t=await txt(row('s2'));
-  assert.match(t,/メイン（所持・形態未確認）/);assert.match(t,/サブ2（所持・形態未確認）/);assert.doesNotMatch(t,/！/);
-  assert.equal(await row('s2').locator('[data-act="linkForm"]').count(),2);
-  await row('s2').locator('[data-act="linkForm"][data-b="fR1"]').click();
-  t=await txt(row('s2'));
-  assert.match(t,/所持：メイン×1/);assert.match(t,/サブ2（所持・形態未確認）/);
-  assert.match(t,/同じ形態として確認済み：架空 真キャラ｜架空の獣神化/);
-  const g=await groups('メイン');
-  assert.ok(g.cand.includes('架空 真キャラ｜架空の獣神化 個体1'),'a normal candidate without 形態未確認 mark');
-  assert.deepEqual((await groups('サブ2')).cand,['架空 真キャラ｜架空の進化 個体1（形態未確認）'],'the other confirmed form: same character but form not confirmed');
-  assert.equal((await stored()).idLinks.filter(l=>l.kind==='form').length,1);
-  await row('s2').locator('[data-act="unlinkForm"][data-b="fR1"]').click();
-  assert.match(await txt(row('s2')),/メイン（所持・形態未確認）/);assert.deepEqual((await stored()).idLinks,[]);
-  await keepData();
 });
 
 test('old tab cannot link or exclude (STEP1); links survive reload and backup/restore; old data without links still loads; the character screen shows the link', async()=>{

@@ -112,7 +112,8 @@ test('editing after 「確認画面へ」 is announced (the check is cancelled),
 });
 
 test('same character already on the device: the checkbox requirement is explained before and after tapping', async()=>{
-  await seed(BASE);await preview({...READING,characterName:'架空ネオ',monsterNo:null});
+  // 種族・戦型・撃種は既存の登録と同じか空欄にする（違う値は「既存と違います」で止まる＝別のテストで確認）
+  await seed(BASE);await preview({...READING,characterName:'架空ネオ',monsterNo:null,race:null,battleType:null,shotType:null});
   await page.selectOption('#srDevice','サブ1');await page.click('[data-act="srCheck"]');
   assert.match(await status(),/同じキャラの個体があります。別の個体として追加する場合は、上のチェックを入れてから「登録する」/);
   await applyBtn().click();

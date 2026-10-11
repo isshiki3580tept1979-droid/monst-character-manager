@@ -85,46 +85,33 @@ const keepData=async()=>{const d=await stored();
 test('二つ名付きの名前: 「架空0.2秒 架空五条」 is matched to 架空五条 automatically; devices and counts shown; NEEDS_REVIEW, note and picks untouched', async()=>{
   await seed(BASE);
   const t=await txt(row('s1'));
-  assert.match(t,/所持：メイン（所持・形態未確認） サブ1（所持・形態未確認×2）/);
+  assert.match(t,/所持：メイン×1 サブ1×2/);
   assert.match(t,/自動照合：架空0\.2秒 架空五条（二つ名を除いた名前が一致/);
   assert.match(t,/要確認/);assert.match(t,/編成推奨：架空トラベラーズ2体以上/);
   assert.doesNotMatch(t,/所持個体の登録なし|所持キャラの候補/);
   assert.equal(await page.locator(`#suitPanel .sRow:has([data-id="s1"]) [data-act="linkChar"]`).count(),0,'no manual link needed');
   const p=await picks('メイン');
-  assert.deepEqual(p.cand,['架空ネオ｜ハロー 個体1','架空 真キャラ｜架空の獣神化 個体1（形態未確認）','架空0.2秒 架空五条 個体1（形態未確認）（未検証）','架空ネオ｜リバース 個体2（別形態）'],'exact first, then 形態未確認 (by name), then 別形態');
+  assert.deepEqual([...p.cand].sort(),['架空ネオ 個体1','架空ネオ 個体2','架空 真キャラ 個体1','架空0.2秒 架空五条 個体1（未検証）'].sort(),'all units of matched characters, no form marks');
   assert.equal(p.sel,'uO1','the existing pick is kept and is now a normal candidate');
   const card=await txt(page.locator('.pickDev[data-dev="メイン"] .uCard'));
-  assert.match(card,/架空0\.2秒 架空五条 個体1/);assert.match(card,/形態未確認/);assert.match(card,/出典の形態：架空五条｜真獣神化（同じ形態かは未確認）/);
+  assert.match(card,/架空0\.2秒 架空五条 個体1/);assert.doesNotMatch(card,/形態未確認|出典の形態/);
   assert.match(card,/兵命削り.*将命削り.*熱き友撃/);assert.doesNotMatch(card,/仮選択・適正未確定/);
   assert.equal(await page.locator('.pickDev[data-dev="メイン"] .uCard.uProv').count(),0);
-  const s1=await picks('サブ1');assert.deepEqual(s1.cand,['架空0.2秒 架空五条 個体1（形態未確認）（未検証）','架空0.2秒 架空五条 個体2（形態未確認）（未検証）']);
+  const s1=await picks('サブ1');assert.deepEqual(s1.cand,['架空0.2秒 架空五条 個体1（未検証）','架空0.2秒 架空五条 個体2（未検証）']);
   assert.deepEqual((await stored()).idLinks||[],[],'automatic matches are not written as links');
   await keepData();
 });
 
 test('normalized exact name (space only) and a unit 二つ名 without a space are matched; similar names, α/β suffixes and ＆-names are not', async()=>{
   await seed(BASE);
-  assert.match(await txt(row('s2')),/所持：メイン（所持・形態未確認）.*自動照合：架空 真キャラ（名前が一致/);
-  assert.match(await txt(row('s4')),/所持：サブ3（所持・形態未確認）.*自動照合：架空最強架空甚爾（二つ名を除いた名前が一致/);
+  assert.match(await txt(row('s2')),/所持：メイン×1.*自動照合：架空 真キャラ（名前が一致/);
+  assert.match(await txt(row('s4')),/所持：サブ3×1.*自動照合：架空最強架空甚爾（二つ名を除いた名前が一致/);
   assert.match(await txt(row('s5')),/所持個体の登録なし/,'架空ラム＆架空レム is not 架空レム');
   assert.doesNotMatch(await txt(row('s1')),/架空五条β/);assert.doesNotMatch(await txt(row('s3')),/架空ネオα/);
-  assert.deepEqual(await page.evaluate(()=>[formStatus('fGs','サブ3'),formStatus('fN1','サブ3'),formStatus('fLs','サブ3'),formStatus('fJs','サブ3')]),['not-owned','not-owned','not-owned','unconfirmed']);
+  assert.deepEqual(await page.evaluate(()=>[formStatus('fGs','サブ3'),formStatus('fN1','サブ3'),formStatus('fLs','サブ3'),formStatus('fJs','サブ3')]),['not-owned','not-owned','not-owned','owned']);
   const p=await picks('サブ3');
-  assert.deepEqual(p.cand,['架空最強架空甚爾 個体1（形態未確認）']);
+  assert.deepEqual(p.cand,['架空最強架空甚爾 個体1']);
   assert.equal(p.groups.length,1);assert.equal(p.groups[0][0],'所持キャラ（適正未登録・仮選択）');assert.deepEqual([...p.groups[0][1]].sort(),['架空ネオα 個体3（仮）','架空五条β 個体2（仮）','架空ラム＆架空レム 個体4（仮）'].sort());
-  await keepData();
-});
-
-test('same character: exact form is 所持, a confirmed other form is still a candidate marked 別形態 (never hidden), form status unchanged', async()=>{
-  await seed(BASE);
-  assert.match(await txt(row('s3')),/所持：メイン×1 サブ2！/);
-  const m=await picks('メイン');assert.ok(m.cand.includes('架空ネオ｜ハロー 個体1'));assert.ok(m.cand.includes('架空ネオ｜リバース 個体2（別形態）'));
-  const s2=await picks('サブ2');assert.deepEqual(s2.cand,['架空ネオ｜リバース 個体1（別形態）']);
-  await page.locator('.pickSel[data-pick-dev="サブ2"]').selectOption('uN3');
-  const card=await txt(page.locator('.pickDev[data-dev="サブ2"] .uCard'));
-  assert.match(card,/別形態/);assert.match(card,/出典の形態：架空ネオ｜ハロー/);assert.doesNotMatch(card,/仮選択/);
-  assert.deepEqual((await stored()).picks[K],{'メイン':'uO1','サブ2':'uN3'});
-  assert.deepEqual(await page.evaluate(()=>[formStatus('fN1','メイン'),formStatus('fN1','サブ2')]),['owned','alt-form']);
   await keepData();
 });
 
@@ -143,23 +130,14 @@ test('a wrong automatic match can be excluded (and the exclusion undone); explic
   // 明示の対応付け（名前では一致しないキャラ）はこれまでどおり
   await seed({...BASE,master:{characters:[...BASE.master.characters,{id:'cZ',name:'架空まったく別名'}],forms:[...BASE.master.forms,F('fZu','cZ','',{unknownForm:true})]},units:[...BASE.units,U('uZ','fZu','サブ2',9)],
     idLinks:[{id:'l1',kind:'char',a:'cL',b:'cZ',basis:'USER_SELECTED',at:'2026-10-11T00:00:00.000Z'}]});
-  assert.match(await txt(row('s5')),/所持：サブ2（所持・形態未確認）.*同じキャラとして対応付け済み：架空まったく別名/);
-  assert.ok((await picks('サブ2')).cand.includes('架空まったく別名 個体9（形態未確認）'));
+  assert.match(await txt(row('s5')),/所持：サブ2×1.*同じキャラとして対応付け済み：架空まったく別名/);
+  assert.ok((await picks('サブ2')).cand.includes('架空まったく別名 個体9'));
   // 古いタブ
   const other=await context.newPage();await other.goto(url);await other.click('[data-act="view"][data-view="chara"]');
   const before=JSON.stringify(await stored());
   await row('s1').locator('[data-act="excludeChar"][data-b="cO"]').click();
   assert.equal(JSON.stringify(await stored()),before);assert.equal(await page.locator('#staleBar').isVisible(),true);
   await other.close();
-});
-
-test('confirming the same form on an automatically matched character makes it 所持 (×N) and a normal candidate; the suitability status stays', async()=>{
-  await seed(BASE);
-  await row('s2').locator('[data-act="linkForm"][data-b="fR1"]').click();
-  assert.match(await txt(row('s2')),/所持：メイン×1.*同じ形態として確認済み：架空 真キャラ｜架空の獣神化/);
-  assert.ok((await picks('メイン')).cand.includes('架空 真キャラ｜架空の獣神化 個体1'));
-  const d=await stored();assert.equal(d.suits.find(s=>s.id==='s2').verificationStatus,'VERIFIED');assert.equal(d.idLinks.length,1);
-  assert.deepEqual(d.master.characters.map(c=>c.id),BASE.master.characters.map(c=>c.id));
 });
 
 test('reload and backup→restore keep the display and the exclusion; old data without idLinks still loads', async()=>{

@@ -108,7 +108,7 @@ test('user links the character from the suitability list: becomes a normal candi
   const d=await keepData();
   assert.deepEqual(d.idLinks.map(l=>[l.kind,l.a,l.b,l.basis]),[['char','cM','cO','USER_SELECTED']]);
   const p=await picks('メイン');
-  assert.ok(p.cand.some(t=>/架空ミライ・架空ピースフルAI.*（形態未確認）/.test(t)),'now a normal candidate, form still unconfirmed: '+p.cand.join('|'));
+  assert.ok(p.cand.some(t=>/^架空ミライ・架空ピースフルAI 個体1/.test(t)),'now a normal candidate: '+p.cand.join('|'));
   assert.equal(p.sel,'uO1');assert.deepEqual(p.groups,[]);
   assert.equal(await page.locator('.pickHint').count(),0,'no hint once linked');
   assert.doesNotMatch(await txt(page.locator('.pickSel[data-pick-dev="メイン"] option[value="uO1"]')),/（仮）/);
@@ -121,8 +121,8 @@ test('character screen counts and lists the linked suitability (stage, grade, so
   await chara();
   assert.match(await head('cO'),/適正2（うち対応付け先2）/);
   const card=await openCard('cO');
-  assert.match(card,/対応付け先：架空ミライ.*ラルガメンテ.*架空ピースフル.*GameWith.*S/);
-  assert.match(card,/対応付け先：架空ミライ.*ニギミタマ.*架空ピースフル.*GameWith.*A/);
+  assert.match(card,/ラルガメンテ・GameWith ランク S・架空ミライとして登録/);
+  assert.match(card,/ニギミタマ・GameWith ランク A・架空ミライとして登録/);
   assert.doesNotMatch(card,/適正ステージは未登録です/);
   assert.equal(await page.locator('.card.chara.open .bLink').count(),2,'both rows are marked as linked');
   // 図鑑キャラ側：自分の適正2件（対応付け先からは増えない）
@@ -130,7 +130,7 @@ test('character screen counts and lists the linked suitability (stage, grade, so
   assert.doesNotMatch(await head('cM'),/うち対応付け先/);
   // 自分の適正を持つキャラ：自分の分は印なし
   assert.match(await head('cR'),/適正1 /);
-  assert.match(await openCard('cR'),/ラルガメンテ.*架空降魔.*自分で登録.*A/);
+  assert.match(await openCard('cR'),/ラルガメンテ・自分で登録 ランク A/);
   assert.equal(await page.locator('.card.chara.open .bLink').count(),0);
   await keepData();
 });
@@ -139,7 +139,7 @@ test('automatic matches (same name) are counted too; an excluded match is neithe
   await seed(BASE);
   await chara();
   assert.match(await head('cJo'),/適正1（うち対応付け先1）/);
-  assert.match(await openCard('cJo'),/対応付け先：架空ジャヒーα.*ラルガメンテ.*獣神化.*GameWith.*A/);
+  assert.match(await openCard('cJo'),/ラルガメンテ・GameWith ランク A・架空ジャヒーαとして登録/);
   assert.match(await head('cXo'),/適正1（うち対応付け先1）/);
   await page.click('[data-act="view"][data-view="stage"]');
   await row('s4').locator('[data-act="excludeChar"][data-b="cXo"]').click();
@@ -147,7 +147,7 @@ test('automatic matches (same name) are counted too; an excluded match is neithe
   assert.match(await head('cXo'),/適正0/);
   assert.doesNotMatch(await head('cXo'),/対応付け/);
   assert.match(await openCard('cXo'),/適正ステージは未登録です/);
-  assert.doesNotMatch(await openCard('cXo'),/対応付け先：架空エクス/);
+  assert.doesNotMatch(await openCard('cXo'),/架空エクスとして登録/);
   await page.click('[data-act="view"][data-view="stage"]');
   await row('s4').locator('[data-act="unexcludeChar"][data-b="cXo"]').click();
   await chara();
@@ -164,7 +164,7 @@ test('no double counting: own suitability plus a linked catalog character with t
   const card=await openCard('cR');
   assert.equal((card.match(/ラルガメンテ/g)||[]).length,2,'s5 (own) and s6 (linked) once each');
   assert.equal((card.match(/ニギミタマ/g)||[]).length,1,'s7 once');
-  assert.match(card,/対応付け先：架空リンネ改.*ニギミタマ.*架空六道.*GameWith.*S.*要確認/);
+  assert.match(card,/ニギミタマ・GameWith ランク S・架空リンネ改として登録・要確認/);
   assert.match(await head('cRc'),/適正3（うち対応付け先1）/);
   assert.equal(await page.evaluate(()=>db.suits.length),7,'no suitability record added or duplicated');
   await keepData();

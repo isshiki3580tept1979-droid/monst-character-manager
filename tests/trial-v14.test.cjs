@@ -84,20 +84,20 @@ test('device screen: new-method units are listed per device above the old regist
   assert.equal(await units.count(),2);
   const tora=await txt(main.locator('.devNew .uCard[data-unit="uI"]'));
   assert.match(tora,/架空二つ名 架空虎杖/,'the stored name is shown as is');
-  assert.match(tora,/進化形態未確認/);assert.match(tora,/個体1/);assert.match(tora,/亜人.*超バランス型.*反射/);
+  assert.match(tora,/個体1/);assert.match(tora,/亜人.*超バランス型.*反射/);
   assert.match(tora,/編成で使用 1件/);
   // わくわくの実は3枠（足りない枠は空き表示）
   assert.equal(await main.locator('.devNew .uCard[data-unit="uI"] .uL3 > span').count(),3);
   assert.equal(await main.locator('.devNew .uCard[data-unit="uI"] .frEmpty').count(),1);
   const ru=await txt(main.locator('.devNew .uCard[data-unit="uL"]'));
-  assert.match(ru,/架空ルシ｜架空堕天/);assert.match(ru,/種族未設定/);assert.equal(await main.locator('.devNew .uCard[data-unit="uL"] .frEmpty').count(),3);
+  assert.match(ru,/架空ルシ 個体1/);assert.match(ru,/種族未設定/);assert.equal(await main.locator('.devNew .uCard[data-unit="uL"] .frEmpty').count(),3);
   // サブ1：同じキャラ2体と形態未確認
   const sub1=card('サブ1');
   assert.match(await txt(sub1.locator('.devHead')),/新方式3体/);
-  assert.match(await txt(sub1.locator('.devNew .uCard[data-unit="uN1"]')),/架空ネオ｜ハロー 個体1.*編成で使用 2件/);
-  assert.match(await txt(sub1.locator('.devNew .uCard[data-unit="uN2"]')),/架空ネオ｜ハロー 個体2/);
+  assert.match(await txt(sub1.locator('.devNew .uCard[data-unit="uN1"]')),/架空ネオ 個体1.*編成で使用 2件/);
+  assert.match(await txt(sub1.locator('.devNew .uCard[data-unit="uN2"]')),/架空ネオ 個体2/);
   assert.doesNotMatch(await txt(sub1.locator('.devNew .uCard[data-unit="uN2"]')),/編成で使用/);
-  assert.match(await txt(sub1.locator('.devNew .uCard[data-unit="uS"]')),/架空スカアハα.*進化形態未確認/);
+  assert.match(await txt(sub1.locator('.devNew .uCard[data-unit="uS"]')),/架空スカアハα 個体1/);
   // 旧登録：貸出中のキャラはサブ2で「借用中」、メインで「貸出中」
   assert.match(await txt(main.locator('.devOld')),/架空ルシ.*架空貸出キャラ|架空貸出キャラ.*架空ルシ/);
   assert.match(await txt(card('サブ2').locator('.devOld')),/借用中/);

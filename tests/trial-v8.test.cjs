@@ -54,7 +54,7 @@ test('preview of the staging file: classified, nothing saved until 取り込む'
   await preview();
   assert.deepEqual(await counts(),['2','9','0','1']); // 取り込み可能 / 要確認 / 矛盾 / 取り込み不可
   const text=(await page.locator('#invResult').textContent()).split('\n').map(x=>x.trim()).join('');
-  assert.match(text,/個体 12件・所持確認 22件（所持 11・別形態 0・未所持 11・要確認 0）/);
+  assert.match(text,/個体 12件・所持確認 22件（所持 11・未所持 11・要確認 0）/);
   assert.match(text,/このJSONから適正（ステージ適正）は作りません/);
   assert.match(text,/✅ 取り込み可能（2件）.*春野サクラ｜戦場に咲く豪拳.*自来也｜ガマ仙人.*亜人 \/ 超バランス型 \/ 反射・実3個・No\.9244/s);
   assert.match(text,/⚠ 要確認.*乙骨憂太｜現代の異能.*未取得：種族・戦型・撃種/s);
@@ -208,7 +208,7 @@ test('backup / restore keeps ownership checks, 図鑑No., 表示名 and unit sta
   assert.match(await page.locator('.pickDev[data-dev="メイン"] .uL1').textContent(),/個体要確認/);
   // the form edit screen keeps 図鑑No. and offers 超戦型
   await click('[data-act="view"][data-view="chara"]');const ji=d.master.characters.find(c=>c.name==='自来也');
-  await click(`[data-act="charaOpen"][data-id="${ji.id}"]`);await click(`[data-act="formEdit"][data-id="${formByName(d,'自来也','ガマ仙人').id}"]`);
+  await click(`[data-act="charaOpen"][data-id="${ji.id}"]`);await click(`[data-act="basicEdit"][data-id="${ji.id}"]`);
   assert.equal(await page.inputValue('#fmBattle'),'超バランス型');await click('[data-act="saveForm"]');
   const j2=formByName(await snapshot(),'自来也','ガマ仙人');assert.deepEqual([j2.monsterNo,j2.battleType],['9244','超バランス型']);
 });

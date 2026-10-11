@@ -103,7 +103,7 @@ test('basic information shared by devices, four fruits and ownership remain per 
     await click(`[data-act="rankDev"][data-dev="${device}"]`);await open();
     assert.equal(await value('rRace'),'亜人');assert.equal(await value('rBattleType'),'砲撃型');assert.equal(await value('rShotType'),'貫通');
     assert.equal(await value('wkName0'),'');
-    if(device==='サブ1'){await click('[data-act="rStatus"][data-v="alt-form"]');await click('[data-act="rCount"][data-v="2"]');await page.fill('#wkName0','サブ専用実');await save()}
+    if(device==='サブ1'){await click('[data-act="rStatus"][data-v="owned"]');await click('[data-act="rCount"][data-v="2"]');await page.fill('#wkName0','サブ専用実');await save()}
     else await click('#rankModal [data-act="close"]');
   }
   await click('[data-act="rankDev"][data-dev="メイン"]');await open();assert.equal(await value('wkName3'),'メイン実3');
@@ -168,9 +168,10 @@ test('regression: ownership paint, counts, maximum 4 fruits, retained on status 
   await preset();await open();for(let i=0;i<4;i++){await page.fill('#wkName'+i,'実'+i);await page.selectOption('#wkGrade'+i,'特級L')}
   await click('[data-act="rCount"][data-v="3"]');await save();
   assert.equal(await page.evaluate(()=>normWaku(Array.from({length:6},()=>({name:'実',grade:'特級L'}))).length),4);
-  for(const mode of ['alt-form','not-owned','owned']){
+  assert.equal(await page.locator('[data-act="rankMode"][data-mode="alt-form"]').count(),0,'no 別形態 mode (forms are not managed)');
+  for(const mode of ['not-owned','owned']){
     await click(`[data-act="rankMode"][data-mode="${mode}"]`);await click('[data-act="rankTile"][data-rank="3"]');
-    const o=(await snapshot()).ownership[stage]['メイン'].ranks[3];assert.equal(o.status,mode);assert.equal(o.wakuwaku.length,4);assert.equal(o.count,mode==='alt-form'?3:null);
+    const o=(await snapshot()).ownership[stage]['メイン'].ranks[3];assert.equal(o.status,mode);assert.equal(o.wakuwaku.length,4);assert.equal(o.count,null);
   }
   await click('[data-act="rankMode"][data-mode="detail"]');await open();await click('[data-act="rStatus"][data-v=""]');await save();
   assert.equal((await snapshot()).ownership[stage]['メイン'].ranks[3].status,null);

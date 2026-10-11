@@ -108,10 +108,10 @@ test('stage picker suggests linking the provisional unit to the suitability char
   assert.deepEqual(d.idLinks.filter(l=>l.basis==='USER_SELECTED').map(l=>[l.kind,l.a,l.b]),[['char','cM','cO']]);
   assert.equal(d.idLinks.filter(l=>l.kind==='form').length,0,'same character only — no form confirmation');
   const p=await picks('メイン');
-  assert.ok(p.cand.some(t=>/架空ミライ・架空ピースフルAI.*（形態未確認）/.test(t)),p.cand.join('|'));
+  assert.ok(p.cand.some(t=>/^架空ミライ・架空ピースフルAI 個体1/.test(t)),p.cand.join('|'));
   assert.equal(p.sel,'uO1');
   assert.equal(await sug('メイン').count(),0);
-  assert.equal(await page.evaluate(()=>formStatus('fMs','メイン')),'unconfirmed','form stays unconfirmed');
+  assert.equal(await page.evaluate(()=>formStatus('fMs','メイン')),'owned');
   assert.equal(d.master.forms.find(f=>f.id==='fOu').unknownForm,true);
 });
 
@@ -138,7 +138,7 @@ test('an exclusion is not revived through a third character (架空エクス ⇔
   assert.match(await txt(page.locator('[data-act="charaOpen"][data-id="cXo"]')),/適正1（うち対応付け先1）/);
   await page.click('[data-act="charaOpen"][data-id="cXo"]');
   const card=await txt(page.locator('.card.chara.open'));
-  assert.match(card,/対応付け先：架空 エクス｜.*ニギミタマ/);assert.doesNotMatch(card,/対応付け先：架空エクス｜/);
+  assert.match(card,/ニギミタマ.*架空 エクスとして登録/);assert.doesNotMatch(card,/・架空エクスとして登録/);
   await page.click('[data-act="view"][data-view="stage"]');
   const p=await picks('サブ1');
   assert.ok(!p.cand.some(t=>/架空エクス/.test(t)),'not a candidate on ラルガメンテ (only the excluded 架空エクス has suitability there)');
@@ -158,7 +158,7 @@ test('a confirmed link is reused: a later import for another stage with the same
   assert.equal(d.suits.find(s=>s.stageKey==='破界の星墓::コキュートス').formId,'fMs','attached to the existing catalog form');
   await page.evaluate(()=>{db.ui.view='stage';db.ui.stage['破界の星墓']='コキュートス';render()});
   const p=await picks('メイン');
-  assert.ok(p.cand.some(t=>/架空ミライ・架空ピースフルAI.*（形態未確認）/.test(t)),p.cand.join('|'));
+  assert.ok(p.cand.some(t=>/^架空ミライ・架空ピースフルAI 個体1/.test(t)),p.cand.join('|'));
 });
 
 test('reload and backup → restore keep links and exclusions; old data without idLinks loads and still suggests', async()=>{

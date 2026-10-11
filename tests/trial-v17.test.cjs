@@ -77,18 +77,18 @@ test('preview classifies rows into 4 groups; defaults keep the old behaviour (on
   await seed(BASE);await page.click('[data-act="view"][data-view="admin"]');const before=JSON.stringify(await stored());
   await preview();
   const r=await result();
-  assert.match(r,/追加 1件／更新 0件／変更なし 0件／要確認（取り込まない） 4件/,'same summary as before');
-  assert.match(r,/自動照合 1件／形態の選択が必要 1件／キャラの選択が必要 2件／新しい適正図鑑キャラ 1件/);
+  assert.match(r,/追加 2件／更新 0件／変更なし 0件／要確認（取り込まない） 3件/,'exact-name rows are added (forms are not matched); others wait');
+  assert.match(r,/自動照合 2件／キャラの選択が必要 2件／新しい適正図鑑キャラ 1件/);
   const ch=await txt(page.locator('#imChoices'));
-  assert.match(ch,/架空乙骨｜形態「獣神化」/);assert.match(ch,/架空マキマ/);assert.match(ch,/架空マスターコーヴ/);
+  assert.doesNotMatch(ch,/形態「/);assert.match(ch,/架空マキマ/);assert.match(ch,/架空マスターコーヴ/);
   assert.equal(JSON.stringify(await stored()),before,'preview saves nothing');
 });
 
 test('未登録キャラ: with the option on, it is added as a 適正図鑑キャラ (no unit, not judged 未所持); others stay 確認待ち', async()=>{
   await seed(BASE);await preview();
   await page.check('#imCatalogOn');
-  assert.match(await result(),/新しい適正図鑑キャラ 1件（キャラ1・形態1を追加）/);
-  assert.match(await result(),/追加 2件／更新 0件／変更なし 0件／要確認（取り込まない） 3件/);
+  assert.match(await result(),/新しい適正図鑑キャラ 1件（キャラ1・形態\d+を追加）/);
+  assert.match(await result(),/追加 3件／更新 0件／変更なし 0件／要確認（取り込まない） 2件/);
   await page.click('[data-act="imApply"]');
   const d=await stored();
   const c=d.master.characters.find(x=>x.name==='架空新キャラ');assert.equal(c.origin,'SUIT_CATALOG');
@@ -96,7 +96,7 @@ test('未登録キャラ: with the option on, it is added as a 適正図鑑キ�
   assert.equal(d.units.some(u=>u.formId===f.id),false,'no unit is created');
   const s=d.suits.find(x=>x.formId===f.id);assert.deepEqual([s.stageKey,s.grade,s.verificationStatus,s.evaluationType,s.rank],[K,'A','VERIFIED','GRADE',null]);
   assert.equal(d.suits.find(x=>x.formId==='fN'&&x.stageKey===K).grade,'S');
-  assert.deepEqual(d.importIssues.map(x=>x.characterName).sort(),['架空マキマ','架空マスターコーヴ','架空乙骨'].sort(),'unresolved rows wait as 要確認');
+  assert.deepEqual(d.importIssues.map(x=>x.characterName).sort(),['架空マキマ','架空マスターコーヴ'].sort(),'unresolved rows wait as 要確認');
   await keep();
   // ステージ画面：個体がないだけでは「未所持」と言わない／明示の所持確認は区別して出す
   await page.evaluate(()=>{db.ui.view='stage';db.ui.quest='破界の星墓';db.ui.stage={'破界の星墓':'ラルガメンテ'};render()});
@@ -107,12 +107,9 @@ test('未登録キャラ: with the option on, it is added as a 適正図鑑キ�
 
 test('choosing a form / a character records the mapping (with source and basis) and the same JSON is matched automatically next time', async()=>{
   await seed(BASE);await preview();
-  await page.selectOption('[data-im-form="cO|獣神化"]','fO');                 // 乙骨の「獣神化」→ 既存形態「架空の現代」
   await page.selectOption('[data-im-char="架空マスターコーヴ"]','cK');              // 表記ゆれ → 既存キャラ
   await page.selectOption('[data-im-char="架空マキマ"]','cM');                     // 二つ名付きの名前 → 既存キャラ
-  // マキマは形態が未確認だけなので、形態の選択が出る：「獣神化」だけで既存の形態を確定しない（新しい形態として追加を選ぶ）
-  assert.equal(await page.locator('[data-im-form="cM|獣神化"] option[value="fM"]').count(),0,'an unconfirmed form is never offered as the match');
-  await page.selectOption('[data-im-form="cM|獣神化"]','new');
+  // 進化形態は照合しない：出典の形態表記「獣神化」は、そのキャラの形態として記録されるだけ（所持個体の形態とは結び付けない）
   assert.match(await result(),/追加 4件／更新 0件／変更なし 0件／要確認（取り込まない） 1件/); // 新キャラは図鑑追加がオフなので確認待ち
   await page.click('[data-act="imApply"]');
   let d=await stored();
@@ -120,8 +117,7 @@ test('choosing a form / a character records the mapping (with source and basis) 
   const fNew=d.master.forms.find(f=>f.characterId==='cM'&&f.name==='獣神化');assert.equal(fNew.origin,'SUIT_CATALOG');
   assert.equal(d.master.forms.find(f=>f.id==='fM').unknownForm,true,'the user unit stays 形態未確認');
   const al=d.suitAliases.map(a=>[a.kind,a.source,a.label,a.formLabel||'',a.characterId,a.formId||'',a.basis]).sort();
-  assert.deepEqual(al,[['char','GAMEWITH','架空マキマ','','cM','','USER_SELECTED'],['char','GAMEWITH','架空マスターコーヴ','','cK','','USER_SELECTED'],
-    ['form','GAMEWITH','架空乙骨','獣神化','cO','fO','USER_SELECTED']].sort());
+  assert.deepEqual(al,[['char','GAMEWITH','架空マキマ','','cM','','USER_SELECTED'],['char','GAMEWITH','架空マスターコーヴ','','cK','','USER_SELECTED']].sort());
   assert.ok(d.suitAliases.every(a=>a.stageKey===K&&/^\d{4}-/.test(a.at)));
   await keep();
   // 同じJSONをもう一度：記録した対応で自動照合され、重複しない
@@ -140,12 +136,12 @@ test('a form is never fixed from an evolution label alone; 保留 keeps the row 
   await page.check('#imCatalogOn');
   // 似た名前（スカアハα）は候補として出るが、自動では結び付けず、図鑑追加もしない（候補があるときは選択が必要）
   assert.match(await txt(page.locator('#imChoices')),/架空スカアハβ.*架空スカアハα.*似た名前/);
-  assert.match(await result(),/追加 0件／更新 0件／変更なし 0件／要確認（取り込まない） 2件/);
+  assert.match(await result(),/追加 1件／更新 0件／変更なし 0件／要確認（取り込まない） 1件/);
   await page.click('[data-act="imApply"]');
   const d=await stored();
-  assert.equal(d.suits.filter(s=>s.stageKey===K).length,0);
+  assert.equal(d.suits.filter(s=>s.stageKey===K).length,1,'乙骨 is attached by name (form label recorded as a form of 乙骨)');
   assert.deepEqual(d.master.characters.map(c=>c.name),['架空乙骨','架空二つ名 架空マキマ','架空マスター・コーヴ','架空ネオ','架空スカアハα']);
-  assert.deepEqual(d.importIssues.map(x=>[x.characterName,x.reason]).sort(),[['架空スカアハβ','未登録のキャラ（自動では作成しません）'],['架空乙骨','進化形態が一致しません（正式名・短縮名と完全一致のみ）']].sort());
+  assert.deepEqual(d.importIssues.map(x=>[x.characterName,x.reason]).sort(),[['架空スカアハβ','未登録のキャラ（自動では作成しません）']]);
 });
 
 test('適正図鑑キャラ are separated in the character list (filter) and marked in search; registering it later by screenshot adds a unit to it (no duplicate)', async()=>{
@@ -162,7 +158,7 @@ test('適正図鑑キャラ are separated in the character list (filter) and mar
   await page.click('[data-act="view"][data-view="admin"]');
   await page.fill('#srText',JSON.stringify({format:'monst-screenshot-reading-v1',characterName:'架空新キャラ',formName:null,monsterNo:null,race:null,battleType:null,shotType:null,fruit1:null,fruit2:null,fruit3:null,confidence:'HIGH',needsReview:false,reviewNotes:[],uncertainFields:[]}));
   await page.click('[data-act="srPreview"]');
-  assert.match(await txt(page.locator('#srCands')),/架空新キャラ.*同じ名前.*0体/);
+  assert.match(await txt(page.locator('#srCands')),/架空新キャラ.*同じ名前.*個体なし/);
   await page.selectOption('#srDevice','サブ2');await page.click('[data-act="srCheck"]');
   assert.match(await txt(page.locator('#srResult')),/既存キャラ「架空新キャラ」に新しい個体を追加/);
   await page.click('[data-act="srApply"]');
@@ -170,11 +166,11 @@ test('適正図鑑キャラ are separated in the character list (filter) and mar
   const c=d.master.characters.find(x=>x.name==='架空新キャラ'), fs2=d.master.forms.filter(f=>f.characterId===c.id);
   assert.deepEqual(fs2.map(f=>[f.name,!!f.unknownForm]).sort(),[['',true],['獣神化改',false]].sort(),'the screenshot unit is 形態未確認; the catalog form is not confirmed by it');
   await page.evaluate(()=>{db.ui.view='stage';db.ui.quest='破界の星墓';db.ui.stage={'破界の星墓':'ラルガメンテ'};render()});
-  assert.match(await txt(page.locator('#suitPanel')),/架空新キャラ.*サブ2（所持・形態未確認）/);
+  assert.match(await txt(page.locator('#suitPanel')),/架空新キャラ.*サブ2×1/);
 });
 
 test('save failure and another tab: the whole import is rolled back (characters, forms, mappings, suits)', async()=>{
-  await seed(BASE);await preview();await page.check('#imCatalogOn');await page.selectOption('[data-im-form="cO|獣神化"]','fO');
+  await seed(BASE);await preview();await page.check('#imCatalogOn');
   const before=JSON.stringify(await stored());
   await page.evaluate(()=>{window.__s=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='monst-character-manager-trial-v2')throw new Error('QuotaExceededError');return window.__s.call(this,k,v)}});
   await page.click('[data-act="imApply"]');
@@ -193,12 +189,12 @@ test('save failure and another tab: the whole import is rolled back (characters,
 });
 
 test('backup / restore keeps 適正図鑑 origin and the mappings; old data without them still loads', async()=>{
-  await seed(BASE);await preview();await page.check('#imCatalogOn');await page.selectOption('[data-im-form="cO|獣神化"]','fO');await page.click('[data-act="imApply"]');
+  await seed(BASE);await preview();await page.check('#imCatalogOn');await page.selectOption('[data-im-char="架空マスターコーヴ"]','cK');await page.click('[data-act="imApply"]');
   const bk=await page.evaluate(()=>backupJson());
   await seed({characters:[]});await page.click('[data-act="view"][data-view="admin"]');await page.fill('#bkText',bk);await page.click('[data-act="restore"]');
   const d=await stored();
   assert.equal(d.master.characters.find(c=>c.name==='架空新キャラ').origin,'SUIT_CATALOG');
-  assert.equal(d.suitAliases.length,1);assert.equal(d.suitAliases[0].formId,'fO');
+  assert.equal(d.suitAliases.length,1);assert.equal(d.suitAliases[0].characterId,'cK');
   await seed(BASE);assert.deepEqual(await page.evaluate(()=>[db.suitAliases.length,db.master.characters.every(c=>!('origin' in c))]),[0,true]);
 });
 

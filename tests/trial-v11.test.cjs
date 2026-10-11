@@ -162,7 +162,7 @@ test('stage: with no suitability, every owned unit on that device can be picked 
   const main=page.locator('.pickDev[data-dev="メイン"]'), sub2=page.locator('.pickDev[data-dev="サブ2"]');
   assert.equal(await main.locator('.pickSel').isDisabled(),false,'候補0 but owned units → selectable');
   assert.equal(await main.locator('.pickSel optgroup').getAttribute('label'),'所持キャラ（適正未登録・仮選択）');
-  assert.deepEqual(await main.locator('.pickSel optgroup option').allTextContents(),['架空所持キャラA 個体1（仮）','架空所持キャラB｜架空の形態B 個体1（仮）'],'only this device');
+  assert.deepEqual(await main.locator('.pickSel optgroup option').allTextContents(),['架空所持キャラA 個体1（仮）','架空所持キャラB 個体1（仮）'],'only this device');
   assert.match(await main.textContent(),/このステージの適正が未登録です（所持キャラから仮選択できます）/);
   assert.equal(await sub2.locator('.pickSel').isDisabled(),true,'a device with no units stays disabled');
   await main.locator('.pickSel').selectOption('uA');
@@ -185,11 +185,11 @@ test('stage: candidates (exact form, then same character with 形態未確認) a
     suits:[{id:'s1',stageKey:K,formId:'f1',source:'MANUAL',evaluationType:'CANDIDATE',verificationStatus:'VERIFIED'}],
     useDevs:{[K]:['メイン']},ui:{view:'stage',quest:'禁忌の獄',stage:{'禁忌の獄':'一ノ獄'}}});
   const sel=page.locator('.pickDev[data-dev="メイン"] .pickSel');
-  assert.deepEqual((await sel.locator(':scope > option').allTextContents()).slice(1),['架空適正キャラ｜架空の適正形態 個体1','架空適正キャラ 個体2（形態未確認）']);
+  assert.deepEqual((await sel.locator(':scope > option').allTextContents()).slice(1),['架空適正キャラ 個体1','架空適正キャラ 個体2']);
   assert.deepEqual(await sel.locator('optgroup').evaluateAll(gs=>gs.map(g=>[g.label,[...g.children].map(o=>o.textContent)])),
-    [['所持キャラ（適正未登録・仮選択）',['架空その他キャラ｜架空の他形態 個体1（仮）']]]);
+    [['所持キャラ（適正未登録・仮選択）',['架空その他キャラ 個体1（仮）']]]);
   await sel.selectOption('u1');assert.equal(await page.locator('.uCard.uProv').count(),0,'confirmed candidate is not marked');
-  await sel.selectOption('u2');assert.equal(await page.locator('.uCard.uProv').count(),0,'same character with unknown form is a normal candidate');assert.match(await page.locator('.pickDev .uCard').textContent(),/形態未確認/);
+  await sel.selectOption('u2');assert.equal(await page.locator('.uCard.uProv').count(),0,'same character with unknown form is a normal candidate');
   await page.locator('.pickDev[data-dev="メイン"] .pickSel').selectOption('u3');assert.equal(await page.locator('.uCard.uProv').count(),1);
   assert.deepEqual((await snapshot()).suits.map(s=>s.formId),['f1']);
 });
