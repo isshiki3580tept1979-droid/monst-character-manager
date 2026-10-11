@@ -2078,7 +2078,7 @@ function renderChara(){
       return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>`<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
         <div class="cname">個体${u.no??'?'}${formOf(u.formId)?.unknownForm?'':`<span class="x">${esc(formShort(formOf(u.formId)||{name:'形態不明'}))}</span>`}${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}</div>
         ${u.epithet?`<div class="meta">二つ名：${esc(u.epithet)}</div>`:''}<div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}
-        <div class="meta">${suitStagesOf(u.formId)?`適正ステージ ${suitStagesOf(u.formId)}件`:formOf(u.formId)?.unknownForm?'ステージ画面では、適正キャラと同名なら参考として表示':'ステージ適正 未登録（ステージ画面の候補には出ません。仮選択はできます）'}</div></div>
+        <div class="meta">${esc(unitSuitText(u))}</div></div>
         <button class="mini" data-act="unitEdit" data-id="${esc(u.id)}">編集</button></div>`).join('');
     }).join('')||'<div class="small">所持個体が未登録です</div>';
     const suitChip=s=>`${esc(stageLabel(s.stageKey))}・${esc(formShort(formOf(s.formId)||{name:'形態不明'}))}・${esc(SOURCES[s.source])} ${esc(suitText(s))}`;
@@ -2099,7 +2099,18 @@ function renderChara(){
   }).join(''):`<div class="empty">${db.master.characters.length?'該当するキャラがいません':'まだキャラが登録されていません（「＋ キャラ追加」から登録）'}</div>`;
   charaFlash=null; // 保存直後に一度だけ表示
 }
-function suitStagesOf(formId){return new Set(db.suits.filter(x=>x.formId===formId).map(x=>x.stageKey)).size}
+// 個体ごとの適正の表示：ステージ画面の候補判定（unitFormMatch）と同じ基準で、ステージ数を「同じ形態／形態未確認／別形態」に分けて出す。
+// キャラ単位の対応付けだけでは「同じ形態」にしない（同じ形態かどうかは、利用者が適正一覧で確認したときだけ）
+function unitSuitText(u){
+  if(!formOf(u.formId)) return '';
+  const n={exact:new Set(),unknown:new Set(),other:new Set()};
+  [...new Set(db.suits.map(s=>s.stageKey))].forEach(k=>{const r=unitFormMatch(u,k);if(r)n[r].add(k)});
+  const parts=[];
+  if(n.exact.size) parts.push(`適正ステージ ${n.exact.size}件（同じ形態）`);
+  if(n.unknown.size) parts.push(`適正キャラのステージ ${n.unknown.size}件（形態未確認：ステージ画面の候補に出ます。同じ形態かどうかは適正一覧の「同じ形態／別の形態」で確認できます）`);
+  if(n.other.size) parts.push(`別形態の適正 ${n.other.size}件（ステージ画面では「別形態」と表示）`);
+  return parts.length?parts.join('・'):'ステージ適正 未登録（ステージ画面の候補には出ません。仮選択はできます）';
+}
 
 /* ---- 管理：旧データ（TOP20）から新形式への取り込み ---- */
 function legacyEntries(){
