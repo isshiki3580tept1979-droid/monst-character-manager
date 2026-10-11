@@ -3152,6 +3152,8 @@ function checkScreenshot(){
   const blocked=row.cls==='conflict'||row.cls==='reject';
   const a=row.formAfter||{}, reasons=row.reasons.filter(m=>!/個体番号（unitNo）/.test(m));
   const mode0=dups.length?'none':'add', ch0=db.master.characters.find(x=>x.name===c.characterName);
+  // 新しいキャラとして登録される場合だけ、同じキャラかもしれない登録済みキャラ（強い根拠のある候補）を確認画面でも示す。自動では結び付けない
+  const sg=ch0?[]:charCandidates(c.characterName,c.monsterNo).filter(x=>x.rank>0&&x.rank<=1.5);
   const view={c,a,unitNo:row.unitNo,actions:row.actions,dups:dups.length,charLine:ch0?`既存キャラ「${c.characterName}」に新しい個体を追加（登録済み：${charSummary(ch0)}）`:`新しいキャラ「${c.characterName}」を登録`};
   $('srResult').innerHTML=`<div class="invSec">登録前の確認</div>
     <div class="invRow inv-${blocked?row.cls:reasons.length||c.needsReview?'review':'ok'}">
@@ -3159,6 +3161,9 @@ function checkScreenshot(){
       ${blocked?'':`<div id="srPlan" data-mode="${mode0}">${srPlanHtml(view,mode0)}</div>`}
       ${reasons.map(m=>`<div class="meta warn">${esc(m)}</div>`).join('')}
     </div>
+    ${sg.length?`<div class="note" id="srSuggest"><b>同じキャラかもしれない登録済みのキャラがあります</b>（名前が似ていても同じキャラとは限りません。自動では結び付けません）
+      ${sg.map(x=>`<button type="button" class="cand" data-act="srSuggestPick" data-id="${esc(x.c.id)}"><b>「${esc(x.c.name)}」に追加する</b> <span class="b">${esc(x.why)}</span><div class="meta">${esc(charSummary(x.c))}</div></button>`).join('')}
+      <div class="candNote">選ばない場合は、新しいキャラ「${esc(c.characterName)}」として登録します</div></div>`:''}
     ${blocked?'<div class="note">既存データと食い違うか、識別できないため登録できません（既存データは変更しません）。内容を直して、もう一度「確認画面へ」を押してください。</div>':''}
     ${!blocked&&dups.length?`<div class="note" id="srDupNote">${esc(devLabel(c.device))}には「${esc(c.characterName)}」の個体がすでにあります（自動では上書き・統合しません）：<br>${dups.map(d=>
       `個体${esc(String(d.no))}・実：${esc(srFruitText(d.fruits))}${d.sameFruits?'<b>（実も同じ＝同じ個体の可能性が高い）</b>':''}`).join('<br>')}
@@ -3577,6 +3582,8 @@ document.addEventListener('click',guardStale(e=>{
     case 'srApply':applyScreenshot();break;
     case 'srCand':{const c=charOf(b.dataset.id);if(!c)break;applyCandidate('srF_characterName','srF_epithet',c);
       $('srF_characterName').dispatchEvent(new Event('input',{bubbles:true}));break}
+    case 'srSuggestPick':{const c=charOf(b.dataset.id);if(!c)break;applyCandidate('srF_characterName','srF_epithet',c);
+      $('srF_characterName').dispatchEvent(new Event('input',{bubbles:true}));checkScreenshot();break}
     case 'srSplit':{const p=splitEpithet($('srF_characterName').value);if(!p)break;
       if($('srF_epithet').value.trim()&&$('srF_epithet').value.trim()!==p.epithet){$('srMsg').textContent='二つ名の欄に入力済みのため分けませんでした。必要なら二つ名の欄を空にしてから押してください';break}
       $('srF_characterName').value=p.name;$('srF_epithet').value=p.epithet;$('srF_characterName').dispatchEvent(new Event('input',{bubbles:true}));break}
