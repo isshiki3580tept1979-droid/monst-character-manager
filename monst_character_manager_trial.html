@@ -70,6 +70,10 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .imOpt{display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:13px}
 .imOpt input{margin-top:3px}
 .imbSum{font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.updState{font-size:13px;font-weight:800;margin-top:6px;padding:5px 9px;border-radius:10px;background:#f1f5f9;color:#334155;overflow-wrap:anywhere}
+.updState[data-state="available"]{background:#eff6ff;color:#1d4ed8}
+.updState[data-state="error"]{background:#fef2f2;color:#b91c1c}
+.updState[data-state="done"]{background:#f0fdf4;color:#166534}
 .imbSum b{font-weight:900}
 .imbList{font-size:12px;line-height:1.6;margin:2px 0 0;padding-left:16px;overflow-wrap:anywhere}
 .imbSec{font-size:13px;font-weight:900;margin:8px 0 2px}
@@ -490,6 +494,26 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div id="invResult" style="margin-top:6px"></div>
       <div class="msg" id="invMsg"></div>
       <div id="invChecksSaved"></div>
+    </div>
+    <div class="panel" id="updPanel">
+      <div class="ptitle">適正データの更新</div>
+      <div class="small">本人のGoogleドライブに置いた最新の適正データを、本人だけが開ける更新元から受け取ります。受け取った内容は自動では保存しません。「内容を確認」とバックアップの確認のあと、「更新する」を押したときだけ保存します。所持個体・編成・貸出・わくわくの実・端末は変更しません。</div>
+      <div class="updState" id="updState" data-state="unset" role="status"></div>
+      <div class="tools"><button class="tool main" id="updCheck" data-act="updCheck">更新を確認</button></div>
+      <div class="msg" id="updMsg"></div>
+      <div id="updBox" hidden>
+        <div id="updHead" class="imbSum"></div>
+        <div class="tools"><button class="tool" id="updShow" data-act="updShow">内容を確認</button></div>
+        <div id="updDetail" hidden></div>
+        <div id="updBackupBox" hidden>
+          <div class="imbSec">更新前のバックアップ</div>
+          <div class="small">「バックアップを作成」でファイルを保存し、保存されたことを確かめてからチェックを入れてください。問題があれば、そのファイルで「復元する」と更新前に戻せます。</div>
+          <div class="tools"><button class="tool" id="updBackup" data-act="updBackup">バックアップを作成</button></div>
+          <label class="imOpt"><input type="checkbox" id="updBkOk" disabled> <span>バックアップのファイルが保存されたことを確認しました</span></label>
+        </div>
+        <div class="tools"><button class="tool main" id="updApply" data-act="updApply" disabled>更新する</button></div>
+      </div>
+      <div id="updResult" style="margin-top:6px"></div>
     </div>
     <div class="panel">
       <div class="ptitle">適正データの取り込み（JSON・1ステージずつ）</div>
@@ -2883,20 +2907,136 @@ function confirmBundle(){
   if(!pb||pb.text!==$('imbText').value||pb.catalog!==$('imbCatalogOn').checked){pendingBundle=null;$('imbApply').disabled=true;$('imbMsg').textContent='先に「内容を確認」を押してください';return}
   if(pb.base!==bundleBase()){pendingBundle=null;$('imbApply').disabled=true;$('imbMsg').textContent='確認した後にデータが変わりました。もう一度「内容を確認」を押してください（何も変更していません）';return}
   imbBusy=true;$('imbApply').disabled=true;pendingBundle=null;
-  let ok=false;
-  try{ok=applySuitImport(pb.plan)}finally{imbBusy=false}
+  let r;
+  try{r=applyBundlePlan(pb.p,pb.plan,'取り込み')}finally{imbBusy=false}
+  $('imbMsg').textContent=r.ok?`${pb.p.blocks.length}ステージを取り込みました（${r.counts}）。${r.tail}`:r.msg;
+  if(r.ok) $('imbResult').innerHTML=bundleHtml(pb.p,pb.plan,true);
+}
+// 一括の計画を保存する（1回の保存。失敗したら取り込み前の状態に戻す）。保存後に読み直して、入ったことを確かめる
+function applyBundlePlan(p,pl,word){
+  const ok=applySuitImport(pl);
   render();
   if(!ok){
     const e=suitImportErr, quota=e&&(e.name==='QuotaExceededError'||e.code===22||e.code===1014);
-    $('imbMsg').textContent=quota?'保存容量が足りないため、取り込めませんでした。取り込み前の状態のままです（何も変更していません）':saveFailText(e,'取り込みに失敗したため、取り込み前の状態に戻しました（何も変更していません）');
-    return;
+    return {ok:false,msg:quota?`保存容量が足りないため、${word==='取り込み'?'取り込めませんでした':'更新できませんでした'}。${word}前の状態のままです（何も変更していません）`:saveFailText(e,`${word}に失敗したため、${word}前の状態に戻しました（何も変更していません）`)};
   }
-  // 保存されたデータを読み直して、取り込んだ適正がすべて入っているか確かめてから完了を表示する
-  const keys=new Set(latestStored().suits.map(suitKey)), pl=pb.plan, saved=pl.add.concat(pl.update.map(u=>u.item)).every(it=>keys.has(suitKey(it)));
-  $('imbMsg').textContent=`${pb.p.blocks.length}ステージを取り込みました（追加${pl.add.length}件・更新${pl.update.length}件・保留${pl.issues.length}件）。`
-    +(saved?'保存を確認しました。':'保存内容を確認できませんでした。管理のバックアップで内容を確認してください。')
-    +(pl.issues.length?'保留の行は取り込んでいません（要確認の一覧に残しています）。':'');
-  $('imbResult').innerHTML=bundleHtml(pb.p,pl,true);
+  const keys=new Set(latestStored().suits.map(suitKey)), saved=pl.add.concat(pl.update.map(u=>u.item)).every(it=>keys.has(suitKey(it)));
+  return {ok:true,counts:`追加${pl.add.length}件・更新${pl.update.length}件・保留${pl.issues.length}件`,
+    tail:(saved?'保存を確認しました。':'保存内容を確認できませんでした。管理のバックアップで内容を確認してください。')
+      +(pl.issues.length?'保留の行は取り込んでいません（要確認の一覧に残しています）。':'')};
+}
+/* ---- 適正データの更新（更新元から受け取る） ----
+   ・更新元は本人だけが開ける Apps Script（アクセス「自分のみ」）。本人のGoogleドライブの一括取り込み用ファイルを読み、このアプリの公開元だけに postMessage で送る
+   ・このアプリは認証情報を持たない（Googleのログイン状態は更新元の画面で使う）。ドライブの共有設定は使わない・変えない
+   ・受け取るのは更新元の画面（SUIT_UPDATE.origin）から、こちらが渡した使い捨ての合言葉（nonce）付きのものだけ
+   ・受け取ったら：SHA-256（更新元の記録と一致＝欠けていない）→ 一括取り込みと同じ形式・件数の検証 → 計画（保存しない）
+   ・「内容を確認」・更新前のバックアップ作成とその保存の確認のあと、「更新する」を押したときだけ保存（一括取り込みと同じ1回の保存・失敗時は元に戻す）
+   ・追加も更新もなければ「新しい適正データはありません」とだけ表示し、何も変更しない */
+const SUIT_UPDATE={url:'https://script.google.com/macros/s/AKfycbyyN2B-qw1sIAmV6ODRTbAi7dcntlv_n7xe588VOUpykRJy17m8LHS8BCwiSD7_aRUUxw/exec',origin:/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/,ttl:60*60*1000,maxChars:2000000};
+const UPD_SESSION='monst-trial-suit-update-pending';
+let updWait=(()=>{try{const x=JSON.parse(sessionStorage.getItem(UPD_SESSION)||'null');return x&&typeof x.nonce==='string'?x:null}catch(e){return null}})();
+let updPending=null, updBusy=false, updWin=null;
+function setUpdWait(x){updWait=x;try{if(x)sessionStorage.setItem(UPD_SESSION,JSON.stringify(x));else sessionStorage.removeItem(UPD_SESSION)}catch(e){}}
+const UPD_STATES={unset:'状態：未設定（準備中）',ready:'状態：更新元を設定済み（「更新を確認」で確かめます）',waiting:'状態：取得中（更新元の画面からの送信を待っています）',
+  none:'状態：更新なし',available:'状態：更新あり（まだ保存していません）',error:'状態：取得エラー（何も変更していません）',done:'状態：更新済み'};
+function setUpdState(k){const el=$('updState');el.dataset.state=k;el.textContent=UPD_STATES[k]}
+function updInit(){
+  const on=!!SUIT_UPDATE.url;$('updCheck').disabled=!on;
+  setUpdState(on?'ready':'unset');
+  $('updMsg').textContent=on?'':'更新元はまだ設定されていません（準備中）。今は下の「一括取り込み」を使ってください';
+}
+function updClear(){
+  updPending=null;$('updBox').hidden=true;$('updDetail').hidden=true;$('updDetail').innerHTML='';$('updBackupBox').hidden=true;
+  $('updApply').disabled=true;$('updBkOk').checked=false;$('updBkOk').disabled=true;
+}
+function openUpdater(){
+  if(!SUIT_UPDATE.url||updBusy) return;
+  updClear();$('updResult').innerHTML='';
+  let nonce='';
+  try{nonce=[...crypto.getRandomValues(new Uint8Array(16))].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){setUpdState('error');$('updMsg').textContent='この画面では安全な合言葉を作れないため、更新を確認できません';return}
+  setUpdWait({nonce,at:Date.now()});
+  let w=null;
+  try{w=window.open(`${SUIT_UPDATE.url}?nonce=${encodeURIComponent(nonce)}`,'_blank')}catch(e){w=null}
+  updWin=w;setUpdState(w?'waiting':'error');
+  $('updMsg').textContent=w?'更新元を開きました。更新元に「送りました」と出たら、このタブに戻ってください（自動では保存しません）'
+    :'更新元を開けませんでした（ポップアップがブロックされた可能性があります）。もう一度押すか、ブラウザの設定を確認してください';
+}
+async function sha256Hex(text){
+  const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+async function onUpdateMessage(e){
+  if(!updWait||!SUIT_UPDATE.url||!SUIT_UPDATE.origin.test(String(e.origin||''))) return;
+  const m=e.data;
+  if(!m||typeof m!=='object'||m.type!=='msu-update'||typeof m.nonce!=='string'||m.nonce!==updWait.nonce) return;
+  // 送り元は、このタブが開いた更新元のタブの中の画面だけ（同じ送り元の別のタブ・別の窓からのものは受け取らない）
+  let src=null;try{src=e.source&&e.source.top}catch(err){src=null}
+  if(!updWin||!src||src!==updWin) return;
+  const fresh=Date.now()-updWait.at<=SUIT_UPDATE.ttl;
+  setUpdWait(null);updWin=null;
+  const say=(t,k='error')=>{setUpdState(k);$('updMsg').textContent=t};
+  if(updBusy) return;
+  if(!fresh) return say('更新元から受け取りましたが、時間が経ちすぎたため使いませんでした。もう一度「更新を確認」を押してください（何も変更していません）');
+  if(m.status==='error') return say(`更新元からデータを受け取れませんでした：${clean(m.message,120)||'理由不明'}（何も変更していません）`);
+  const f=m.file&&typeof m.file==='object'?m.file:{}, text=typeof m.text==='string'?m.text:'';
+  const name=clean(f.name,120)||'（名前なし）', mod=clean(f.modifiedTime,40);
+  if(!text) return say('更新元から受け取ったデータが空でした（何も変更していません）');
+  if(text.length>SUIT_UPDATE.maxChars) return say('更新元から受け取ったデータが大きすぎます（何も変更していません）');
+  let hash='';
+  try{hash=await sha256Hex(text)}catch(err){return say('この画面ではデータの整合性を確認できないため、更新しません（何も変更していません）')}
+  if(typeof f.sha256!=='string'||hash!==f.sha256.toLowerCase()) return say('受け取ったデータが途中で欠けているか、更新元の記録と一致しません。更新しません（何も変更していません）');
+  const p=parseSuitBundle(text);
+  if(p.errors.length){$('updResult').innerHTML=`<div class="note">取り込めません（何も変更していません）：<br>${p.errors.slice(0,30).map(esc).join('<br>')}</div>`;return say(`「${name}」の内容に誤りがあるため、更新しません`)}
+  if((f.stageCount!=null&&f.stageCount!==p.blocks.length)||(f.entryCount!=null&&f.entryCount!==p.entryCount))
+    return say(`「${name}」の件数が更新元の記録と合いません（更新元：${f.stageCount}ステージ／${f.entryCount}件、実際：${p.blocks.length}ステージ／${p.entryCount}件）。更新しません（何も変更していません）`);
+  const plan=planSuitImport(p,{catalog:true,pendingCands:true});
+  // 古いファイルを受け取ったときに、登録済みの新しい評価を古い評価で上書きしない
+  const older=plan.update.filter(u=>{const cur=db.suits.find(x=>x.id===u.id);return cur&&cur.sourceUpdatedAt&&u.item.sourceUpdatedAt&&u.item.sourceUpdatedAt<cur.sourceUpdatedAt});
+  if(older.length){
+    const ex=older.slice(0,3).map(u=>{const cur=db.suits.find(x=>x.id===u.id);return `${stageLabel(u.item.stageKey)}（登録済み ${cur.sourceUpdatedAt}／受け取り ${u.item.sourceUpdatedAt}）`}).join('、');
+    $('updResult').innerHTML='';
+    return say(`「${name}」には、登録済みより古い出典日の行が${older.length}件あります（${ex}）。古いファイルの可能性があるため更新しません（何も変更していません）`);
+  }
+  if(!plan.add.length&&!plan.update.length){
+    $('updResult').innerHTML='';
+    return say(`新しい適正データはありません（「${name}」は登録済みと同じ内容です${plan.issues.length?`。保留${plan.issues.length}件は要確認の一覧にあります`:''}）。何も変更していません`,'none');
+  }
+  updPending={name,mod,p,plan,base:bundleBase(),shown:false,bkBase:null};
+  $('updHead').innerHTML=`<b>新しい適正データがあります</b><br>対象：<b>${p.blocks.length}</b>ステージ／<b>${p.entryCount}</b>件<br>
+    追加 <b>${plan.add.length}</b>件・更新 <b>${plan.update.length}</b>件・保留 <b>${plan.issues.length}</b>件<br>
+    <span class="small">${esc(name)}${mod?`（${esc(mod)}）`:''}・整合性を確認済み。まだ保存していません</span>`;
+  $('updBox').hidden=false;say('','available');
+  try{$('updPanel').scrollIntoView({block:'start'})}catch(err){}
+}
+window.addEventListener('message',e=>{onUpdateMessage(e)});
+function showUpdate(){
+  const u=updPending;if(!u) return;
+  $('updDetail').innerHTML=bundleHtml(u.p,u.plan,false);$('updDetail').hidden=false;$('updBackupBox').hidden=false;
+  u.shown=true;updGate();
+}
+function updBackup(){
+  const u=updPending;if(!u||!u.shown) return;
+  backup();
+  u.bkBase=bundleBase();$('updBkOk').disabled=false;$('updBkOk').checked=false;
+  $('updMsg').textContent='バックアップを作成しました。ファイルが保存されたことを確かめてから、チェックを入れてください';
+  updGate();
+}
+function updGate(){
+  const u=updPending;
+  $('updApply').disabled=!(u&&u.shown&&u.bkBase&&u.bkBase===bundleBase()&&$('updBkOk').checked&&!stale);
+}
+function applyUpdate(){
+  const u=updPending;
+  if(updBusy||!u) return;
+  if(!u.shown||!u.bkBase||!$('updBkOk').checked){$('updMsg').textContent='「内容を確認」と、更新前のバックアップの確認を先に行ってください';updGate();return}
+  if(u.base!==bundleBase()||u.bkBase!==bundleBase()){updClear();setUpdState('error');$('updMsg').textContent='確認した後にデータが変わりました。もう一度「更新を確認」を押してください（何も変更していません）';return}
+  updBusy=true;$('updApply').disabled=true;
+  let r;
+  try{r=applyBundlePlan(u.p,u.plan,'更新')}finally{updBusy=false}
+  if(!r.ok){$('updMsg').textContent=r.msg;updClear();setUpdState('error');return}
+  updClear();setUpdState('done');
+  $('updMsg').textContent=`適正データを更新しました（${u.p.blocks.length}ステージ：${r.counts}）。${r.tail}`;
+  $('updResult').innerHTML=bundleHtml(u.p,u.plan,true);
 }
 /* ---- 所持データ（所持確認・所持個体）のJSON取り込み ----
    適正データ（suits）とは別物。ステージ名は「どのステージの候補として検索したか」の情報なので、suits は作らない。
@@ -3690,6 +3830,10 @@ document.addEventListener('click',guardStale(e=>{
     case 'imApply':confirmSuitImport();break;
     case 'imbPreview':previewBundle();break;
     case 'imbApply':confirmBundle();break;
+    case 'updCheck':openUpdater();break;
+    case 'updShow':showUpdate();break;
+    case 'updBackup':updBackup();break;
+    case 'updApply':applyUpdate();break;
     case 'invPreview':previewInventory();break;
     case 'invApply':confirmInventory();break;
     case 'srPreview':previewScreenshot();break;
@@ -3762,6 +3906,7 @@ $('imChoices').addEventListener('change',e=>{
   else return;
   previewSuitImport(true);
 });
+$('updBkOk').addEventListener('change',updGate);
 $('imbText').addEventListener('input',()=>{pendingBundle=null;$('imbApply').disabled=true});
 $('imbCatalogOn').addEventListener('change',()=>{if(pendingBundle&&pendingBundle.text===$('imbText').value) previewBundle()});
 $('imbFile').addEventListener('change',e=>{
@@ -3802,6 +3947,7 @@ $('bkFile').addEventListener('change',e=>{
   r.readAsText(f);
 });
 
+updInit();
 render();
 scrollActiveChip();
 </script>
