@@ -85,7 +85,10 @@ test('stage screen shows only the team: device name, chosen character, 撃種｜
   assert.match(c1,/架空ミライ・架空ピースフルAI.*貫通.*バランス型.*亜人.*熱き友撃EL.*同族加命撃L.*同族加撃L/,'name → 撃種｜戦型｜種族 → fruits');
   assert.match(c1,/キャラを変更/);
   assert.doesNotMatch(c1,/候補\d|個体要確認|使う個体を選んでください|適正図鑑に同じキャラ|適正キャラの所持個体はありません/);
-  for(const d of ['サブ1','サブ3','サブ2']) assert.equal(await txt(card(d)),`${['②','③','④'][['サブ1','サブ3','サブ2'].indexOf(d)]}${d==='サブ1'?'架空iPad（サブ1）':d}＋ キャラを選ぶ`);
+  // v35：未選択の端末は「端末名＋適正所持の印＋［＋ キャラを選ぶ］」と、候補（または理由）の1行
+  assert.equal(await txt(card('サブ1')),'②架空iPad（サブ1）貸出中 1体＋ キャラを選ぶ 貸出中：架空借用キャラ→架空マフティー（メイン）');
+  assert.equal(await txt(card('サブ3')),'③サブ3未確認＋ キャラを選ぶ 所持の記録なし 4キャラ');
+  assert.equal(await txt(card('サブ2')),'④サブ2適正あり 1体借用1＋ キャラを選ぶ 候補：架空貸出キャラ選ぶ ›');
   assert.equal(await page.locator('#infoBar, [data-act="infoMode"], .pickSel').count(),0,'no detail toggle and no select box');
   assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#stageDevices .pickDev')].map(x=>x.dataset.dev)),['メイン','サブ1','サブ3','サブ2'],'only the chosen devices, in team order');
   await keep();
@@ -119,7 +122,7 @@ test('仮選択 and borrowed units are marked on the card; choosing again never 
   await choose('メイン','uB1');
   assert.match(await txt(card('メイン')),/架空借用キャラ.*借用中・元 架空iPad（サブ1）/);
   await open('メイン');await page.click('[data-act="pickClear"]');
-  assert.equal(await txt(card('メイン')),'①架空マフティー（メイン）＋ キャラを選ぶ');
+  assert.equal(await txt(card('メイン')),'①架空マフティー（メイン）適正あり 4体未検証2借用1貸出中1＋ キャラを選ぶ 候補：架空ネオ、架空ミライ・架空ピースフルAI、架空借用キャラ選ぶ ›','v35: the device keeps its suitability status after the pick is removed');
   const d=await keep();assert.deepEqual(d.picks,{});
 });
 
@@ -183,9 +186,9 @@ test('390px: team cards and the choose list fit the phone width; buttons are lar
 test('a pick that belongs to another device (not lent) is not called 貸出中; an empty device shows a single message', async()=>{
   await seed({...BASE,picks:{[K]:{'サブ1':'uO1'}}});
   const c=await txt(card('サブ1'));
-  assert.match(c,/この個体は今架空マフティー（メイン）にいます。選び直してください/);assert.doesNotMatch(c,/貸出中/);
+  assert.match(c,/この個体は今架空マフティー（メイン）にいます。選び直してください/);assert.doesNotMatch(await txt(card('サブ1').locator('.pickCur')),/貸出中/);
   await open('サブ3');
-  assert.equal(await txt(page.locator('#pkList')),'この端末にいるキャラがいません。キャラ画面の「＋ 所持個体」で登録できます。');
+  assert.equal(await txt(page.locator('#pkList')),'この端末にいるキャラがいません。（この端末の適正キャラは所持の記録なし。該当なしとは限りません）キャラ画面の「＋ 所持個体」で登録できます。','v35: the reason is added; nothing else changes');
   await page.click('#pickModal [data-act="close"]');
   await keep();
 });
