@@ -14,6 +14,7 @@ const READER=path.join(__dirname,'..','モンスト スクショ読取','Index.h
 const MANAGER_URL='https://isshiki3580tept1979-droid.github.io/monst-character-manager/monst_character_manager_trial.html';
 const GAS_HOST='https://script.google.com';
 const SANDBOX_HOST='https://n-test0e2e0sandbox0host0-0lu-script.googleusercontent.com';
+const {sendAndWaitClose}=require('./helpers/reader-send.cjs');
 const KEY='monst-character-manager-trial-v2';
 // 本物の sandboxFrame と同じ sandbox 属性（2026-10-09 に本番ページで確認）
 const SANDBOX='allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation allow-storage-access-by-user-activation';
@@ -83,9 +84,7 @@ test('whole flow on a phone-sized screen: device → reader → check/edit → s
   await readTwo(fr);
   assert.equal(await fr.locator('#sendBtn').isVisible(),true);assert.equal(await fr.locator('#copyBtn').isVisible(),true,'copy is still available');
   await fr.fill('#f_fruit3','撃種の絆・加撃速 特M');
-  const closing=pop.waitForEvent('close',{timeout:5000});
-  await fr.locator('#sendBtn').tap();
-  await closing; // 送ったら読取アプリのタブを閉じる（管理アプリのタブに戻る）
+  await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST,tap:true}); // 送ったら読取アプリのタブを閉じる（管理アプリのタブに戻る）
   // 管理アプリ：確認画面に入る（まだ登録しない）。端末はキャラ登録で選んだもの
   await manager.waitForSelector('#srEdit',{state:'visible'});
   assert.equal(await manager.inputValue('#srF_characterName'),'架空連携キャラ');assert.equal(await manager.inputValue('#srDevice'),'サブ2');
@@ -124,8 +123,7 @@ test('send payload: only the reading (no image / base64 / model / key), to the f
   await manager.evaluate(()=>{window.__got=[];window.addEventListener('message',e=>window.__got.push({origin:e.origin,data:e.data}))});
   const {pop,fr}=await openReaderFrom('[data-act="srReader"]');
   await readTwo(fr);
-  const closed=pop.waitForEvent('close',{timeout:5000}).catch(()=>null);
-  await fr.click('#sendBtn');await closed;
+  await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST});
   const got=await manager.evaluate(()=>window.__got.filter(x=>x.data&&x.data.type==='msr-reading'));
   assert.equal(got.length,1);
   assert.equal(got[0].origin,SANDBOX_HOST,'origin seen by the manager is the Apps Script sandbox host');
@@ -159,8 +157,7 @@ test('manager reload while the reader is open (phone discarded the tab): the res
   const {pop,fr}=await openReaderFrom('[data-act="srReader"]');
   await manager.reload();
   await readTwo(fr);
-  const closing=pop.waitForEvent('close',{timeout:5000});
-  await fr.click('#sendBtn');await closing;
+  await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST});
   await manager.waitForSelector('#srEdit',{state:'visible'});
   assert.equal(await manager.inputValue('#srF_characterName'),'架空連携キャラ');
   assert.deepEqual((await snapshot()).units,[]);
@@ -183,8 +180,7 @@ test('target origin is fixed: a manager page on another origin never receives th
   const [pop]=await Promise.all([context.waitForEvent('page'),other.locator('[data-act="srReader"]').tap()]);
   let fr=null;for(let i=0;i<100&&!fr;i++){fr=pop.frames().find(f=>f.url().startsWith(SANDBOX_HOST+'/blank'));if(!fr)await pop.waitForTimeout(50)}
   await fr.waitForSelector('#file',{state:'attached'});await readTwo(fr);
-  const closing=pop.waitForEvent('close',{timeout:5000}).catch(()=>null);
-  await fr.click('#sendBtn');await closing;await other.waitForTimeout(300);
+  await sendAndWaitClose({pop,fr,receiver:other,expect:0});await other.waitForTimeout(300);
   assert.equal(await other.evaluate(()=>window.__got),0,'browser drops the message (targetOrigin mismatch)');
   assert.equal(await other.locator('#srEdit').isVisible(),false);
   await other.close();
@@ -203,8 +199,7 @@ test('camera route: opened for サブ2 the reader starts with the camera; two ph
   }
   await fr.click('#readBtn');await fr.waitForSelector('#result:not(.hidden)');
   assert.deepEqual(await fr.evaluate(()=>window.__calls),[2],'both photos in one reader call');
-  const closing=pop.waitForEvent('close',{timeout:5000});
-  await fr.locator('#sendBtn').tap();await closing;
+  await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST,tap:true});
   await manager.waitForSelector('#srEdit',{state:'visible'});
   assert.equal(await manager.inputValue('#srF_characterName'),'架空連携キャラ');assert.equal(await manager.inputValue('#srDevice'),'サブ2');
   assert.deepEqual((await snapshot()).units,[],'nothing registered on receipt');
@@ -232,7 +227,7 @@ test('every device: メイン starts with スクショ, サブ1〜サブ5 with �
     if(dev==='サブ4'){ // カメラで撮影して送る：送られるのは読み取り結果だけ
       for(const n of [1,2]){await fr.setInputFiles('#cam'+n,{...png(),name:'IMG_'+n+'.jpg'});await fr.waitForFunction(n=>/撮影済み/.test(document.getElementById('slotState'+n).textContent),n)}
       await fr.click('#readBtn');await fr.waitForSelector('#result:not(.hidden)');
-      const closing=pop.waitForEvent('close',{timeout:5000});await fr.click('#sendBtn');await closing;
+      await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST});
       await manager.waitForSelector('#srEdit',{state:'visible'});
     } else await pop.close();
   }

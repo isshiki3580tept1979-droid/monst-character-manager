@@ -10,6 +10,7 @@ const READER=path.join(__dirname,'..','モンスト スクショ読取','Index.h
 const MANAGER_URL='https://isshiki3580tept1979-droid.github.io/monst-character-manager/monst_character_manager_trial.html';
 const GAS_HOST='https://script.google.com';
 const SANDBOX_HOST='https://n-test0e2e0sandbox0host0-0lu-script.googleusercontent.com';
+const {sendAndWaitClose}=require('./helpers/reader-send.cjs');
 const KEY='monst-character-manager-trial-v2';
 // 本物の sandboxFrame と同じ sandbox 属性（2026-10-09 に本番ページで確認）
 const SANDBOX='allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation allow-storage-access-by-user-activation';
@@ -84,8 +85,7 @@ test('4 fruits: reader screen shows all four → send → manager confirm screen
   const {pop,fr}=await sendFrom('[data-act="qrFromShot"]');
   assert.equal(await fr.inputValue('#f_fruit4'),FOUR[3],'the reader shows the 4th fruit');
   assert.deepEqual(await fr.$$eval('#fields input',els=>els.map(e=>e.id).slice(-4)),['f_fruit1','f_fruit2','f_fruit3','f_fruit4']);
-  const closing=pop.waitForEvent('close',{timeout:5000});
-  await fr.locator('#sendBtn').tap();await closing;
+  await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST,tap:true});
   await manager.waitForSelector('#srEdit',{state:'visible'});
   const rows=[];for(const i of [1,2,3,4])rows.push([await manager.inputValue('#srFr'+i+'Name'),await manager.inputValue('#srFr'+i+'Grade')]);
   assert.deepEqual(rows,FOUR.map(s=>s.split(' ')));
@@ -103,7 +103,7 @@ test('an edit of the 4th fruit in the reader arrives; the payload keys include f
   await manager.evaluate(()=>{window.__got=[];window.addEventListener('message',e=>{if(e.data&&e.data.type==='msr-reading')window.__got.push(e.data)})});
   const {pop,fr}=await openReaderFrom('[data-act="srReader"]');await readTwo(fr);
   await fr.fill('#f_fruit4','熱き友撃の力 特級M');
-  const closed=pop.waitForEvent('close',{timeout:5000});await fr.click('#sendBtn');await closed;
+  await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST});
   const got=await manager.evaluate(()=>window.__got);assert.equal(got.length,1);
   assert.deepEqual(Object.keys(got[0].reading).sort(),['battleType','characterName','confidence','fruit1','fruit2','fruit3','fruit4','formName','monsterNo','needsReview','race','reviewNotes','shotType','uncertainFields','format'].sort());
   assert.equal(got[0].reading.fruit4,'熱き友撃の力 特級M');
@@ -117,7 +117,7 @@ test('old-shape reading (no fruit4): the reader sends fruit4 as null, the manage
   await seed({characters:[],master:{characters:[],forms:[]},units:[]});
   const {pop,fr}=await sendFrom('[data-act="qrFromShot"]');
   assert.equal(await fr.inputValue('#f_fruit4'),'');
-  const closing=pop.waitForEvent('close',{timeout:5000});await fr.locator('#sendBtn').tap();await closing;
+  await sendAndWaitClose({pop,fr,receiver:manager,origin:SANDBOX_HOST,tap:true});
   await manager.waitForSelector('#srEdit',{state:'visible'});
   assert.equal(await manager.locator('#srFr4Field').isVisible(),false);assert.equal(await manager.locator('#srFr4Btn').isVisible(),true);
   assert.equal(await manager.locator('#srNeedsReview').isChecked(),false);assert.equal(await manager.locator('#srWarn').count(),0);
