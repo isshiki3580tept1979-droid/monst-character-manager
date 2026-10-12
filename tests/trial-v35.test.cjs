@@ -78,13 +78,13 @@ const stage=async s=>{await click(`[data-act="stage"][data-stage="${s}"]`)};
 
 test('1. each device card says whether a suitable unit is there: 適正あり with the unit count (never counting the catalog-only character or a same-name different character), 貸出中, 借用; the heading counts stage characters separately', async()=>{
   await seed(WORLD());const d0=await stored();
-  assert.deepEqual(await chips('メイン'),['適正あり 2体','未検証1'],'ネオ (verified suit) + リムル (unverified suit only)');
-  assert.deepEqual(await chips('サブ1'),['適正あり 2体'],'two units of ネオ; 架空ネオα is a different character and is not counted');
+  assert.deepEqual(await chips('メイン'),['適正候補あり 2体'],'ネオ (verified suit) + リムル (unverified suit only)');
+  assert.deepEqual(await chips('サブ1'),['適正候補あり 2体'],'two units of ネオ; 架空ネオα is a different character and is not counted');
   assert.deepEqual(await chips('サブ2'),['貸出中 1体'],'ヤクモ is owned by サブ2 but lent to サブ3');
-  assert.deepEqual(await chips('サブ3'),['適正あり 1体','借用1']);
+  assert.deepEqual(await chips('サブ3'),['適正候補あり 1体','借用1']);
   assert.deepEqual([await kind('メイン'),await kind('サブ1'),await kind('サブ2'),await kind('サブ3')],['has','has','lent','has']);
   assert.equal(await txt(page.locator('#teamHead')),'今回の編成 ステージの適正 4キャラ（確認済み3）','stage-level count: 4 characters incl. the catalog-only one, 3 with a verified suit');
-  assert.deepEqual(await badges(),[['メイン','適2'],['サブ1','適2'],['サブ2','貸出中'],['サブ3','適1'],['サブ4','なし'],['サブ5','未確認']],'the device toggles show the state for all 6 devices');
+  assert.deepEqual(await badges(),[['メイン','候補2'],['サブ1','候補2'],['サブ2','貸出中'],['サブ3','候補1'],['サブ4','なし'],['サブ5','未確認']],'the device toggles show the state for all 6 devices');
   assert.deepEqual(await stored(),d0,'display only: nothing written');
 });
 
@@ -105,7 +105,7 @@ test('2. 該当なし only when every suitable character has a 未所持 record 
 test('3. a stage whose suitability is only on catalog characters (no owned unit anywhere) is 未確認 everywhere except where 未所持 is recorded; a stage with no suitability says 適正未登録', async()=>{
   await seed(WORLD());await stage('試練の間・第3の間');
   assert.deepEqual([await kind('メイン'),await kind('サブ1'),await kind('サブ4'),await kind('サブ5')],['has','unknown','none','unknown'],'メイン owns リムル (suit NEEDS_REVIEW) → 適正あり but unverified; the catalog character never counts as owned; サブ4 has 未所持 records for both (ownership records are per device, whatever stage they were checked on)');
-  assert.deepEqual(await chips('メイン'),['適正あり 1体','未検証1']);
+  assert.deepEqual(await chips('メイン'),['適正候補あり 1体']);
   assert.deepEqual(await chips('サブ1'),['未確認']);
   assert.equal(await txt(hint('サブ1')),'所持の記録なし 2キャラ');
   assert.equal(await txt(hint('サブ4')),'所持確認で未所持：2キャラ');
@@ -119,8 +119,8 @@ test('3. a stage whose suitability is only on catalog characters (no owned unit 
 
 test('4. unverified suitability is shown as such and never promoted: the card chip, the unselected hint and the choose list all say 未検証; nothing changes the stored status', async()=>{
   const w=WORLD();w.suits=[S('s2',K1,'f2','UNVERIFIED')];w.picks={};await seed(w);
-  assert.deepEqual(await chips('メイン'),['適正あり 1体','未検証1']);
-  assert.equal(await txt(hint('メイン')),'候補：架空リムル（適正は未検証）選ぶ ›');
+  assert.deepEqual(await chips('メイン'),['適正候補あり 1体']);
+  assert.equal(await txt(hint('メイン')),'候補：架空リムル選ぶ ›');
   const v=await teamView(page,'メイン');assert.deepEqual(v.cand,['架空リムル 個体1（未検証）']);
   assert.equal((await stored()).suits[0].verificationStatus,'UNVERIFIED');
 });
@@ -131,7 +131,7 @@ test('5. an unselected device shows its candidates (each character once, up to 3
   await seed(w);const d0=await stored();
   assert.equal(await txt(hint('メイン')),'候補：架空ネオ、架空リムル選ぶ ›');
   assert.equal(await txt(hint('サブ1')),'候補：架空ネオ、架空乙、架空甲 ほか1選ぶ ›','2 units of ネオ count once in the names; 4 characters → 3 + ほか1');
-  assert.deepEqual(await chips('サブ1'),['適正あり 5体']);
+  assert.deepEqual(await chips('サブ1'),['適正候補あり 5体']);
   assert.equal(await card('サブ1').locator('button.suitHint').count(),1);assert.equal(await card('サブ2').locator('button.suitHint').count(),0,'only 適正あり is a button');
   await card('サブ1').locator('[data-act="pickHint"]').click();
   assert.ok(await page.locator('#pickModal').evaluate(m=>m.classList.contains('open')));
@@ -139,7 +139,7 @@ test('5. an unselected device shows its candidates (each character once, up to 3
   assert.deepEqual(await page.locator('#pkList .pkItem[data-group="cand"]').evaluateAll(es=>es.map(e=>e.dataset.id)),['u2','u3','u8','u7','u9'],'suitable units first (name order: ネオ, 乙, 甲, 丙); 架空ネオα stays in 仮選択');
   await page.locator('#pkList .pkItem[data-id="u3"]').click();
   assert.equal(await card('サブ1').locator('.suitHint').count(),0,'the hint goes away once a unit is chosen');
-  assert.match(await txt(card('サブ1')),/適正あり 5体.*キャラを変更.*架空ネオ.*個体2.*貫通｜バランス型｜亜人.*熱き友撃EL.*同族加命撃L/,'chip in the head row with the button, then name → 撃種｜戦型｜種族 → fruits as before');
+  assert.match(await txt(card('サブ1')),/適正候補あり 5体.*キャラを変更.*架空ネオ.*個体2.*貫通｜バランス型｜亜人.*熱き友撃EL.*同族加命撃L/,'chip in the head row with the button, then name → 撃種｜戦型｜種族 → fruits as before');
   const d=await stored();
   assert.deepEqual(d.picks,{[K2]:{'メイン':'u4'},[K1]:{'サブ1':'u3'}});
   assert.deepEqual(PROT({...d,picks:null}),PROT({...d0,picks:null}),'units, suits, records, master and device names untouched');
@@ -148,12 +148,12 @@ test('5. an unselected device shows its candidates (each character once, up to 3
 test('6. picks are kept across stage switches and device toggles; the status never changes a pick by itself; a stale pick keeps its note and the device still shows its status', async()=>{
   await seed(WORLD());const d0=await stored();
   await stage('試練の間・第2の間');assert.match(await txt(card('メイン')),/適正未登録.*キャラを変更.*架空リムル/);
-  await stage('試練の間・第1の間');assert.match(await txt(card('メイン')),/適正あり 2体.*キャラを変更.*架空ネオ/);
+  await stage('試練の間・第1の間');assert.match(await txt(card('メイン')),/適正候補あり 2体.*キャラを変更.*架空ネオ/);
   await click('[data-act="useDev"][data-dev="メイン"]');await click('[data-act="useDev"][data-dev="メイン"]');
   assert.deepEqual((await stored()).picks,d0.picks);
   const w=WORLD();w.picks[K1]={'サブ1':'u5'};await seed(w); // サブ1 に、今はサブ3にいる貸出中の個体を選んでいた
   const c=await txt(card('サブ1'));
-  assert.match(c,/適正あり 2体/);assert.match(c,/この個体は今サブ3にいます（貸出中）。選び直してください/);
+  assert.match(c,/適正候補あり 2体/);assert.match(c,/この個体は今サブ3にいます（貸出中）。選び直してください/);
   assert.deepEqual((await stored()).picks,w.picks,'the stale pick is kept, not replaced by a candidate');
   assert.deepEqual((await stored()).useDevs[K1],['メイン','サブ1','サブ2','サブ3'],'今回使う端末 is kept (4/4)');
 });
@@ -198,5 +198,79 @@ test('9. 6 devices: a device outside 今回使う端末 still has its state on t
   assert.match(await txt(page.locator('#devPickMsg')),/4台まで/);
   await click('[data-act="useDev"][data-dev="サブ1"]');await click('[data-act="useDev"][data-dev="サブ5"]');
   assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#stageDevices .pickDev')].map(x=>x.dataset.dev+':'+x.dataset.suit)),['メイン:has','サブ2:lent','サブ3:has','サブ5:unknown']);
-  assert.deepEqual((await badges()).find(b=>b[0]==='サブ1'),['サブ1','適2'],'the toggle keeps the state of the device that was taken out');
+  assert.deepEqual((await badges()).find(b=>b[0]==='サブ1'),['サブ1','候補2'],'the toggle keeps the state of the device that was taken out');
+});
+
+// ---- 公開前の改善：キャラ名だけで一致した適正の表示、旧登録（従来方式）の所持記録 ----
+// 架空ネオ：所持個体の形態は f1（形態未確認）、適正は図鑑の形態 fX（獣神化改）にだけある → キャラ名で一致
+const NAMEONLY=()=>{const w=WORLD();w.master.forms.push(F('fX','c1',{name:'獣神化改',unknownForm:false,origin:'SUIT_CATALOG'}));
+  w.suits=[S('sX',K1,'fX'),S('s1',K1,'f1')];w.picks={};w.useDevs[K1]=['メイン','サブ1','サブ2','サブ3'];return w};
+test('10. a name-only match is not shown as confirmed: the card has one 適正候補あり chip (light blue, no extra キャラ名一致 badge) with the breakdown in its title; the choose list marks キャラ名で一致; green only when every unit is on the suited form and the suit is verified; nothing is linked or saved', async()=>{
+  const cls=d=>card(d).locator('.sChip').first().getAttribute('class');
+  const title=d=>card(d).locator('.sChip').first().getAttribute('title');
+  const w=NAMEONLY();w.suits=[S('sX',K1,'fX')];await seed(w);const d0=await stored();
+  assert.deepEqual(await chips('サブ1'),['適正候補あり 2体'],'one chip, no キャラ名一致 badge');
+  assert.equal(await cls('サブ1'),'sChip cd','light blue: not confirmed');
+  assert.equal(await title('サブ1'),'この端末にいる、このステージの適正キャラの個体：架空ネオ。キャラ名で一致 2体（進化形態まで同じとは限りません）。詳しくは「キャラを選ぶ」で確認できます');
+  assert.equal(await txt(hint('サブ1')),'候補：架空ネオ選ぶ ›');
+  assert.equal(await page.locator('#stageDevices').getByText('キャラ名一致').count(),0,'the cards never list キャラ名一致 badges');
+  await card('サブ1').locator('[data-act="pickHint"]').click();
+  assert.deepEqual(await page.locator('#pkList .pkItem[data-group="cand"]').evaluateAll(es=>es.map(e=>[e.dataset.id,[...e.querySelectorAll('.pTag')].map(t=>t.textContent)])),[['u2',['キャラ名で一致']],['u3',['キャラ名で一致']]],'the detail is in the choose list');
+  await page.click('#pickModal [data-act="close"]');
+  assert.deepEqual(await stored(),d0,'display only');
+  // 全員が適正の形態と同じ形態・適正も確認済み → 緑（ネオの個体は f1 の適正 s1 と同じ形態）
+  await seed(NAMEONLY());
+  assert.deepEqual(await chips('サブ1'),['適正候補あり 2体']);assert.equal(await cls('サブ1'),'sChip ok');
+  assert.match(await title('サブ1'),/（進化形態・適正とも確認済み）$/);
+  // 形態は同じでも適正が未検証 → 青（メイン：リムルの適正 s2 は未検証）
+  const w2=NAMEONLY();w2.suits.push(S('s2',K1,'f2','UNVERIFIED'));await seed(w2);
+  assert.deepEqual(await chips('メイン'),['適正候補あり 2体']);assert.equal(await cls('メイン'),'sChip cd');assert.match(await title('メイン'),/適正が未検証・要確認 1体/);assert.doesNotMatch(await title('メイン'),/キャラ名で一致/);
+  // 混在：リムルは同じ形態・確認済み、ネオはキャラ名だけ → 青
+  const w3=NAMEONLY();w3.suits=[S('sX',K1,'fX'),S('s2',K1,'f2')];await seed(w3);
+  assert.deepEqual(await chips('メイン'),['適正候補あり 2体']);assert.equal(await cls('メイン'),'sChip cd');assert.match(await title('メイン'),/キャラ名で一致 1体/);
+  assert.equal(await txt(hint('メイン')),'候補：架空ネオ、架空リムル選ぶ ›');
+  assert.doesNotMatch(await txt(page.locator('#stageDevices')),/形態|獣神化/,'no form name is shown on the cards');
+  assert.deepEqual((await stored()).idLinks||[],[],'no link is created');
+});
+
+// 旧登録キャラ（db.characters）・旧TOP20（rankings＋ownership）は読むだけ
+const LEGACY=()=>{const w=WORLD();w.useDevs[K1]=['メイン','サブ4','サブ5','サブ3'];w.picks={};
+  w.characters=[{id:'L1',name:'架空ネオ',device:'サブ5',lentTo:null,count:1,memo:'旧メモ',stages:[K1]},
+    {id:'L2',name:'架空ヤクモ',device:'サブ4',lentTo:'メイン',count:1,memo:'',stages:[]},
+    {id:'L3',name:'架空ネオン',device:'サブ5',lentTo:null,count:1,memo:'',stages:[K1]}];
+  const K9='破界の星墓::ティル・ナ・ノーグ';
+  w.rankings={[K9]:{updatedAt:null,entries:Array.from({length:20},(_,i)=>({rank:i+1,name:i===0?'架空リムル':i===1?'架空図鑑キャラ':''}))}};
+  w.ownership={[K9]:{'サブ4':{updatedAt:null,ranks:{'1':{status:'alt-form',count:1},'2':{status:'not-owned',count:0}}},'サブ5':{updatedAt:null,ranks:{'2':{status:'owned',count:1}}}}};
+  return w};
+test('11. legacy ownership records (old registered characters, old TOP20 owned / alt-form) give 旧登録あり・要確認 — never 適正あり or 該当なし; exact names only; nothing is converted or created', async()=>{
+  const w=LEGACY();await seed(w);const d0=await stored();
+  assert.equal(await kind('サブ4'),'legacy','サブ4 has 未所持 records for every character, but the old TOP20 says リムル is owned (別形態) → not 該当なし');
+  assert.deepEqual(await chips('サブ4'),['旧登録あり・要確認']);
+  assert.equal(await txt(hint('サブ4')),'旧登録に所持記録あり・要確認：架空ヤクモ（貸出中）、架空リムル');
+  assert.equal(await kind('サブ5'),'legacy');
+  assert.equal(await txt(hint('サブ5')),'旧登録に所持記録あり・要確認：架空ネオ、架空図鑑キャラ','架空ネオン (similar name) is ignored; the catalog character appears only because the old TOP20 records it as owned');
+  assert.deepEqual(await chips('メイン'),['適正候補あり 2体'],'new-method units win; the legacy character lent to メイン does not change it');
+  assert.deepEqual((await badges()).filter(b=>['サブ4','サブ5'].includes(b[0])),[['サブ4','旧登録'],['サブ5','旧登録']]);
+  await card('サブ4').locator('[data-act="openPicker"]').click();
+  assert.match(await txt(page.locator('#pkList')),/（この端末の適正キャラは旧登録に所持記録あり・要確認：架空ヤクモ、架空リムル）/);
+  assert.equal(await page.locator('#pkList .pkItem').count(),0,'legacy characters are not offered as units');
+  await page.click('#pickModal [data-act="close"]');
+  const d=await stored();
+  for(const k of ['characters','rankings','ownership','units','picks','ownershipChecks','suits']) assert.deepEqual(d[k],d0[k],k+' unchanged');
+  assert.equal(d.units.length,w.units.length,'no unit created');
+});
+
+test('12. 390px / 360px with several states at once (適正あり＋キャラ名一致, 貸出中, 該当なし, 旧登録): chips wrap inside the card, buttons stay tappable, no horizontal scroll', async()=>{
+  const w=LEGACY();w.master.forms.push(F('fX','c1',{name:'獣神化改',unknownForm:false,origin:'SUIT_CATALOG'}));w.suits.push(S('sX',K1,'fX'));
+  w.characters=[{id:'L9',name:'架空リムル',device:'サブ5',lentTo:null,count:1,memo:'',stages:[]}];w.ownership={};w.picks={[K1]:{'メイン':'u1'}};w.useDevs[K1]=['メイン','サブ2','サブ4','サブ5'];
+  for(const width of [390,360]){
+    await page.setViewportSize({width,height:844});await seed(w);
+    assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#stageDevices .pickDev')].map(x=>x.dataset.dev+':'+x.dataset.suit)),['メイン:has','サブ2:lent','サブ4:none','サブ5:legacy']);
+    const m=await page.evaluate(()=>{const cs=[...document.querySelectorAll('#stageDevices .pickDev')];return {hscroll:document.documentElement.scrollWidth>innerWidth,heights:cs.map(c=>Math.round(c.getBoundingClientRect().height)),
+      inside:cs.every(c=>{const cr=c.getBoundingClientRect();return [...c.querySelectorAll('.sChip,.suitHint,.pkName,.frS,.devName,.pickBtn')].every(e=>{const r=e.getBoundingClientRect();return r.left>=cr.left-0.5&&r.right<=cr.right+0.5})})}});
+    assert.equal(m.hscroll,false);assert.ok(m.inside,'inside the card');assert.ok(m.heights.every(h=>h<=176),'compact: '+m.heights);
+    for(const d of ['メイン','サブ2','サブ4','サブ5']){const b=await card(d).locator('[data-act="openPicker"]').boundingBox();assert.ok(b.height>=44&&b.x+b.width<=width)}
+    await page.evaluate(()=>window.scrollTo(0,document.getElementById('devPick').getBoundingClientRect().top+scrollY-8));
+    await page.screenshot({path:path.join(__dirname,'artifacts',`v35-states-${width}.png`)});
+  }
 });

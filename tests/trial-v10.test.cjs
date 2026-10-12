@@ -287,7 +287,7 @@ test('stage cards: a same-name unit of 進化形態未確認 is a normal candida
   // 選択肢：形態まで一致する候補 → 同じキャラで形態未確認の候補（明示）。適正の無い所持キャラは「所持キャラ」グループ（仮選択）
   assert.deepEqual(await optionList(page,'メイン',true),['— 使う個体を選ぶ —','架空キャラ玖 個体1','架空キャラ拾壱 個体1','適正なしの架空キャラ 個体1（仮）']);
   assert.deepEqual((await teamView(page,'メイン')).groups.map(g=>g[0]),['所持キャラ（適正未登録・仮選択）']);
-  assert.doesNotMatch(await main.locator('.devHead').textContent(),/候補|参考/);
+  assert.doesNotMatch((await main.locator('.devHead').textContent()).replace('適正候補あり',''),/候補|参考/,'no old candidate counts or 参考 marks (v35: only the 適正候補あり chip)');
   assert.deepEqual(await optionList(page,'サブ1',true),['— 使う個体を選ぶ —','架空キャラ玖 個体1']);
   // 形態まで一致する候補のカードは従来どおり（印なし）
   await choose(page,'メイン','uOk');

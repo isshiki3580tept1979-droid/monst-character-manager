@@ -128,7 +128,7 @@ test('team cards: candidates per device unchanged; the card shows the character 
   assert.deepEqual(m.cand,['ネオ 個体1','ネオ 個体2']);
   assert.deepEqual(m.groups,[['所持キャラ（適正未登録・仮選択）',['アーサー 個体1（仮）']]],'others only as provisional');
   assert.deepEqual((await teamView(page,'サブ3')).cand,['ヤクモ 個体1','ヤクモ 個体2'],'the character has a verified suitability → no 未検証 mark on either unit');
-  assert.equal(await card('メイン').textContent().then(t=>t.replace(/\s+/g,' ').trim()),'①メイン適正あり 2体＋ キャラを選ぶ 候補：ネオ選ぶ ›');
+  assert.equal(await card('メイン').textContent().then(t=>t.replace(/\s+/g,' ').trim()),'①メイン適正候補あり 2体＋ キャラを選ぶ 候補：ネオ選ぶ ›');
   await choose(page,'メイン','u-neo1');
   let l=await lines('メイン');
   assert.equal(l.name,'ネオ個体1');

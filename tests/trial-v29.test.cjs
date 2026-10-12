@@ -107,7 +107,7 @@ test('change / choose buttons still work; picks, units and fruits are kept; back
   await page.locator('#pkList .pkItem[data-id="u3"]').click();
   let d=await keep();same(d.picks,BASE.picks,'choosing the same unit again keeps the team');
   await card('メイン').locator('[data-act="openPicker"]').click();await page.click('[data-act="pickClear"]');
-  assert.equal(await txt(card('メイン')),'①架空とても長い端末名のマフティー（メイン）適正あり 1体＋ キャラを選ぶ 候補：架空ミライ・架空ピースフルAI選ぶ ›');
+  assert.equal(await txt(card('メイン')),'①架空とても長い端末名のマフティー（メイン）適正候補あり 1体＋ キャラを選ぶ 候補：架空ミライ・架空ピースフルAI選ぶ ›');
   const b=await card('メイン').locator('[data-act="openPicker"]').boundingBox();assert.ok(b.height>=44);
   await card('メイン').locator('[data-act="openPicker"]').click();await page.locator('#pkList .pkItem[data-id="u1"]').click();
   d=await keep();same(d.picks,BASE.picks);
@@ -148,6 +148,6 @@ for(const [w,h] of [[390,664],[360,640]]) test(`${w}x${h}: with the heading 今�
   // 未選択の端末は「端末名＋［＋ キャラを選ぶ］」の1行だけ
   await card('サブ1').locator('[data-act="openPicker"]').click();await page.click('[data-act="pickClear"]');
   const c=await card('サブ1').boundingBox();assert.ok(c.height<=100,'unselected card is one row plus the v35 candidate line: '+c.height);
-  assert.equal(await txt(card('サブ1')),'②架空iPad（サブ1）適正あり 1体＋ キャラを選ぶ 候補：架空ネオ選ぶ ›');
+  assert.equal(await txt(card('サブ1')),'②架空iPad（サブ1）適正候補あり 1体＋ キャラを選ぶ 候補：架空ネオ選ぶ ›');
   await card('サブ1').locator('[data-act="openPicker"]').click();assert.equal(await page.locator('#pickModal').evaluate(m=>m.classList.contains('open')),true,'choosing still works');
 });

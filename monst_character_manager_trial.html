@@ -324,6 +324,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .sChip.rv{background:#fef3c7;color:#92400e}
 .sChip.ln{background:#fce7f3;color:#9d174d}
 .sChip.no{background:#f1f5f9;color:#64748b}
+.sChip.cd{background:#e0f2fe;color:#075985}
 .sChip.uk{background:#fff;color:#64748b;border:1px dashed #cbd5e1;padding:0 6px}
 .suitHint{display:block;width:100%;text-align:left;margin-top:4px;font-size:12px;font-weight:700;color:#475569;line-height:1.35;overflow-wrap:anywhere;background:none;border:0;padding:0 2px}
 button.suitHint{color:#1e3a8a;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:5px 8px;min-height:32px;display:flex;justify-content:space-between;gap:8px;align-items:center}
@@ -2037,16 +2038,26 @@ function pickBlock(k,d,st){
 }
 /* ---- 端末ごとの適正所持状況（v35・ステージ画面の表示だけ。保存しない・対応付けや所持情報を作らない）----
    根拠：その端末にいる所持個体（借用中を含む）と、所持確認の記録（ownershipChecks）。適正図鑑キャラ（個体なし）は所持に数えない
-   has：この端末にこのステージの適正キャラの個体がいる（候補数＝個体数。確認済みの適正が無い個体は「未検証」として別に数える）
+   has：この端末にこのステージの適正キャラの個体がいる（「適正候補あり N体」。緑は全員が適正の形態と同じ形態で適正も確認済みのときだけ。キャラ名だけの一致・未検証の内訳はキャラ選択画面）
    lent：所持しているが、今は別の端末へ貸出中で使えない
    none：ステージの適正キャラ全員について、この端末の所持確認が「未所持」（根拠がある場合だけ）
    unknown：所持の記録が無い適正キャラがある（所持確認だけで個体未登録・要確認を含む）。該当なしとは断定しない
-   nostage：このステージの適正が未登録 */
+   nostage：このステージの適正が未登録
+   legacy：新方式では適正ありにならないが、旧データ（旧登録キャラ・旧TOP20の所持記録）に、適正キャラと名前が完全一致する所持記録がある（要確認。変換しない・確定しない）
+   適正ありの候補は「キャラ名で一致」したもので、進化形態まで一致しているとは限らない（nameOnly＝適正の形態と同じ形態・対応付け済みの形態ではない個体） */
 function suitGroupsOf(k){
   const m=new Map();
   [...suitFormIds(k)].forEach(id=>{const g=charGroupOf(formOf(id).characterId), key=[...g].sort().join('\u0001');
     if(!m.has(key)) m.set(key,{cids:g,names:[...g].map(charOf).filter(Boolean).map(c=>c.name)})});
   return [...m.values()];
+}
+// 旧データの所持記録（読むだけ）：旧登録キャラ（この端末にいる、または貸出中）と、旧TOP20の所持（別形態を含む）。名前は表記ゆれだけ吸収した完全一致
+function legacyOwnFor(groups,d){
+  const want=new Map();groups.forEach(g=>g.names.forEach(n=>{const k=nameKey(n);if(k)want.set(k,n)}));
+  const out=new Map(), add=(name,how)=>{const k=nameKey(name);if(!want.has(k))return;const e=out.get(k)||{name,hows:new Set()};e.hows.add(how);out.set(k,e)};
+  db.characters.forEach(c=>{if(locOf(c)===d) add(c.name,'旧登録');else if(c.device===d&&c.lentTo) add(c.name,'旧登録・貸出中')});
+  Object.entries(db.ownership).forEach(([k2,byDev])=>Object.entries(byDev?.[d]?.ranks||{}).forEach(([r,o])=>{if(o&&ownKey(o.status)==='owned'){const n=rankName(k2,+r);if(n)add(n,'旧TOP20')}}));
+  return [...out.values()].map(e=>({name:e.name,hows:[...e.hows]}));
 }
 function devSuitState(k,d){
   const groups=suitGroupsOf(k);
@@ -2054,10 +2065,13 @@ function devSuitState(k,d){
   const map=suitCharMap(k), cands=candidatesFor(k,d);
   const lentOut=db.units.filter(u=>u.device===d&&unitAt(u)!==d&&map.has(formOf(u.formId)?.characterId));
   if(cands.length){
-    const names=[...new Set(cands.map(u=>unitCharName(u)||'（キャラ不明）'))];
-    return {kind:'has',groups,cands,names,unverified:cands.filter(u=>!unitVerified(u,k,map)).length,borrowed:cands.filter(u=>unitAt(u)!==u.device).length,lentOut};
+    const names=[...new Set(cands.map(u=>unitCharName(u)||'（キャラ不明）'))], sf=suitFormIds(k);
+    const nameOnly=cands.filter(u=>![...linkedIds('form',u.formId)].some(id=>sf.has(id))).length;
+    return {kind:'has',groups,cands,names,nameOnly,unverified:cands.filter(u=>!unitVerified(u,k,map)).length,borrowed:cands.filter(u=>unitAt(u)!==u.device).length,lentOut};
   }
   if(lentOut.length) return {kind:'lent',groups,lentOut};
+  const legacy=legacyOwnFor(groups,d);
+  if(legacy.length) return {kind:'legacy',groups,legacy};
   const st={notOwned:0,ownedNoUnit:0,review:0,unknown:0};
   groups.forEach(g=>{
     const cs=db.ownershipChecks.filter(o=>o.device===d&&g.names.includes(o.characterName));
@@ -2068,14 +2082,18 @@ function devSuitState(k,d){
   });
   return {kind:st.notOwned===groups.length?'none':'unknown',groups,...st};
 }
-const SUIT_STATE_TEXT={has:'適正あり',lent:'貸出中',none:'該当なし',unknown:'未確認',nostage:'適正未登録'};
+const SUIT_STATE_TEXT={has:'適正候補あり',legacy:'旧登録あり・要確認',lent:'貸出中',none:'該当なし',unknown:'未確認',nostage:'適正未登録'};
 function devSuitChips(s){
   const chip=(cls,t,title)=>`<span class="sChip ${cls}" title="${esc(title)}">${esc(t)}</span>`;
   switch(s.kind){
-    case 'has': return chip('ok',`適正あり ${s.cands.length}体`,`この端末にいる、このステージの適正キャラの個体：${s.names.join('、')}`)
-      +(s.unverified?chip('rv',`未検証${s.unverified}`,'適正が未検証・要確認の個体（確定扱いにしません）'):'')
+    case 'has': {
+      const sure=!s.nameOnly&&!s.unverified;
+      const why=[s.nameOnly?`キャラ名で一致 ${s.nameOnly}体（進化形態まで同じとは限りません）`:'',s.unverified?`適正が未検証・要確認 ${s.unverified}体`:''].filter(Boolean).join('／');
+      return chip(sure?'ok':'cd',`適正候補あり ${s.cands.length}体`,`この端末にいる、このステージの適正キャラの個体：${s.names.join('、')}${why?`。${why}。詳しくは「キャラを選ぶ」で確認できます`:'（進化形態・適正とも確認済み）'}`)
       +(s.borrowed?chip('ln',`借用${s.borrowed}`,'別の端末から借りている個体'):'')
       +(s.lentOut.length?chip('ln',`貸出中${s.lentOut.length}`,'この端末の個体で、今は別の端末へ貸出中（ここでは使えません）'):'');
+    }
+    case 'legacy': return chip('rv','旧登録あり・要確認','旧登録（従来方式）に所持記録があります。新方式の所持個体ではないため、確認が必要です');
     case 'lent': return chip('ln',`貸出中 ${s.lentOut.length}体`,'適正キャラを所持していますが、別の端末へ貸出中のため今は使えません');
     case 'none': return chip('no','該当なし','所持確認の記録で、このステージの適正キャラはすべて未所持');
     case 'unknown': return chip('uk','未確認','所持の記録が無い適正キャラがあります（該当なしとは断定しません）');
@@ -2085,7 +2103,8 @@ function devSuitChips(s){
 // 未選択の端末に出す1行：適正ありなら候補名（押すとキャラを選ぶ画面）。それ以外は理由
 function devSuitHint(d,s){
   const names=a=>a.slice(0,3).join('、')+(a.length>3?` ほか${a.length-3}`:''); // キャラ名に「・」が入ることがあるため区切りは「、」
-  if(s.kind==='has') return `<button type="button" class="suitHint" data-act="pickHint" data-dev="${esc(d)}"><span>候補：${esc(names(s.names))}${s.unverified===s.cands.length?'（適正は未検証）':''}</span><span class="go">選ぶ ›</span></button>`;
+  if(s.kind==='has') return `<button type="button" class="suitHint" data-act="pickHint" data-dev="${esc(d)}"><span>候補：${esc(names(s.names))}</span><span class="go">選ぶ ›</span></button>`;
+  if(s.kind==='legacy') return `<div class="suitHint">旧登録に所持記録あり・要確認：${esc(names(s.legacy.map(x=>x.name+(x.hows.some(h=>h.includes('貸出中'))?'（貸出中）':''))))}</div>`;
   const t=s.kind==='lent'?`貸出中：${names(s.lentOut.map(u=>`${unitCharName(u)}→${devLabel(unitAt(u))}`))}`
     :s.kind==='none'?`所持確認で未所持：${s.groups.length}キャラ`
     :s.kind==='unknown'?[s.unknown?`所持の記録なし ${s.unknown}キャラ`:'',s.ownedNoUnit?`所持確認のみ（個体未登録） ${s.ownedNoUnit}`:'',s.review?`所持確認が要確認 ${s.review}`:'',s.notOwned?`未所持 ${s.notOwned}`:''].filter(Boolean).join('・')
@@ -2093,8 +2112,8 @@ function devSuitHint(d,s){
   return `<div class="suitHint">${esc(t)}</div>`;
 }
 function devSuitBadge(s){
-  const t=s.kind==='has'?`適${s.cands.length}`:s.kind==='lent'?'貸出中':s.kind==='none'?'なし':s.kind==='unknown'?'未確認':'';
-  return t?`<span class="dpSuit${s.kind==='has'?' ok':''}" title="${esc(SUIT_STATE_TEXT[s.kind])}">${esc(t)}</span>`:'';
+  const t=s.kind==='has'?`候補${s.cands.length}`:s.kind==='legacy'?'旧登録':s.kind==='lent'?'貸出中':s.kind==='none'?'なし':s.kind==='unknown'?'未確認':'';
+  return t?`<span class="dpSuit${s.kind==='has'?' ok':''}" title="${esc(s.kind==='has'?`適正候補あり ${s.cands.length}体`:SUIT_STATE_TEXT[s.kind])}">${esc(t)}</span>`:'';
 }
 // 見出しの右：このステージの適正キャラ数（端末の「適正あり N体」は個体数。別の数字）
 function teamSuitText(k){
@@ -2112,13 +2131,14 @@ function openPicker(d){
 }
 function renderPicker(){
   if(!pickerDev) return;
-  const {k,d}=pickerDev, p=pickState(k,d), map=suitCharMap(k);
+  const {k,d}=pickerDev, p=pickState(k,d), map=suitCharMap(k), sfIds=suitFormIds(k);
   $('pkTitle').textContent=`${SLOT_MARKS[useDevsOf(k).indexOf(d)]||''} ${devLabel(d)}で使うキャラ`;
   const item=(u,group)=>{
     const tags=[];
     if(u.id===p.sel) tags.push('<span class="pTag on">選択中</span>');
     if(unitAt(u)!==u.device) tags.push(`<span class="pTag lend">借用中・元 ${esc(devLabel(u.device))}</span>`);
     if(group==='cand'&&!unitVerified(u,k,map)) tags.push('<span class="pTag">適正は未検証</span>');
+    if(group==='cand'&&![...linkedIds('form',u.formId)].some(id=>sfIds.has(id))) tags.push('<span class="pTag" title="キャラ名で一致した適正です。進化形態まで同じとは限りません">キャラ名で一致</span>');
     if(u.verificationStatus==='NEEDS_REVIEW') tags.push('<span class="pTag">個体は要確認</span>');
     const label=unitLabel(u)+(group==='cand'?(unitVerified(u,k,map)?'':'（未検証）')+(unitAt(u)!==u.device?`（${devLabel(u.device)}から借用）`:''):'（仮）');
     return `<button type="button" class="pkItem${u.id===p.sel?' on':''}" data-act="pickUnit" data-id="${esc(u.id)}" data-group="${group}" aria-label="${esc(label)}">
@@ -2131,7 +2151,7 @@ function renderPicker(){
     +(!p.cands.length&&!p.owns.length?`<div class="small pkEmpty">この端末にいるキャラがいません。${suitFormIds(k).size?pickEmptyWhy(k,d).replace(/^（/,'（この端末の適正キャラは'):''}キャラ画面の「＋ 所持個体」で登録できます。</div>`:'');
   $('pkClear').hidden=!p.sel;
 }
-function pickEmptyWhy(k,d){const s=devSuitState(k,d);return s.kind==='lent'?`（貸出中：${s.lentOut.map(u=>`${unitCharName(u)}→${devLabel(unitAt(u))}`).join('、')}）`:s.kind==='none'?'（所持確認で未所持）':s.kind==='unknown'?'（所持の記録なし。該当なしとは限りません）':''}
+function pickEmptyWhy(k,d){const s=devSuitState(k,d);return s.kind==='lent'?`（貸出中：${s.lentOut.map(u=>`${unitCharName(u)}→${devLabel(unitAt(u))}`).join('、')}）`:s.kind==='legacy'?`（旧登録に所持記録あり・要確認：${s.legacy.map(x=>x.name).join('、')}）`:s.kind==='none'?'（所持確認で未所持）':s.kind==='unknown'?'（所持の記録なし。該当なしとは限りません）':''}
 // 選んだ個体を編成に保存する（押した時点で候補にある個体だけ。古いタブでは persist が止める）
 function setPick(id){
   if(!pickerDev) return;
