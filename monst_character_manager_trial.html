@@ -69,6 +69,12 @@ main{max-width:760px;margin:auto;padding:10px 10px calc(86px + env(safe-area-ins
 .imCh select{width:100%;max-width:100%;margin-top:3px}
 .imOpt{display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:13px}
 .imOpt input{margin-top:3px}
+.imbSum{font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.imbSum b{font-weight:900}
+.imbList{font-size:12px;line-height:1.6;margin:2px 0 0;padding-left:16px;overflow-wrap:anywhere}
+.imbSec{font-size:13px;font-weight:900;margin:8px 0 2px}
+.imbStage{font-size:12px;line-height:1.6;border-top:1px solid #e2e8f0;padding:4px 0;overflow-wrap:anywhere}
+.imbStage:first-child{border-top:0}
 #charaFilter{margin-top:6px}
 #charaFilter[hidden]{display:none!important}
 #charaFilter button[aria-pressed="true"]{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
@@ -486,7 +492,7 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div id="invChecksSaved"></div>
     </div>
     <div class="panel">
-      <div class="ptitle">適正データの取り込み（JSON）</div>
+      <div class="ptitle">適正データの取り込み（JSON・1ステージずつ）</div>
       <div class="small">攻略サイト等で確認した適正を、形式どおりのJSONで取り込みます。まず「内容を確認」で結果を見てから「取り込む」を押してください。形式に誤りがあれば何も変更しません。登録済みのキャラ・進化形態と完全一致した行だけを取り込み、未登録のキャラは作成しません。取り込んだ適正は、確認済み（VERIFIED）と指定した行以外は「未検証」として入ります。</div>
       <details style="margin-top:6px"><summary class="small">形式</summary><pre class="fmt">{"format":"monst-suitability-import-v1",
  "stageKey":"破界の星墓::パライソ",
@@ -505,6 +511,20 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
       <div id="imChoices"></div>
       <div class="msg" id="imMsg"></div>
       <div id="imIssues"></div>
+    </div>
+    <div class="panel" id="imbPanel">
+      <div class="ptitle">適正データの一括取り込み（複数ステージ・ファイル）</div>
+      <div class="small">複数ステージ分をまとめた一括取り込み用のファイル（形式 monst-suitability-bundle-v1）を読み込みます。まず「内容を確認」でステージごとの件数を見てから「取り込む」を押してください。全ステージを1回で保存し、途中で失敗したときや形式に誤りがあるときは何も変更しません。一括取り込みでは照合の選択はできません。名前が似ているだけのキャラは結び付けず「保留」にします（保留の行は上の1ステージずつの取り込みで選べます）。所持個体・編成・貸出・わくわくの実は変更しません。</div>
+      <label for="imbFile" style="margin-top:8px">ファイルを選ぶ</label>
+      <input id="imbFile" type="file" accept="application/json,.json,.txt">
+      <details style="margin-top:6px"><summary class="small">貼り付けで読み込む</summary><textarea id="imbText" style="margin-top:6px" placeholder="一括取り込み用のJSONを貼り付け"></textarea></details>
+      <label class="imOpt"><input type="checkbox" id="imbCatalogOn"> <span>登録済みキャラの候補がないキャラを、<b>適正図鑑キャラ</b>（所持個体なし）として追加する</span></label>
+      <div class="tools">
+        <button class="tool" data-act="imbPreview">内容を確認</button>
+        <button class="tool main" id="imbApply" data-act="imbApply" disabled>取り込む</button>
+      </div>
+      <div class="msg" id="imbMsg" role="status"></div>
+      <div id="imbResult" style="margin-top:6px"></div>
     </div>
     <div class="panel">
       <div class="ptitle"><span>旧TOP20データの取り込み</span><span class="small" id="migCount"></span></div>
@@ -2599,7 +2619,9 @@ function resolveStageKey(b){
 function parseSuitImport(text){
   let raw;
   try{raw=JSON.parse(text)}catch{return {errors:['JSONとして読み取れません']}}
-  const blocks=Array.isArray(raw)?raw:raw&&Array.isArray(raw.blocks)?raw.blocks:[raw];
+  return parseSuitBlocks(Array.isArray(raw)?raw:raw&&Array.isArray(raw.blocks)?raw.blocks:[raw]);
+}
+function parseSuitBlocks(blocks){
   const errors=[], out=[];
   if(!blocks.length) errors.push('データが空です');
   if(blocks.length>50) errors.push('一度に取り込めるのは50ブロックまでです');
@@ -2649,7 +2671,7 @@ const CATALOG='SUIT_CATALOG';
 function planSuitImport(p,opts={}){
   const choices=opts.choices||{char:{},form:{}}, catalog=!!opts.catalog;
   const plan={blocks:p.blocks,add:[],update:[],same:[],issues:[],dupInFile:0,notIncluded:0,
-    newChars:[],newForms:[],newAliases:[],resolved:[],counts:{auto:0,form:0,char:0,new:0},sel:{char:new Map(),form:new Map()}};
+    newChars:[],newForms:[],newAliases:[],resolved:[],rows:[],counts:{auto:0,form:0,char:0,new:0},sel:{char:new Map(),form:new Map()}};
   const seen=new Set(), newCharBy=new Map(), newFormBy=new Map(), aliasBy=new Set(), now=new Date().toISOString();
   const formsOf=cid=>db.master.forms.concat(plan.newForms).filter(f=>f.characterId===cid);
   const newChar=name=>{const k=nameKey(name);if(!newCharBy.has(k)){const c={id:uid(),name,origin:CATALOG};newCharBy.set(k,c);plan.newChars.push(c)}return newCharBy.get(k)};
@@ -2660,7 +2682,8 @@ function planSuitImport(p,opts={}){
   p.blocks.forEach(b=>{
     const touched=new Set();
     b.entries.forEach(e=>{
-      const issue=(cls,reason)=>{plan.counts[cls]++;plan.issues.push({stageKey:b.stageKey,source:b.source,site:b.site,characterName:e.characterName,formName:e.formName,reason})};
+      const row=o=>plan.rows.push({stageKey:b.stageKey,characterName:e.characterName,formName:e.formName,grade:e.grade,rank:e.rank,...o});
+      const issue=(cls,reason)=>{plan.counts[cls]++;row({out:'hold',reason});plan.issues.push({stageKey:b.stageKey,source:b.source,site:b.site,characterName:e.characterName,formName:e.formName,reason})};
       let cls='auto', char=null, created=false;
       const exact=db.master.characters.filter(c=>c.name===e.characterName);
       if(exact.length>1) return issue('char','同じ名前のキャラが複数あります');
@@ -2670,6 +2693,8 @@ function planSuitImport(p,opts={}){
         if(ca) char=charOf(ca.characterId);
         else{
           const ck=nameKey(e.characterName), pick=choices.char[ck], cands=charCandidates(e.characterName,'');
+          if(opts.pendingCands&&!cands.length&&!newCharBy.has(ck)&&plan.newChars.some(c=>candReason(e.characterName,'',c)))
+            return issue('char','未登録のキャラ（同じファイルで追加するキャラと名前が似ているため、自動では作成しません）');
           if(cands.length&&!plan.sel.char.has(ck)) plan.sel.char.set(ck,{key:ck,label:e.characterName,cands});
           if(pick&&pick!=='new'&&charOf(pick)){char=charOf(pick);cls='char';addAlias({kind:'char',source:b.source,site:b.site,label:e.characterName,characterId:pick,stageKey:b.stageKey})}
           else if(pick==='new'||(!cands.length&&catalog)){char=newChar(e.characterName);created=true;cls='new'}
@@ -2687,16 +2712,16 @@ function planSuitImport(p,opts={}){
       plan.resolved.push([b.stageKey,b.source,b.site,e.characterName,e.formName].join('\u0001'));
       const item={stageKey:b.stageKey,formId,source:b.source,site:b.site,sourceUrl:b.sourceUrl,sourceUpdatedAt:b.sourceUpdatedAt,
         evaluationType:b.evaluationType,rank:e.rank,grade:e.grade,verificationStatus:e.verificationStatus,note:e.note};
-      const k=suitKey(item);
-      if(seen.has(k)){plan.dupInFile++;return}
+      const k=suitKey(item), done=out=>row({out,cls,charId:char.id,charName:char.name,formId,newChar:created,newForm:plan.newForms.some(f=>f.id===formId),status:item.verificationStatus});
+      if(seen.has(k)){plan.dupInFile++;done('dup');return}
       seen.add(k);touched.add(k);
       const cur=db.suits.find(s=>suitKey(s)===k);
-      if(!cur) return plan.add.push(item);
+      if(!cur){done('add');return plan.add.push(item)}
       if(cur.verificationStatus==='VERIFIED'&&item.verificationStatus!=='VERIFIED'){
         item.verificationStatus=['evaluationType','rank','grade'].some(f=>cur[f]!==item[f])?'NEEDS_REVIEW':'VERIFIED';
       }
-      if(['sourceUrl','sourceUpdatedAt','evaluationType','rank','grade','verificationStatus','note'].every(f=>cur[f]===item[f])) return plan.same.push(cur.id);
-      plan.update.push({id:cur.id,item});
+      if(['sourceUrl','sourceUpdatedAt','evaluationType','rank','grade','verificationStatus','note'].every(f=>cur[f]===item[f])){done('same');return plan.same.push(cur.id)}
+      done('update');plan.update.push({id:cur.id,item});
     });
     plan.notIncluded+=db.suits.filter(s=>s.stageKey===b.stageKey&&s.source===b.source&&(b.source!=='OTHER_SITE'||s.site===b.site)&&!touched.has(suitKey(s))).length;
   });
@@ -2784,6 +2809,94 @@ function confirmSuitImport(){
       +(states?`取り込んだ適正の状態：${states}。`:'')
       +(vs.some(v=>v!=='VERIFIED')?'未検証・要確認の適正は、内容を確認してから「確認済みにする」を押してください。':'')
     :saveFailText(suitImportErr,'取り込みに失敗したため、取り込み前の状態に戻しました');
+}
+/* ---- 適正データの一括取り込み（複数ステージ） ----
+   形式：{"format":"monst-suitability-bundle-v1","title":"…","stageCount":19,"entryCount":157,"blocks":[1ステージ用の形式（format必須）, …]}
+   ・stageCount／entryCount があれば実際の数と照合する（途中で切れたファイルを取り込まない）
+   ・同じステージ・出典のブロックが2つあればエラー。どこか1つでも誤りがあれば何も書き込まない
+   ・照合の選択はしない。同じファイルで新しく追加するキャラと名前が似ている行も保留（1ステージずつ取り込んだときと同じ結果にする）
+   ・保存は1回（全ステージまとめて）。失敗したら取り込み前の状態に戻す（applySuitImport） */
+const BUNDLE_FORMAT='monst-suitability-bundle-v1';
+function parseSuitBundle(text){
+  let raw;
+  try{raw=JSON.parse(text)}catch{return {errors:['JSONとして読み取れません（ファイルが途中で切れていないか確認してください）']}}
+  if(!raw||typeof raw!=='object'||Array.isArray(raw)) return {errors:['一括取り込み用の形式ではありません']};
+  if(raw.format!==BUNDLE_FORMAT) return {errors:[raw.format===IMPORT_FORMAT?'1ステージ用のデータです。上の「1ステージずつ」の取り込みを使ってください':`format が ${BUNDLE_FORMAT} ではありません`]};
+  if(!Array.isArray(raw.blocks)||!raw.blocks.length) return {errors:['blocks（ステージごとのデータ）がありません']};
+  const errors=[];
+  raw.blocks.forEach((b,i)=>{if(b&&typeof b==='object'&&!Array.isArray(b)&&b.format!==IMPORT_FORMAT) errors.push(`${i+1}件目：format が ${IMPORT_FORMAT} ではありません`)});
+  const p=parseSuitBlocks(raw.blocks);
+  if(p.errors.length||errors.length) return {errors:errors.concat(p.errors)};
+  const seenStage=new Set();
+  p.blocks.forEach((b,i)=>{const k=[b.stageKey,b.source,b.site].join('\u0001');if(seenStage.has(k))errors.push(`${i+1}件目：同じステージ・出典のデータが重複しています（${stageLabel(b.stageKey)}）`);seenStage.add(k)});
+  const n=p.blocks.reduce((a,b)=>a+b.entries.length,0);
+  if(raw.stageCount!=null&&raw.stageCount!==p.blocks.length) errors.push(`ステージ数がファイルの記載（${raw.stageCount}）と合いません（実際は${p.blocks.length}）`);
+  if(raw.entryCount!=null&&raw.entryCount!==n) errors.push(`件数がファイルの記載（${raw.entryCount}）と合いません（実際は${n}）`);
+  return errors.length?{errors}:{errors:[],blocks:p.blocks,title:clean(raw.title,80),entryCount:n};
+}
+let pendingBundle=null, imbBusy=false;
+const bundleBase=()=>JSON.stringify([db.master,db.suits,db.importIssues,db.suitAliases]);
+function previewBundle(){
+  const text=$('imbText').value;
+  pendingBundle=null;$('imbApply').disabled=true;$('imbMsg').textContent='';
+  if(!text.trim()){$('imbResult').innerHTML='';$('imbMsg').textContent='ファイルを選ぶか、JSONを貼り付けてください';return}
+  const p=parseSuitBundle(text);
+  if(p.errors.length){$('imbResult').innerHTML=`<div class="note">取り込めません（何も変更していません）：<br>${p.errors.slice(0,30).map(esc).join('<br>')}${p.errors.length>30?`<br>ほか${p.errors.length-30}件`:''}</div>`;return}
+  const catalog=$('imbCatalogOn').checked, plan=planSuitImport(p,{catalog,pendingCands:true});
+  pendingBundle={text,catalog,p,plan,base:bundleBase()};
+  $('imbApply').disabled=!(plan.add.length||plan.update.length||plan.issues.length);
+  $('imbResult').innerHTML=bundleHtml(p,plan,false);
+}
+function bundleHtml(p,plan,done){
+  const rows=plan.rows, n=o=>rows.filter(r=>r.out===o).length, used=r=>r.out!=='hold';
+  const ev=r=>r.grade||(r.rank?r.rank+'位':''), st=k=>esc(stageLabel(k));
+  const line=r=>`${st(r.stageKey)}：${esc(r.characterName)}${r.formName?`（${esc(r.formName)}）`:''}${ev(r)?' '+esc(ev(r)):''}`;
+  const sec=(t,items)=>items.length?`<div class="imbSec">${t}</div><ul class="imbList">${items.map(x=>`<li>${x}</li>`).join('')}</ul>`:'';
+  // 登録済みのキャラに付く行（キャラごと）
+  const byChar=new Map();
+  rows.filter(r=>used(r)&&!r.newChar).forEach(r=>{if(!byChar.has(r.charId))byChar.set(r.charId,{name:r.charName,forms:new Map()});
+    const g=byChar.get(r.charId).forms, fk=r.formName||'';if(!g.has(fk))g.set(fk,{newForm:r.newForm,stages:new Set(),review:false});
+    const x=g.get(fk);x.stages.add(r.stageKey);if(r.status!=='VERIFIED')x.review=true});
+  const autoItems=[...byChar].map(([cid,c])=>{const us=charUnits(cid).length;
+    return `${esc(c.name)}（${us?`所持個体${us}体`:'個体なし'}）：`+[...c.forms].map(([fn,x])=>`${esc(fn||'形態の表記なし')}${x.newForm?'（新しい形態として追加）':''}${x.review?'・要確認':''}・${x.stages.size}ステージ`).join('／')});
+  const review=rows.filter(r=>(r.out==='add'||r.out==='update')&&r.status!=='VERIFIED').map(r=>line(r)+`（${esc(VERIFY[r.status]||r.status)}）`);
+  const holds=rows.filter(r=>r.out==='hold').map(r=>line(r)+`<br><span class="small">${esc(r.reason)}</span>`);
+  const stages=p.blocks.map(b=>{const rs=rows.filter(r=>r.stageKey===b.stageKey), c=o=>rs.filter(r=>r.out===o).length, rv=rs.filter(r=>(r.out==='add'||r.out==='update')&&r.status!=='VERIFIED').length;
+    return `<div class="imbStage"><b>${st(b.stageKey)}</b>（${esc(SOURCES[b.source])}・${b.entries.length}行）<br>追加 ${c('add')}・更新 ${c('update')}・変更なし ${c('same')}・保留 ${c('hold')}${c('dup')?`・重複 ${c('dup')}`:''}${rv?`（うち要確認・未検証 ${rv}）`:''}</div>`}).join('');
+  const total=p.entryCount, sum=rows.length;
+  return `<div class="imbSum">${done?'<b>取り込み結果</b><br>':''}${p.title?`<b>${esc(p.title)}</b><br>`:''}
+    対象 <b>${p.blocks.length}</b>ステージ／適正 <b>${total}</b>件<br>
+    新規追加 <b>${n('add')}</b>件・更新 <b>${n('update')}</b>件・変更なし ${n('same')}件・保留 <b>${n('hold')}</b>件${n('dup')?`・ファイル内の重複 ${n('dup')}件`:''}<br>
+    <span class="small">内訳の合計 ${sum}件（${sum===total?'ファイルの件数と一致':'ファイルの件数と一致しません'}）</span>
+    ${plan.newChars.length||plan.newForms.length?`<br>適正図鑑に${done?'追加しました':'追加'}：キャラ${plan.newChars.length}・形態${plan.newForms.length}（所持個体は作りません）`:''}
+    ${plan.notIncluded?`<br>今回のデータに含まれない同じ出典の既存適正 ${plan.notIncluded}件は削除しません`:''}
+    ${plan.update.some(u=>u.item.verificationStatus==='NEEDS_REVIEW')?'<br>確認済みの内容が変わる行は「要確認」になります':''}</div>
+    ${sec(`登録済みのキャラに付く（自動照合 ${byChar.size}キャラ）`,autoItems)}
+    ${sec(`要確認・未検証のまま入る行（${review.length}件）`,review)}
+    ${sec(`取り込み対象外：保留（${holds.length}件・要確認の一覧に残します）`,holds)}
+    ${n('dup')||n('same')?`<div class="small">取り込み対象外：ファイル内の重複 ${n('dup')}件・登録済みと同じ内容 ${n('same')}件（変更しません）</div>`:''}
+    <details style="margin-top:6px"${done?' open':''}><summary class="small">ステージ別の件数（${p.blocks.length}ステージ）</summary>${stages}</details>`;
+}
+function confirmBundle(){
+  if(imbBusy) return;
+  const pb=pendingBundle;
+  if(!pb||pb.text!==$('imbText').value||pb.catalog!==$('imbCatalogOn').checked){pendingBundle=null;$('imbApply').disabled=true;$('imbMsg').textContent='先に「内容を確認」を押してください';return}
+  if(pb.base!==bundleBase()){pendingBundle=null;$('imbApply').disabled=true;$('imbMsg').textContent='確認した後にデータが変わりました。もう一度「内容を確認」を押してください（何も変更していません）';return}
+  imbBusy=true;$('imbApply').disabled=true;pendingBundle=null;
+  let ok=false;
+  try{ok=applySuitImport(pb.plan)}finally{imbBusy=false}
+  render();
+  if(!ok){
+    const e=suitImportErr, quota=e&&(e.name==='QuotaExceededError'||e.code===22||e.code===1014);
+    $('imbMsg').textContent=quota?'保存容量が足りないため、取り込めませんでした。取り込み前の状態のままです（何も変更していません）':saveFailText(e,'取り込みに失敗したため、取り込み前の状態に戻しました（何も変更していません）');
+    return;
+  }
+  // 保存されたデータを読み直して、取り込んだ適正がすべて入っているか確かめてから完了を表示する
+  const keys=new Set(latestStored().suits.map(suitKey)), pl=pb.plan, saved=pl.add.concat(pl.update.map(u=>u.item)).every(it=>keys.has(suitKey(it)));
+  $('imbMsg').textContent=`${pb.p.blocks.length}ステージを取り込みました（追加${pl.add.length}件・更新${pl.update.length}件・保留${pl.issues.length}件）。`
+    +(saved?'保存を確認しました。':'保存内容を確認できませんでした。管理のバックアップで内容を確認してください。')
+    +(pl.issues.length?'保留の行は取り込んでいません（要確認の一覧に残しています）。':'');
+  $('imbResult').innerHTML=bundleHtml(pb.p,pl,true);
 }
 /* ---- 所持データ（所持確認・所持個体）のJSON取り込み ----
    適正データ（suits）とは別物。ステージ名は「どのステージの候補として検索したか」の情報なので、suits は作らない。
@@ -3575,6 +3688,8 @@ document.addEventListener('click',guardStale(e=>{
     case 'showFruit4':document.querySelectorAll('#unFruits .frRow[hidden]').forEach(r=>{r.hidden=false});b.hidden=true;$('unFrName3').focus();$('unFrName3').scrollIntoView({block:'center'});break;
     case 'imPreview':$('imMsg').textContent='';previewSuitImport();break;
     case 'imApply':confirmSuitImport();break;
+    case 'imbPreview':previewBundle();break;
+    case 'imbApply':confirmBundle();break;
     case 'invPreview':previewInventory();break;
     case 'invApply':confirmInventory();break;
     case 'srPreview':previewScreenshot();break;
@@ -3646,6 +3761,16 @@ $('imChoices').addEventListener('change',e=>{
   else if(t.dataset.imForm!=null) imChoices.form[t.dataset.imForm]=t.value;
   else return;
   previewSuitImport(true);
+});
+$('imbText').addEventListener('input',()=>{pendingBundle=null;$('imbApply').disabled=true});
+$('imbCatalogOn').addEventListener('change',()=>{if(pendingBundle&&pendingBundle.text===$('imbText').value) previewBundle()});
+$('imbFile').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{$('imbText').value=String(r.result);pendingBundle=null;$('imbApply').disabled=true;$('imbResult').innerHTML='';
+    $('imbMsg').textContent=`「${file.name}」を読み込みました（${Math.ceil(file.size/1024)}KB）。「内容を確認」を押してください`;e.target.value=''};
+  r.onerror=()=>{$('imbMsg').textContent='ファイルを読み込めませんでした（何も変更していません）'};
+  r.readAsText(file);
 });
 $('imCatalogOn').addEventListener('change',()=>{if(pendingSuitImport&&pendingSuitImport.text===$('imText').value) previewSuitImport(true)});
 $('invText').addEventListener('input',()=>{pendingInv=null;$('invApply').disabled=true});
