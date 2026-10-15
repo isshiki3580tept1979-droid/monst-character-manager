@@ -283,6 +283,15 @@ label{display:block;font-size:12px;font-weight:800;color:#475569;margin:0 0 4px}
 .uSep{color:#94a3b8;margin:0 2px}
 .uForm{color:#1e3a8a;font-weight:900}
 .uNo{font-size:12px;font-weight:800;color:#475569;margin-left:6px;white-space:nowrap}
+/* v36 同じキャラのまとめ：個体の図鑑No.・確認画面 */
+.uMno{font-size:12px;font-weight:800;color:#1d4ed8;margin-left:6px;white-space:nowrap}
+.uMno.unset{color:#94a3b8}
+.grCand{margin-top:6px}
+.grCand[disabled]{opacity:.55}
+.grReps{display:flex;flex-wrap:wrap;gap:6px 14px;margin:4px 0}
+.grRep{display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px;min-height:36px;overflow-wrap:anywhere}
+.grRep input{width:20px;height:20px;flex:none;margin:0;padding:0}
+.grPreview{font-size:16px;margin:4px 0 6px;padding:8px 10px;background:#f1f5f9;border-radius:10px;overflow-wrap:anywhere}
 .uL2{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:14px;font-weight:800;color:#075985}
 .uL2 .unset{color:#94a3b8;font-weight:700}
 .uL3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
@@ -862,6 +871,17 @@ button.suitHint .go{flex:none;font-weight:900}
   </div>
 </div>
 
+<!-- 同じキャラをまとめる（v36） -->
+<div class="modalBack" id="groupModal">
+  <div class="modal">
+    <div class="mHead"><button type="button" class="backBtn" data-act="close">← 戻る</button><h2 id="grTitle">同じキャラをまとめる</h2></div>
+    <div id="grBody"></div>
+    <div class="btns">
+      <button class="btn-cancel" data-act="close">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- 貸出 -->
 <div class="modalBack" id="lendModal">
   <div class="modal">
@@ -1421,14 +1441,15 @@ function searchKey(v){return String(v??'').normalize('NFKC').toLowerCase()}
 // ステージボタンの数字：適＝新方式の適正（進化形態の数）、旧＝旧登録のキャラ数。合算しない
 function countBadges(sn,n){return `${sn?`<span class="n nS" title="適正キャラの数">適${sn}</span>`:''}${n?`<span class="n nL" title="旧登録のキャラ数">旧${n}</span>`:''}`}
 function pickUseCount(unitId){let n=0;Object.values(db.picks).forEach(v=>Object.values(v||{}).forEach(id=>{if(id===unitId)n++}));return n}
-function unitCharName(u){return charOf(formOf(u.formId)?.characterId)?.name||''}
+// 個体のキャラ名：まとめたキャラ（v36）は代表名で表示する（保存されているキャラ名は変えない）
+function unitCharName(u){const cid=formOf(u.formId)?.characterId;return cid?charOf(dispGroupInfo(cid).rep)?.name||'':''}
 function unitBoxHtml(u,here){
   const f=formOf(u.formId), c=f&&charOf(f.characterId), uses=pickUseCount(u.id), lend=lendText(u);
   const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
   const slots=Array.from({length:FRUIT_BASE},(_,i)=>u.fruits[i]?chip(u.fruits[i]):'<span class="frS frEmpty">空き</span>').join('');
   const where=!lend?'<span class="b ok">在籍</span>':here&&here!==u.device?`<span class="b in">借用中・元 ${esc(devLabel(u.device))}</span>`:`<span class="b out">${esc(lend)}</span>`;
   return `<div class="uCard" data-unit="${esc(u.id)}">
-    <div class="uL1"><b>${esc(c?c.name:'（キャラ不明）')}</b> <span class="uNo">個体${u.no??'?'}</span> ${where}${u.verificationStatus==='NEEDS_REVIEW'?'<span class="vb v-NEEDS_REVIEW">個体要確認</span>':''}</div>
+    <div class="uL1"><b>${esc(c?unitCharName(u):'（キャラ不明）')}</b> <span class="uNo">個体${dispNo(u)??'?'}</span>${unitNoTag(u)} ${where}${u.verificationStatus==='NEEDS_REVIEW'?'<span class="vb v-NEEDS_REVIEW">個体要確認</span>':''}</div>
     ${u.epithet?`<div class="uEp">二つ名：${esc(u.epithet)}</div>`:''}
     <div class="uL2">${[['種族',u.race||f?.race],['戦型',u.battleType||f?.battleType],['撃種',u.shotType||f?.shotType]].map(([l,v])=>`<span${v?'':' class="unset"'}>${esc(v||l+'未設定')}</span>`).join('')}</div>
     <div class="uL3">${slots}</div>${u.fruits.length>FRUIT_BASE?`<div class="uL3 uL4">${u.fruits.slice(FRUIT_BASE).map(chip).join('')}</div>`:''}
@@ -1525,9 +1546,12 @@ function goChara(id){
 function renderSearch(){
   const q=searchKey($('searchInput').value.trim()), hit=v=>searchKey(v).includes(q);
   // 新方式：キャラ名・進化形態名（短縮名・表示名を含む）
+  // まとめたキャラ（v36）は代表名の1件にする（どの登録名で検索しても出る）
+  const seenG=new Set();
   const chars=db.master.characters.filter(c=>!q||hit(c.name)||formsOfChar(c.id).some(f=>hit(f.name)||hit(f.short)||hit(f.fullDisplayName)||db.units.some(u=>u.formId===f.id&&hit(u.epithet))))
+    .map(c=>charOf(dispGroupInfo(c.id).rep)).filter(c=>c&&!seenG.has(c.id)&&seenG.add(c.id))
     .sort((a,b)=>sortJa(a.name,b.name));
-  const unitsOf=c=>{const ids=new Set(formsOfChar(c.id).map(f=>f.id));return db.units.filter(u=>ids.has(u.formId))};
+  const unitsOf=c=>{const ids=new Set(dispGroupInfo(c.id).ids.flatMap(id=>formsOfChar(id).map(f=>f.id)));return db.units.filter(u=>ids.has(u.formId))};
   const unitTotal=chars.reduce((n,c)=>n+unitsOf(c).length,0);
   // 旧登録：従来どおりキャラ名・メモ
   const hits=db.characters.filter(c=>!q||hit(c.name+' '+c.memo))
@@ -1540,7 +1564,7 @@ function renderSearch(){
         <div class="rowMain">
           <div class="cname">${esc(c.name)} <span class="b new">新方式</span>${c.origin==='SUIT_CATALOG'?' <span class="b old">適正図鑑</span>':''}</div>
           <div class="badges">${byDev.length?byDev.map(([d,n])=>`<span class="b loc">${esc(devLabel(d))}×${n}</span>`).join(''):'<span class="small">所持個体なし</span>'}</div>
-          ${us.length?`<div class="meta">計${us.length}体</div>`:''}
+          ${us.length?`<div class="meta">計${us.length}体</div>`:''}${(g=>g.length>1?`<div class="meta">まとめた登録名：${esc(g.map(id=>charOf(id).name).join('・'))}</div>`:'')(dispGroupInfo(c.id).ids)}
         </div>
         <div class="acts"><button class="mini" data-act="goChara" data-id="${esc(c.id)}">キャラ画面で見る</button></div>
       </div>
@@ -1572,8 +1596,8 @@ function renderSearch(){
 function renderDevices(){
   $('deviceCards').innerHTML=DEVICES.map(d=>{
     // 新方式：この端末にいる所持個体（貸出中の個体は借りている端末に表示）。キャラ名・個体番号順
-    const units=db.units.filter(u=>unitAt(u)===d).sort((a,b)=>sortJa(unitCharName(a),unitCharName(b))||(a.no||0)-(b.no||0));
-    const lentOut=db.units.filter(u=>u.device===d&&unitAt(u)!==d).sort((a,b)=>sortJa(unitCharName(a),unitCharName(b))||(a.no||0)-(b.no||0));
+    const units=db.units.filter(u=>unitAt(u)===d).sort(unitSort);
+    const lentOut=db.units.filter(u=>u.device===d&&unitAt(u)!==d).sort(unitSort);
     const home=db.characters.filter(c=>c.device===d&&!c.lentTo);
     const out=db.characters.filter(c=>c.device===d&&c.lentTo);
     const inn=db.characters.filter(c=>c.lentTo===d);
@@ -1840,7 +1864,7 @@ function formLabel(f){
   const c=charOf(f.characterId);
   return c?c.name:'（キャラ不明）';
 }
-function unitLabel(u){return `${formLabel(formOf(u.formId))} 個体${u.no??'?'}`}
+function unitLabel(u){const f=formOf(u.formId);return `${f&&charOf(f.characterId)?unitCharName(u):formLabel(f)} 個体${dispNo(u)??'?'}`}
 // 所持個体の所在：貸出中なら貸出先の端末（lentTo）、それ以外は所持端末
 function unitAt(u){return DEVICES.includes(u.lentTo)&&u.lentTo!==u.device?u.lentTo:u.device}
 function lendText(u){return unitAt(u)!==u.device?`貸出中 → ${devLabel(u.lentTo)}`:''}
@@ -1865,7 +1889,7 @@ function unitVerified(u,k,map){const e=(map||suitCharMap(k)).get(formOf(u.formId
 function candidatesFor(k,dev){
   const map=suitCharMap(k);
   return db.units.filter(u=>unitAt(u)===dev&&map.has(formOf(u.formId)?.characterId))
-    .sort((a,b)=>sortJa(unitCharName(a),unitCharName(b))||(a.no||0)-(b.no||0));
+    .sort(unitSort);
 }
 /* ---- 適正キャラと所持キャラの同一判定（キャラ単位・自動照合）----
    優先順：①利用者が確認した対応付け（idLinks）②正規化した名前の完全一致 ③二つ名を除いた名前の一致（空白で区切られた二つ名、または個体の二つ名）
@@ -1916,6 +1940,57 @@ function linkedIds(kind,id){
     if(out.has(l.a)&&!out.has(l.b)){out.add(l.b);more=true}if(out.has(l.b)&&!out.has(l.a)){out.add(l.a);more=true}}}
   return out;
 }
+/* ---- 同じキャラの複数個体（v36）：キャラの「まとめ」----
+   利用者が確認して「まとめた」キャラ（idLinks kind='char' basis=USER_GROUP／USER_GROUP_LINKED）を、キャラ一覧・編成・端末画面で
+   1つのキャラ名（代表名）として表示する（例：「ヤクモ」と「ヤクモ大荒武装」→「ヤクモ 所持3体」）。
+   ・保存するのは「まとめ」の記録1件だけ。キャラ・進化形態・所持個体（個体ID・図鑑No.・種族などの個体の値・わくわくの実・貸出）・編成は変更しない。キャラ名・IDも変えない
+   ・USER_GROUP_LINKED＝以前から「同じキャラとして対応付け」済みのペアをまとめたもの（まとめから外すと元の対応付けに戻す）
+   ・自動ではまとめない（名前が一致・似ていても、利用者が選んで確認したときだけ）。除外したペアを含むまとめはできない
+   ・まとめはキャラの対応付けでもあるため、適正の照合（charGroupOf）にもそのまま使われる
+   ・代表名：まとめた側（a）のキャラ＝まとめのつながりで b になっていないキャラ（複数なら名前順で先のもの） */
+const GROUP='USER_GROUP', GROUP_LINKED='USER_GROUP_LINKED';
+const isGroupLink=l=>l.kind==='char'&&(l.basis===GROUP||l.basis===GROUP_LINKED);
+// 一覧の並べ替えなどで何度も呼ぶため、キャラ・対応付けの配列が同じ間は結果を使い回す（render のたびに作り直す）
+let _dg={key:null,map:new Map()};
+function resetDispGroups(){_dg.key=null}
+// {rep: 代表のキャラID, ids: [代表, ほかのメンバー（名前順）]}。まとめていないキャラは自分だけ
+function dispGroupInfo(cid){
+  const k=_dg.key;
+  if(!k||k[0]!==db.master.characters||k[1]!==db.master.characters.length||k[2]!==db.idLinks||k[3]!==db.idLinks.length){
+    const map=new Map(), live=db.idLinks.filter(l=>isGroupLink(l)&&charOf(l.a)&&charOf(l.b)), byName=(a,b)=>sortJa(a.name,b.name)||sortJa(a.id,b.id);
+    db.master.characters.forEach(c=>{
+      if(map.has(c.id)) return;
+      const ids=new Set([c.id]), q=[c.id];
+      while(q.length){const x=q.shift();live.forEach(l=>{const y=l.a===x?l.b:l.b===x?l.a:null;if(y&&!ids.has(y)){ids.add(y);q.push(y)}})}
+      const members=[...ids].map(charOf), roots=members.filter(m=>!live.some(l=>l.b===m.id));
+      const rep=[...(roots.length?roots:members)].sort(byName)[0];
+      const g={rep:rep.id,ids:[rep.id,...members.filter(m=>m!==rep).sort(byName).map(m=>m.id)]};
+      g.ids.forEach(id=>map.set(id,g));
+    });
+    _dg={key:[db.master.characters,db.master.characters.length,db.idLinks,db.idLinks.length],map};
+  }
+  return _dg.map.get(cid)||{rep:cid,ids:[cid]};
+}
+function unitGroup(u){const cid=formOf(u.formId)?.characterId;return cid?dispGroupInfo(cid):null}
+function isGroupedUnit(u){return (unitGroup(u)?.ids.length||0)>1}
+// 表示上の個体番号：まとめたキャラで、同じ端末の個体番号が重なるときだけ通し番号にする（保存している個体番号は変えない）
+function dispNo(u){
+  const g=unitGroup(u);
+  if(!g||g.ids.length<2) return u.no;
+  const ord=new Map(g.ids.map((id,i)=>[id,i]));
+  const us=db.units.filter(x=>x.device===u.device&&ord.has(formOf(x.formId)?.characterId)), nos=us.map(x=>x.no);
+  if(nos.every(n=>n>=1)&&new Set(nos).size===nos.length) return u.no;
+  us.sort((a,b)=>(a.no||0)-(b.no||0)||ord.get(formOf(a.formId).characterId)-ord.get(formOf(b.formId).characterId)||sortJa(a.id,b.id));
+  return us.indexOf(u)+1;
+}
+function unitSort(a,b){return sortJa(unitCharName(a),unitCharName(b))||(dispNo(a)||0)-(dispNo(b)||0)}
+// 個体の図鑑No.：個体の値、無ければ個体の形態の値（ほかの形態からは推測しない）
+function unitMonsterNo(u){return u.monsterNo||formOf(u.formId)?.monsterNo||''}
+// まとめたキャラの個体だけ、図鑑No.を添えて見分けられるようにする
+function unitNoTag(u){if(!isGroupedUnit(u)) return '';const n=unitMonsterNo(u);return `<span class="uMno${n?'':' unset'}">${n?'No.'+esc(n):'No.未登録'}</span>`}
+// 個体の登録名（代表名と違うときだけ）
+function unitRegName(u){const c=charOf(formOf(u.formId)?.characterId);return c&&isGroupedUnit(u)&&c.name!==unitCharName(u)?c.name:''}
+function groupExcluded(A,B){return A.some(a=>B.some(b=>charPairExcluded(a,b)))}
 function formStatus(formId,dev){const f=formOf(formId);if(!f) return 'not-owned';return groupUnits(f.characterId).some(u=>unitAt(u)===dev)?'owned':'not-owned'}
 // 適正一覧の所持表示（端末ごと）：「端末×個体数」（同じキャラとみなす個体。貸出中の個体は借りている端末に数える）
 function ownerText(formId,dev){const f=formOf(formId);if(!f) return '';const n=groupUnits(f.characterId).filter(u=>unitAt(u)===dev).length;return n?`${dev}×${n}`:''}
@@ -1926,7 +2001,7 @@ function suitLinkHtml(f){
   [...group].filter(id=>id!==c.id).map(charOf).filter(Boolean).forEach(o=>{
     const auto=autoSameChar(c,o);
     out.push(auto?`<div class="meta linkLine">自動照合：${esc(o.name)}（${esc(AUTO_WHY[auto])}・${esc(charSummary(o))}） <button class="mini" data-act="excludeChar" data-a="${esc(c.id)}" data-b="${esc(o.id)}">同じキャラではない（除外）</button></div>`
-      :`<div class="meta linkLine">同じキャラとして対応付け済み：${esc(o.name)}（${esc(charSummary(o))}） <button class="mini" data-act="unlinkChar" data-a="${esc(c.id)}" data-b="${esc(o.id)}">対応付けを解除</button></div>`);
+      :`<div class="meta linkLine">同じキャラとして${db.idLinks.some(l=>isGroupLink(l)&&((l.a===c.id&&l.b===o.id)||(l.a===o.id&&l.b===c.id)))?'まとめ':'対応付け'}済み：${esc(o.name)}（${esc(charSummary(o))}） <button class="mini" data-act="unlinkChar" data-a="${esc(c.id)}" data-b="${esc(o.id)}">対応付けを解除</button></div>`);
   });
   db.idLinks.filter(l=>l.kind==='char'&&l.basis===EXCLUDED&&(l.a===c.id||l.b===c.id)).map(l=>charOf(l.a===c.id?l.b:l.a)).filter(Boolean).forEach(o=>out.push(
     `<div class="meta linkLine">除外中（同じキャラではない）：${esc(o.name)} <button class="mini" data-act="unexcludeChar" data-a="${esc(c.id)}" data-b="${esc(o.id)}">除外を取り消す</button></div>`));
@@ -1939,11 +2014,12 @@ function suitLinkHtml(f){
   }
   return out.join('');
 }
-// 個体番号：同じ端末の同じキャラの中で連番（形態が違っても「ネオ 個体1／個体2」）
+// 個体番号：同じ端末の同じキャラの中で連番（形態が違っても「ネオ 個体1／個体2」）。まとめたキャラ（v36）はまとめ全体で連番
 function nextUnitNo(formId,dev,exceptId,charId){
-  const cid=charId||formOf(formId)?.characterId;
-  const used=db.units.filter(u=>u.id!==exceptId&&u.device===dev&&formOf(u.formId)?.characterId===cid).map(u=>u.no||0);
-  return used.length?Math.max(...used)+1:1;
+  const cid=charId||formOf(formId)?.characterId, ids=new Set(cid?dispGroupInfo(cid).ids:[]);
+  const used=db.units.filter(u=>u.id!==exceptId&&u.device===dev&&ids.has(formOf(u.formId)?.characterId)).map(u=>u.no||0);
+  // まとめたキャラは、まとめる前の番号が重なっていることがある（表示は通し番号）。表示の番号とも重ならないよう、個体数も下回らない番号にする
+  return used.length?Math.max(...used,ids.size>1?used.length:0)+1:1;
 }
 // 評価形式どおりに表示する（順位はそのまま順位、ランクはそのままランク。相互に変換しない）
 function suitText(s){
@@ -1992,11 +2068,11 @@ function frChips(u){
   const chip=x=>`<span class="frS" title="${esc(fruitText(x))}">${esc(fruitShort(x))}</span>`;
   return u.fruits.length?`<div class="pkFr">${u.fruits.map(chip).join('')}</div>`:'<div class="pkFr"><span class="frNone">実なし</span></div>';
 }
-function sameCharCount(u,d){const cid=formOf(u.formId)?.characterId;return db.units.filter(x=>unitAt(x)===d&&formOf(x.formId)?.characterId===cid).length}
+function sameCharCount(u,d){const ids=new Set(unitGroup(u)?.ids||[]);return db.units.filter(x=>unitAt(x)===d&&ids.has(formOf(x.formId)?.characterId)).length}
 // ステージ編成の候補は2段：①このステージの適正キャラの個体 ②その端末のそれ以外の個体（仮選択）。仮選択は適正の確定を意味しない
 function ownUnitsFor(k,dev,exclude){
   return db.units.filter(u=>unitAt(u)===dev&&formOf(u.formId)&&!exclude.has(u.id))
-    .sort((a,b)=>sortJa(unitCharName(a),unitCharName(b))||(a.no||0)-(b.no||0));
+    .sort(unitSort);
 }
 // 仮選択の所持キャラと、このステージの適正キャラのうち、強い根拠（同じ名前の表記ゆれ・図鑑No.・区切りの前の名前・二つ名）で同じキャラかもしれないもの。
 // 押したときだけ対応付け（または除外）を保存する。名前の一部一致・似た名前はここには出さない（適正一覧の候補で確認する）。進化形態の一致は扱わない
@@ -2030,7 +2106,7 @@ function pickBlock(k,d,st){
   if(u&&!p.stale&&unitAt(u)!==u.device) tags.push(`<span class="pTag lend">借用中・元 ${esc(devLabel(u.device))}</span>`);
   const warn=p.stale?`<div class="pWarn">${u?(unitAt(u)!==d?`この個体は今${esc(devLabel(unitAt(u)))}にいます${unitAt(u)!==u.device?'（貸出中）':''}。選び直してください`:'この個体は今の候補にありません。選び直してください'):'選んでいた個体が見つかりません。選び直してください'}</div>`:'';
   return `<div class="pickCur${p.prov?' prov':''}${p.stale?' stale':''}">
-      <div class="pkName"><b>${esc(u?unitCharName(u)||'（キャラ不明）':'（削除された個体）')}</b>${u&&sameCharCount(u,d)>1?`<span class="uNo">個体${u.no??'?'}</span>`:''}</div>
+      <div class="pkName"><b>${esc(u?unitCharName(u)||'（キャラ不明）':'（削除された個体）')}</b>${u&&sameCharCount(u,d)>1?`<span class="uNo">個体${dispNo(u)??'?'}</span>`:''}${u?unitNoTag(u):''}</div>
       ${u?basicLine(u):''}
       ${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${warn}
       ${u?frChips(u):''}
@@ -2142,7 +2218,7 @@ function renderPicker(){
     if(u.verificationStatus==='NEEDS_REVIEW') tags.push('<span class="pTag">個体は要確認</span>');
     const label=unitLabel(u)+(group==='cand'?(unitVerified(u,k,map)?'':'（未検証）')+(unitAt(u)!==u.device?`（${devLabel(u.device)}から借用）`:''):'（仮）');
     return `<button type="button" class="pkItem${u.id===p.sel?' on':''}" data-act="pickUnit" data-id="${esc(u.id)}" data-group="${group}" aria-label="${esc(label)}">
-      <div class="pkName"><b>${esc(unitCharName(u)||'（キャラ不明）')}</b><span class="uNo">個体${u.no??'?'}</span></div>
+      <div class="pkName"><b>${esc(unitCharName(u)||'（キャラ不明）')}</b><span class="uNo">個体${dispNo(u)??'?'}</span>${unitNoTag(u)}</div>
       ${basicLine(u)}${tags.length?`<div class="pTags">${tags.join('')}</div>`:''}${frChips(u)}</button>`;
   };
   $('pkList').innerHTML=(p.cands.length?`<div class="pkSec" data-group="cand">このステージの適正キャラ</div>${p.cands.map(u=>item(u,'cand')).join('')}`
@@ -2205,36 +2281,42 @@ function renderChara(){
   const qtxt=$('charaSearch').value.trim().toLowerCase();
   const catOnly=db.master.characters.filter(isCatalogOnly).length;
   if(!catOnly) charaFilter='mine';
-  const list=db.master.characters.filter(c=>!qtxt||(c.name+' '+formsOfChar(c.id).map(f=>f.name+' '+f.short).join(' ')).toLowerCase().includes(qtxt))
-    .filter(c=>charaFilter==='all'||(charaFilter==='catalog'?isCatalogOnly(c):!isCatalogOnly(c)))
-    .sort((a,b)=>sortJa(a.name,b.name));
-  $('charaCount').textContent=`全${db.master.characters.length}キャラ・${db.units.length}個体`+(catOnly?`（うち適正図鑑のみ${catOnly}キャラ）`:'');
+  // まとめたキャラ（v36）は1枚のカード（代表名）にする。まとめていないキャラは従来どおり1キャラ1枚
+  const seenG=new Set(), allGroups=[];
+  db.master.characters.forEach(c=>{const g=dispGroupInfo(c.id);if(!seenG.has(g.rep)){seenG.add(g.rep);allGroups.push(g)}});
+  const merged=allGroups.filter(g=>g.ids.length>1).length;
+  const list=allGroups.filter(g=>!qtxt||g.ids.map(charOf).some(c=>(c.name+' '+formsOfChar(c.id).map(f=>f.name+' '+f.short).join(' ')).toLowerCase().includes(qtxt)))
+    .filter(g=>{const cat=g.ids.every(id=>isCatalogOnly(charOf(id)));return charaFilter==='all'||(charaFilter==='catalog'?cat:!cat)})
+    .sort((a,b)=>sortJa(charOf(a.rep).name,charOf(b.rep).name));
+  $('charaCount').textContent=`全${db.master.characters.length}キャラ・${db.units.length}個体`+(catOnly?`（うち適正図鑑のみ${catOnly}キャラ）`:'')+(merged?`・まとめ${merged}件`:'');
   $('charaFilter').hidden=!catOnly;
   [...$('charaFilter').querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.f===charaFilter)));
   const orphans=db.master.forms.filter(f=>!charOf(f.characterId)).length+db.units.filter(u=>!formOf(u.formId)||!DEVICES.includes(u.device)).length;
   $('charaWarn').hidden=!orphans;
   $('charaWarn').textContent=orphans?`参照先が見つからないデータが${orphans}件あります（削除せず保持しています・要確認）`:'';
-  $('charaList').innerHTML=list.length?list.map(c=>{
-    const fids=new Set(formsOfChar(c.id).map(f=>f.id));
+  $('charaList').innerHTML=list.length?list.map(g=>{
+    const c=charOf(g.rep), members=g.ids.map(charOf), grouped=members.length>1;
+    const fids=new Set(g.ids.flatMap(id=>formsOfChar(id).map(f=>f.id)));
     const units=db.units.filter(u=>fids.has(u.formId)), suits=db.suits.filter(s=>fids.has(s.formId));
     // 対応付け先（利用者の対応付け・自動照合。除外したキャラは含まない）の適正も数える。同じ適正は1回だけ。適正データは変更しない
-    const linkedChars=[...linkedIds('char',c.id)].filter(id=>id!==c.id).map(charOf).filter(Boolean), seen=new Set(suits.map(s=>s.id)), linked=[];
+    const linkedChars=[...linkedIds('char',c.id)].filter(id=>!g.ids.includes(id)).map(charOf).filter(Boolean), seen=new Set(suits.map(s=>s.id)), linked=[];
     linkedChars.forEach(o=>{const ofids=new Set(formsOfChar(o.id).map(f=>f.id));db.suits.forEach(s=>{if(ofids.has(s.formId)&&!seen.has(s.id)){seen.add(s.id);linked.push({s,via:o})}})});
-    const open=db.ui.charaOpen===c.id;
+    const open=g.ids.includes(db.ui.charaOpen);
     const lent=units.filter(u=>unitAt(u)!==u.device).length;
     const head=`<button type="button" class="cHead" data-act="charaOpen" data-id="${esc(c.id)}" aria-expanded="${open}">
-      <span class="cname">${esc(c.name)}</span><span class="small">個体${units.length}${lent?`（貸出中${lent}）`:''}・適正${suits.length+linked.length}${linked.length?`（うち対応付け先${linked.length}）`:''} ${open?'▲':'▼'}</span></button>`;
-    if(!open) return `<div class="card chara">${head}</div>`;
+      <span class="cname">${esc(c.name)}</span><span class="small">${units.length?`所持${units.length}体`:'個体未登録'}${lent?`（貸出中${lent}）`:''}・適正${suits.length+linked.length}${linked.length?`（うち対応付け先${linked.length}）`:''} ${open?'▲':'▼'}</span></button>`;
+    if(!open) return `<div class="card chara${grouped?' grouped':''}" data-group="${esc(g.ids.join(' '))}">${head}</div>`;
     const flash=charaFlash&&units.some(u=>u.id===charaFlash.unitId)?charaFlash:null;
     const guide=!units.length?'「＋ 所持個体」で、どの端末にいるかと、わくわくの実を登録してください':'';
-    // 基本情報（種族・戦型・撃種）はキャラにつき1行。進化形態ごとの行は出さない（形態のデータは内部に保持）
+    // 基本情報（種族・戦型・撃種）はキャラにつき1行。進化形態ごとの行は出さない（形態のデータは内部に保持）。まとめたキャラは代表の値（個体ごとの値は各個体の行）
     const basic=basicFormOf(c.id);
-    const basicRow=`<div class="row"><div class="rowMain"><div class="badges">${typeChips(basic||{})}${basic?.monsterNo?`<span class="ty">No.${esc(basic.monsterNo)}</span>`:''}</div></div><button class="mini" data-act="basicEdit" data-id="${esc(c.id)}">編集</button></div>`;
+    const basicRow=`<div class="row"><div class="rowMain"><div class="badges">${typeChips(basic||{})}${basic?.monsterNo?`<span class="ty">No.${esc(basic.monsterNo)}</span>`:''}</div>${grouped?`<div class="meta">代表「${esc(c.name)}」の値です。個体ごとの撃種・戦型・種族・図鑑No.は下の各個体に表示します</div>`:''}</div><button class="mini" data-act="basicEdit" data-id="${esc(c.id)}">編集</button></div>`;
     const unitRows=DEVICES.map(d=>{
-      const us=units.filter(u=>u.device===d).sort((a,b)=>(a.no||0)-(b.no||0));
+      const us=units.filter(u=>u.device===d).sort((a,b)=>(dispNo(a)||0)-(dispNo(b)||0));
       if(!us.length) return '';
-      return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>{const lend=lendText(u);return `<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
-        <div class="cname">個体${u.no??'?'}${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}${lend?`<span class="b out">${esc(lend)}</span>`:'<span class="b ok">在籍</span>'}</div>
+      return `<div class="psub">${esc(devLabel(d))}（${us.length}体）</div>`+us.map(u=>{const lend=lendText(u), reg=unitRegName(u);return `<div class="row${flash&&flash.unitId===u.id?' justSaved':''}" data-unit="${esc(u.id)}"><div class="rowMain">
+        <div class="cname">個体${dispNo(u)??'?'}${unitNoTag(u)}${u.verificationStatus?`<span class="vb v-${u.verificationStatus}">${esc(VERIFY[u.verificationStatus])}</span>`:''}${lend?`<span class="b out">${esc(lend)}</span>`:'<span class="b ok">在籍</span>'}</div>
+        ${grouped?basicLine(u)+(reg?`<div class="meta">登録名：${esc(reg)}</div>`:''):''}
         ${u.epithet?`<div class="meta">二つ名：${esc(u.epithet)}</div>`:''}<div class="badges">${fruitChips(u)}</div>${u.memo?`<div class="meta">${esc(u.memo)}</div>`:''}
         ${ownBasicMeta(u)}<div class="meta">${esc(unitSuitText(u))}</div></div>
         <span class="acts">${lend?`<button class="mini ret" data-act="unitReturn" data-id="${esc(u.id)}">返却</button>`:`<button class="mini lend" data-act="unitLend" data-id="${esc(u.id)}">貸出</button>`}
@@ -2245,14 +2327,23 @@ function renderChara(){
     const suitRows=suits.length||linked.length?`<div class="badges">${suits.sort((a,b)=>sortJa(a.stageKey,b.stageKey)).map(s=>`<span class="b">${suitChip(s)}</span>`).join('')}${
       linked.sort((a,b)=>sortJa(a.via.name,b.via.name)||sortJa(a.s.stageKey,b.s.stageKey)).map(({s,via})=>`<span class="b bLink">${suitChip(s)}・${esc(via.name)}として登録${s.verificationStatus&&s.verificationStatus!=='VERIFIED'?`・${esc(VERIFY[s.verificationStatus])}`:''}</span>`).join('')}</div>`
       :'<div class="small">適正ステージは未登録です（ステージ画面の「＋ 適正を追加」から登録）</div>';
-    return `<div class="card chara open">${head}
+    // まとめた登録名（キャラ名・IDはそれぞれ保存したまま）。外すのは「まとめ」の記録だけ
+    const memberRows=grouped?`<div class="pgroup">まとめた登録名（${members.length}件）</div>`+members.map(m=>{
+      const us=units.filter(u=>formOf(u.formId)?.characterId===m.id), nos=[...new Set(us.map(unitMonsterNo).filter(Boolean))];
+      return `<div class="row grMember" data-member="${esc(m.id)}"><div class="rowMain"><div class="cname">${esc(m.name)}${m.id===c.id?'<span class="b ok">代表名</span>':''}</div>
+        <div class="meta">${us.length?`${us.length}体`:'個体なし'}${nos.length?`・No.${esc(nos.join('／'))}`:''}</div></div>
+        <button class="mini" data-act="ungroupChar" data-id="${esc(m.id)}">まとめから外す</button></div>`}).join('')
+      +'<div class="small">まとめても、キャラ名・所持個体（図鑑No.・わくわくの実・貸出）・編成は変わりません。外すと別々の表示に戻ります。</div>':'';
+    return `<div class="card chara open${grouped?' grouped':''}" data-group="${esc(g.ids.join(' '))}">${head}
       ${flash?`<div class="okMsg" role="status">${esc(flash.text)}</div>`:''}
       ${guide?`<div class="guide">${esc(guide)}</div>`:''}
-      ${(g=>g.length?`<div class="small">同じキャラとして対応付け：${g.map(o=>esc(o.name)).join('・')}（解除はステージ画面の適正一覧から）</div>`:'')(linkedChars)}
+      ${(l=>l.length?`<div class="small">同じキャラとして対応付け：${l.map(o=>esc(o.name)).join('・')}（解除はステージ画面の適正一覧から）</div>`:'')(linkedChars)}
       <div class="pgroup">基本情報</div>${basicRow}
       <div class="tools"><button class="tool${units.length?'':' main'}" data-act="unitAdd" data-id="${esc(c.id)}">＋ 所持個体</button>
-        <button class="tool" data-act="mcharEdit" data-id="${esc(c.id)}">キャラ名を編集</button></div>
+        <button class="tool" data-act="mcharEdit" data-id="${esc(c.id)}">キャラ名を編集</button>
+        ${units.length?`<button class="tool" data-act="groupOpen" data-id="${esc(c.id)}">同じキャラをまとめる</button>`:''}</div>
       <div class="pgroup">所持個体（端末別）</div>${unitRows}
+      ${memberRows}
       <div class="pgroup">適正ステージ</div>${suitRows}</div>`;
   }).join(''):`<div class="empty">${db.master.characters.length?'該当するキャラがいません':'まだキャラが登録されていません（「＋ キャラ追加」から登録）'}</div>`;
   charaFlash=null; // 保存直後に一度だけ表示
@@ -2263,6 +2354,105 @@ function unitSuitText(u){
   const cid=formOf(u.formId)?.characterId;if(!cid) return '';
   const g=linkedIds('char',cid), n=new Set(db.suits.filter(s=>g.has(formOf(s.formId)?.characterId)).map(s=>s.stageKey)).size;
   return n?`適正ステージ ${n}件（ステージ画面の候補に出ます）`:'ステージ適正 未登録（ステージ画面の候補には出ません。仮選択はできます）';
+}
+/* ---- 同じキャラをまとめる（v36・キャラ画面）----
+   候補は所持個体のあるキャラだけ。名前・図鑑No.の近いものを上に出すが、自動ではまとめない（似た名前でも別キャラのことがある）。
+   選ぶと確認画面（代表名・まとめた後の表示・含まれる個体）になり、「まとめる」を押したときだけ「まとめ」の記録を1件保存する */
+let grEdit=null; // {rep: まとめる元の代表, target: 選んだキャラの代表, keep: 代表名にするキャラ, q: 絞り込み}
+function grUnitsOf(g){const ids=new Set(g.ids);return db.units.filter(u=>ids.has(formOf(u.formId)?.characterId))}
+function grSummary(g){
+  const us=grUnitsOf(g), nos=[...new Set(us.map(unitMonsterNo).filter(Boolean))];
+  return `${us.length}体（${DEVICES.map(d=>[d,us.filter(u=>u.device===d).length]).filter(([,n])=>n).map(([d,n])=>`${devLabel(d)}×${n}`).join('・')}）`+(nos.length?`・No.${nos.join('／')}`:'')
+    +(g.ids.length>1?`・まとめ済み：${g.ids.map(id=>charOf(id).name).join('・')}`:'');
+}
+// 名前・図鑑No.の近さ（候補の並び順と理由の表示だけに使う。まとめの判断はしない）
+function grReason(A,B){
+  const nosA=new Set(grUnitsOf(A).map(unitMonsterNo).filter(Boolean));
+  let best=grUnitsOf(B).some(u=>nosA.has(unitMonsterNo(u)))?{why:'図鑑No.が一致',rank:1}:null;
+  A.ids.map(charOf).forEach(a=>B.ids.map(charOf).forEach(b=>{const r=candReason(a.name,'',b);if(r&&(!best||r.rank<best.rank))best={why:r.why,rank:r.rank}}));
+  return best;
+}
+function openGroup(cid){
+  const g=dispGroupInfo(cid);if(!charOf(g.rep)) return;
+  grEdit={rep:g.rep,target:null,keep:g.rep,q:''};
+  renderGroup();
+  $('groupModal').classList.add('open');$('groupModal').querySelector('.modal').scrollTop=0;
+}
+function renderGroup(){
+  if(!grEdit) return;
+  const A=dispGroupInfo(grEdit.rep), a=charOf(A.rep);
+  $('grTitle').textContent=`「${a.name}」と同じキャラをまとめる`;
+  if(!grEdit.target){
+    $('grBody').innerHTML=`<div class="guide">同じキャラの別の登録名（例：進化形態の名前が付いた名前）を選ぶと、キャラ一覧で1つのキャラとして「所持○体」と表示します。名前が似ていても別のキャラのことがあります。同じキャラだと確認できたものだけ選んでください。</div>
+      <div class="meta">今の「${esc(a.name)}」：${esc(grSummary(A))}</div>
+      <div class="field"><label for="grSearch">キャラ名で絞り込む</label><input id="grSearch" autocomplete="off" value="${esc(grEdit.q)}"></div>
+      <div id="grList"></div>`;
+    renderGroupList();
+    return;
+  }
+  const B=dispGroupInfo(grEdit.target), b=charOf(B.rep);
+  if(!b||B.rep===A.rep){grEdit.target=null;renderGroup();return}
+  const keep=charOf(grEdit.keep)||a, K=new Set(dispGroupInfo(keep.id).ids), side=u=>K.has(formOf(u.formId)?.characterId)?0:1;
+  const us=[...grUnitsOf(A),...grUnitsOf(B)].sort((x,y)=>DEVICES.indexOf(x.device)-DEVICES.indexOf(y.device)||(x.no||0)-(y.no||0)||side(x)-side(y));
+  const radio=c=>`<label class="grRep"><input type="radio" name="grKeep" value="${esc(c.id)}"${c.id===keep.id?' checked':''}> ${esc(c.name)}</label>`;
+  $('grBody').innerHTML=`<div class="guide">「${esc(a.name)}」（${grUnitsOf(A).length}体）と「${esc(b.name)}」（${grUnitsOf(B).length}体）を、同じキャラとしてまとめます。</div>
+    <div class="pgroup">一覧に出す名前（代表名）</div><div class="grReps">${radio(a)}${radio(b)}</div>
+    <div class="pgroup">まとめた後の表示</div>
+    <div class="grPreview"><b>${esc(keep.name)}</b>　所持${us.length}体</div>
+    ${us.map(u=>{const c=charOf(formOf(u.formId)?.characterId), n=unitMonsterNo(u);return `<div class="row grUnit" data-unit="${esc(u.id)}"><div class="rowMain">
+      <div class="cname">${esc(devLabel(u.device))}<span class="uMno${n?'':' unset'}">${n?'No.'+esc(n):'No.未登録'}</span>${unitAt(u)!==u.device?`<span class="b out">${esc(lendText(u))}</span>`:''}</div>
+      <div class="meta">登録名：${esc(c?c.name:'')}</div>${basicLine(u)}${frChips(u)}</div></div>`}).join('')}
+    <div class="note">保存するのは「まとめ」の記録1件だけです。キャラ名・所持個体（個体ID・図鑑No.・わくわくの実・貸出）・編成・適正は変更しません。あとから「まとめから外す」で戻せます。<br>まとめたキャラは、ステージ適正の照合でも同じキャラとして扱います（適正の候補に出ます）。</div>
+    <div class="tools"><button class="tool main" data-act="groupSave">まとめる</button><button class="tool" data-act="groupBack">選び直す</button></div>`;
+}
+function renderGroupList(){
+  if(!grEdit||!$('grList')) return;
+  const A=dispGroupInfo(grEdit.rep), seen=new Set([A.rep]), q=nameKey(grEdit.q), rows=[];
+  db.master.characters.forEach(c=>{
+    const g=dispGroupInfo(c.id);if(seen.has(g.rep))return;seen.add(g.rep);
+    if(!grUnitsOf(g).length) return; // 所持個体のないキャラ（適正図鑑など）はまとめの対象にしない
+    if(q&&!g.ids.some(id=>nameKey(charOf(id).name).includes(q))) return;
+    rows.push({g,r:grReason(A,g),ex:groupExcluded(A.ids,g.ids)});
+  });
+  rows.sort((x,y)=>(x.r?x.r.rank:9)-(y.r?y.r.rank:9)||sortJa(charOf(x.g.rep).name,charOf(y.g.rep).name));
+  const item=x=>`<button type="button" class="cand grCand" data-act="groupPick" data-id="${esc(x.g.rep)}"${x.ex?' disabled':''}><b>${esc(charOf(x.g.rep).name)}</b>${x.r?` <span class="b">${esc(x.r.why)}</span>`:''}
+    <div class="meta">${esc(grSummary(x.g))}</div>${x.ex?'<div class="meta">「同じキャラではない」と記録済みのため選べません（除外はステージ画面の適正一覧で取り消せます）</div>':''}</button>`;
+  const near=rows.filter(x=>x.r), rest=rows.filter(x=>!x.r);
+  $('grList').innerHTML=(near.length?`<div class="candNote">名前・図鑑No.が近い所持キャラ</div>${near.map(item).join('')}`:'')
+    +(rest.length?`<div class="candNote">その他の所持キャラ</div>${rest.map(item).join('')}`:'')
+    +(rows.length?'':'<div class="small">まとめられる所持キャラがありません</div>');
+}
+function pickGroupTarget(id){
+  if(!grEdit) return;
+  const A=dispGroupInfo(grEdit.rep), B=dispGroupInfo(id);
+  if(!charOf(B.rep)||B.rep===A.rep||groupExcluded(A.ids,B.ids)||!grUnitsOf(B).length) return;
+  // 代表名の初期値：一方の名前がもう一方の先頭と同じなら短い方（例：「ヤクモ」と「ヤクモ大荒武装」→「ヤクモ」）。それ以外は開いていたキャラ
+  const ka=nameKey(charOf(A.rep).name), kb=nameKey(charOf(B.rep).name);
+  grEdit.target=B.rep;grEdit.keep=kb.length>=2&&kb.length<ka.length&&ka.startsWith(kb)?B.rep:A.rep;
+  renderGroup();$('groupModal').querySelector('.modal').scrollTop=0;
+}
+function saveGroup(){
+  if(!grEdit?.target) return;
+  const A=dispGroupInfo(grEdit.rep), B=dispGroupInfo(grEdit.target);
+  if(A.rep===B.rep||!charOf(A.rep)||!charOf(B.rep)||groupExcluded(A.ids,B.ids)) return;
+  const keep=grEdit.keep===B.rep?B.rep:A.rep, other=keep===A.rep?B.rep:A.rep;
+  // 既に「同じキャラとして対応付け」済みのペアは、その記録をまとめに切り替える（ID・日時はそのまま。外すと元の対応付けに戻る）
+  const old=db.idLinks.find(l=>l.kind==='char'&&l.basis!==EXCLUDED&&((l.a===keep&&l.b===other)||(l.a===other&&l.b===keep)));
+  db.idLinks=old?db.idLinks.map(l=>l===old?{...l,a:keep,b:other,basis:GROUP_LINKED}:l)
+    :[...db.idLinks,{id:uid(),kind:'char',a:keep,b:other,basis:GROUP,at:new Date().toISOString()}];
+  const us=[...grUnitsOf(A),...grUnitsOf(B)], name=charOf(keep).name;
+  db.ui.view='chara';db.ui.charaOpen=keep;
+  persist();closeModals();
+  charaFlash=us.length?{unitId:us[0].id,text:`「${name}」としてまとめました（所持${us.length}体）`}:null;
+  render();
+}
+// まとめから外す：このキャラにつながる「まとめ」の記録だけを外す（以前の対応付けだったものは対応付けに戻す）
+function ungroupChar(id){
+  const m=charOf(id);if(!m) return;
+  const links=db.idLinks.filter(l=>isGroupLink(l)&&(l.a===id||l.b===id));if(!links.length) return;
+  if(!confirm(`「${m.name}」をまとめから外しますか？（キャラ名・所持個体・わくわくの実・編成・貸出は変わりません）`)) return;
+  db.idLinks=db.idLinks.flatMap(l=>!links.includes(l)?[l]:l.basis===GROUP_LINKED?[{...l,basis:'USER_SELECTED'}]:[]);
+  persist();render();
 }
 /* ---- 管理：旧データ（TOP20）から新形式への取り込み ---- */
 function legacyEntries(){
@@ -2294,6 +2484,7 @@ function renderMigration(){
 }
 
 function render(){
+  resetDispGroups();
   VIEWS.forEach(v=>$('view-'+v).classList.toggle('active',v===db.ui.view));
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===db.ui.view));
   renderStage();renderSuitPanel();renderTop20();renderChara();renderSearch();renderDevices();renderAdmin();renderMigration();renderImportIssues();renderOwnershipChecks();renderPending();renderOpenPicker();
@@ -2358,7 +2549,7 @@ function openLend(c){
 // 新方式の所持個体の貸出：個体の lentTo に貸出先の端末を入れるだけ（個体ID・端末・実・編成は変えない）。返却で消す
 function openLendUnit(u){
   lendingUnitId=u.id;lendingId=null;
-  $('lendTitle').textContent=`「${unitLabel(u)}」を貸し出す（元：${devLabel(u.device)}）`;
+  $('lendTitle').textContent=`「${unitLabel(u)}${isGroupedUnit(u)&&unitMonsterNo(u)?` No.${unitMonsterNo(u)}`:''}」を貸し出す（元：${devLabel(u.device)}）`;
   $('lendTo').innerHTML=DEVICES.filter(d=>d!==u.device).map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}</option>`).join('');
   $('lendModal').classList.add('open');
 }
@@ -2379,7 +2570,7 @@ function returnChar(c){c.lentTo=null;persist();render()}
 function returnUnit(u){db.units=db.units.map(x=>x.id===u.id?Object.fromEntries(Object.entries(x).filter(([k])=>k!=='lentTo')):x);persist();render()}
 function closeModals(){
   document.querySelectorAll('.modalBack').forEach(m=>m.classList.remove('open'));
-  editingId=null;lendingId=null;lendingUnitId=null;pickerDev=null;rankEditing=null;pendingImport=null;mEdit=null;qrStage=null;dirtyBase=null;
+  editingId=null;lendingId=null;lendingUnitId=null;pickerDev=null;grEdit=null;rankEditing=null;pendingImport=null;mEdit=null;qrStage=null;dirtyBase=null;
 }
 
 /* ---- 新構造の編集（キャラ・進化形態・所持個体・適正） ---- */
@@ -2482,7 +2673,7 @@ function openUnit(charId,u=null){
   const f=u?formOf(u.formId):null;
   mEdit={type:'unit',id:u?u.id:null,charId:f?f.characterId:charId};
   const c=charOf(mEdit.charId);
-  $('unTitle').textContent=u?`個体${u.no??'?'}を編集`:'所持個体を登録';
+  $('unTitle').textContent=u?`個体${dispNo(u)??'?'}を編集`:'所持個体を登録';
   $('unChar').textContent=`キャラ：${c?c.name:'（キャラ不明）'}`;
   $('unDevice').innerHTML=DEVICES.map(d=>`<option value="${esc(d)}">${esc(devLabel(d))}</option>`).join('');
   $('unDevice').value=u&&DEVICES.includes(u.device)?u.device:(DEVICES.includes(db.ui.rankDevice)?db.ui.rankDevice:DEVICES[0]);
@@ -2583,8 +2774,7 @@ function syncQrChar(){
 function syncQrNo(){
   const dev=$('qrDevice').value;
   if($('qrChar').value!==NEW){
-    const used=db.units.filter(u=>u.device===dev&&formOf(u.formId)?.characterId===$('qrChar').value).map(u=>u.no||0);
-    $('qrNo').value=used.length?Math.max(...used)+1:1;
+    $('qrNo').value=nextUnitNo(null,dev,null,$('qrChar').value);
   }else $('qrNo').value=1;
 }
 function syncQrSuit(){
@@ -3910,7 +4100,7 @@ document.addEventListener('click',guardStale(e=>{
       db.useDevs[k]=cur.includes(d)?cur.filter(x=>x!==d):[...cur,d];
       persist();render();break;
     }
-    case 'charaOpen':db.ui.charaOpen=db.ui.charaOpen===b.dataset.id?null:b.dataset.id;persistUi();render();break;
+    case 'charaOpen':db.ui.charaOpen=dispGroupInfo(b.dataset.id).ids.includes(db.ui.charaOpen)?null:b.dataset.id;persistUi();render();break;
     case 'mcharAdd':openMChar();break;
     case 'mcharEdit':{const x=charOf(b.dataset.id);if(x)openMChar(x);break}
     case 'saveMChar':saveMChar();break;
@@ -3919,6 +4109,11 @@ document.addEventListener('click',guardStale(e=>{
     case 'saveForm':saveForm();break;
     // 進化形態が無いときも反応する：先に進化形態の登録を開き、保存後そのまま所持個体の登録へ進める
     case 'unitAdd':if(charOf(b.dataset.id)) openUnit(b.dataset.id);break;
+    case 'groupOpen':openGroup(b.dataset.id);break;
+    case 'groupPick':pickGroupTarget(b.dataset.id);break;
+    case 'groupBack':if(grEdit){grEdit.target=null;renderGroup()}break;
+    case 'groupSave':saveGroup();break;
+    case 'ungroupChar':ungroupChar(b.dataset.id);break;
     case 'basicEdit':if(charOf(b.dataset.id)) openForm(b.dataset.id,basicFormOf(b.dataset.id),{basic:true});break;
     case 'unitLend':{const u=db.units.find(x=>x.id===b.dataset.id);if(u)openLendUnit(u);break}
     case 'unitReturn':{const u=db.units.find(x=>x.id===b.dataset.id);if(u)returnUnit(u);break}
@@ -3995,6 +4190,8 @@ document.addEventListener('change',guardStale(e=>{
   persist();render();
 }));
 $('charaSearch').addEventListener('input',renderChara);
+$('grBody').addEventListener('input',e=>{if(e.target.id==='grSearch'&&grEdit){grEdit.q=e.target.value;renderGroupList()}});
+$('grBody').addEventListener('change',e=>{if(e.target.name==='grKeep'&&grEdit){grEdit.keep=e.target.value;renderGroup()}});
 $('fmRace').addEventListener('change',()=>{$('fmRaceCustomField').hidden=$('fmRace').value!==CUSTOM_RACE});
 $('unDevice').addEventListener('change',()=>{if(!mEdit?.id)$('unNo').value=nextUnitNo($('unForm').value,$('unDevice').value,null,mEdit?.charId)});
 $('stSource').addEventListener('change',syncSuitModal);

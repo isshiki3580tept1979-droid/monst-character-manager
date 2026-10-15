@@ -97,7 +97,7 @@ test('ミライとミライ・ピースフルAI: linked by name, every unit of t
 
 test('character screen: one card per character with units per device, fruits, suitability stages and lending; no form rows or buttons', async()=>{
   await seed(BASE);await chara();
-  assert.match(await head('cO'),/個体2・適正1（うち対応付け先1）/);assert.doesNotMatch(await head('cO'),/形態/);
+  assert.match(await head('cO'),/所持2体・適正1（うち対応付け先1）/);assert.doesNotMatch(await head('cO'),/形態/);
   const card=await openCard('cO');
   assert.match(card,/基本情報亜人バランス型貫通/);
   assert.match(card,/架空メイン名（メイン）（1体） 個体1要確認在籍 二つ名：架空二つ名1熱き友撃の力 特級EL2同族の絆・加命撃 特級L3同族の絆・加撃 特級L架空メモ 適正ステージ 1件（ステージ画面の候補に出ます） 貸出 編集/);
@@ -106,11 +106,11 @@ test('character screen: one card per character with units per device, fruits, su
   assert.doesNotMatch(card,/進化形態|形態指定なし|獣神化|表記：|（架空ピースフル）/);
   assert.equal(await page.locator('.card.chara.open [data-act="formEdit"], .card.chara.open [data-act="formAdd"]').count(),0);
   assert.equal(await page.locator('.card.chara.open [data-act="unitAdd"]').count(),1);
-  assert.match(await head('cN'),/個体3・適正1 /);
+  assert.match(await head('cN'),/所持3体・適正1 /);
   const n=await openCard('cN');
   assert.match(n,/架空メイン名（メイン）（2体） 個体1在籍.*個体2在籍.*架空タブレット（サブ1）（1体） 個体1在籍/);
   assert.match(n,/星墓 ラルガメンテ・GameWith ランク B/);assert.doesNotMatch(n,/表記：|ハロー|リバース/);
-  assert.match(await head('cX'),/個体1・適正0/);
+  assert.match(await head('cX'),/所持1体・適正0/);
 });
 
 test('lending a unit: only lentTo is added; the unit moves to the borrowing device on the stage and device screens; return removes it; picks untouched', async()=>{
@@ -119,7 +119,7 @@ test('lending a unit: only lentTo is added; the unit moves to the borrowing devi
   await page.selectOption('#lendTo','サブ3');await page.click('[data-act="saveLend"]');
   let d=await stored();
   same(d.units.find(u=>u.id==='uO1'),{...BASE.units[0],lentTo:'サブ3'});unitsKept(d);same(d.picks,BASE.picks);
-  assert.match(await openCard('cO'),/個体1要確認貸出中 → サブ3/);assert.match(await head('cO'),/個体2（貸出中1）/);
+  assert.match(await openCard('cO'),/個体1要確認貸出中 → サブ3/);assert.match(await head('cO'),/所持2体（貸出中1）/);
   await stage('ラルガメンテ');
   const m=await picks('メイン');
   assert.ok(!m.cand.some(t=>/架空ミライ/.test(t)&&!/候補外/.test(t)),'lent unit is not a candidate on its home device');

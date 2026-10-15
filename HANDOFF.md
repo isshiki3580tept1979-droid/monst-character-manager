@@ -1,4 +1,4 @@
-# 開発引き継ぎ（2026-10-12 時点）
+# 開発引き継ぎ（2026-10-15 時点）
 
 モンストキャラ管理アプリの開発を、Claude Code・Codex など別の開発AI／担当者が GitHub だけを見て再開するための文書です。
 **作業を始める前に必ず最後まで読み、「7. 再開手順」に従ってください。**
@@ -7,12 +7,12 @@
 
 | 項目 | 値 |
 |---|---|
-| 公開バージョン | **v35**（試作版） |
-| 最終公開 commit | **`1d23e53`**（作業ブランチ・main とも同じ。この文書の commit はその後に追加） |
+| 公開バージョン | **v36**（試作版） |
+| 最終公開 commit | **v36 の commit**（この文書の更新を含む同じ commit。`git log --oneline -1 -- monst_character_manager_trial.html` で確認。v35 は `1d23e53`） |
 | 作業ブランチ | `codex/trial-character-basic-info`（main と同じ内容を fast-forward で公開） |
 | 公開先 | GitHub Pages：main ブランチのルート（従来方式・Jekyll） |
 | 試作版URL | https://isshiki3580tept1979-droid.github.io/monst-character-manager/monst_character_manager_trial.html |
-| 全体回帰 | 35ファイル・364件すべて合格（公開版HTMLでも 364/364） |
+| 全体回帰 | 36ファイル・372件すべて合格（v36 追加 `tests/trial-v36.test.cjs` 8件を含む） |
 
 ## 2. 構成
 
@@ -40,7 +40,7 @@
 | `suits` | ステージ適正（出典ごと。`evaluationType` RANK/GRADE/CANDIDATE、`verificationStatus` VERIFIED/UNVERIFIED/NEEDS_REVIEW） |
 | `picks`／`useDevs` | ステージごとの編成（端末→個体ID）と、今回使う端末（6端末から最大4台） |
 | `ownershipChecks` | 端末ごとの所持確認の記録（所持／未所持／要確認） |
-| `idLinks`／`suitAliases` | 利用者が確認したキャラ・形態の対応付け、取り込み時の対応表 |
+| `idLinks`／`suitAliases` | 利用者が確認したキャラ・形態の対応付け（basis：USER_SELECTED＝対応付け、USER_EXCLUDED＝同じキャラではない、**USER_GROUP／USER_GROUP_LINKED＝v36 のまとめ**）、取り込み時の対応表 |
 | `importIssues`／`pendingReadings` | 取り込みで保留した行、スクショ読取の保留 |
 | `characters`／`rankings`／`ownership` | **旧データ**（従来方式の登録キャラ・旧TOP20）。読むだけで変換・書き換えはしない |
 | `deviceNames`／`ui` | 端末名、表示状態 |
@@ -61,7 +61,7 @@
 
 ```
 # 1ファイル
-NODE_PATH=<playwrightのnode_modules> node --test --test-concurrency=1 tests/trial-v35.test.cjs
+NODE_PATH=<playwrightのnode_modules> node --test --test-concurrency=1 tests/trial-v36.test.cjs
 # 全体（PCの負荷・メモリが心配なときは1ファイルずつ順番に）
 NODE_PATH=<playwrightのnode_modules> node --test --test-concurrency=2 tests/*.test.cjs
 ```
@@ -81,10 +81,11 @@ NODE_PATH=<playwrightのnode_modules> node --test --test-concurrency=2 tests/*.t
 - ステージ編成（v27〜v29）：今回使う端末（6台から最大4台）、端末ごとのカード（端末名 → キャラ名 → 撃種｜戦型｜種族 → わくわくの実 → ボタン）、キャラを選ぶ画面
 - **v35**：端末ごとの適正所持状況。カードの印「適正候補あり N体」（緑＝全員が適正と同じ形態かつ確認済み、薄い青＝キャラ名だけの一致や未検証を含む）、「貸出中」「該当なし」（全キャラに未所持の記録があるときだけ）「未確認」「旧登録あり・要確認」（旧データに名前が完全一致する所持記録）「適正未登録」。未選択の端末には候補名の1行
 - 複数タブでの上書き防止、保存失敗時のロールバック、バックアップ・復元
+- **v36**：同じキャラの複数個体の「まとめ」（下記8）。キャラ一覧の見出しを全キャラ共通の「所持N体」に変更
 
 ## 6. 未解決事項
 
-1. **同じキャラの複数個体**（次回のテーマ。下記8）
+1. v36 のまとめの実機確認（ヤクモ3体・MV の図鑑No.8930 の表示。下記8）
 2. 実データでは所持個体の多くが「形態未確認」のため、v35 の印はほとんど薄い青になる見込み（緑は形態まで対応付けた個体だけ）。実機での見え方の確認が必要
 3. v35 の内訳は印の説明（`title`）に入れている。スマホでは表示されないことがあるため、キャラ選択画面で確認する形
 4. 旧データ（旧登録・旧TOP20）の照合は名前の完全一致だけ。旧TOP20の所持記録は、調べたステージにかかわらず端末の記録として扱う
@@ -97,37 +98,30 @@ NODE_PATH=<playwrightのnode_modules> node --test --test-concurrency=2 tests/*.t
 1. GitHub の最新状態を取得する：`git fetch origin`
 2. 差分を確認する：`git status`、`git log --oneline -5`、`git rev-parse HEAD origin/main origin/codex/trial-character-basic-info`（3つが同じか、どちらが進んでいるか）、`git diff origin/main..HEAD --stat`
 3. `README.md` とこの `HANDOFF.md` を読む
-4. ソースとテストを確認する：試作版HTMLの該当箇所（下記9）、最新のテスト `tests/trial-v35.test.cjs`。可能なら全体回帰を実行して現状を確認する
+4. ソースとテストを確認する：試作版HTMLの該当箇所（下記9）、最新のテスト `tests/trial-v36.test.cjs`。可能なら全体回帰を実行して現状を確認する
 5. データ保護の方針（上記3）を確認する
 6. 未解決事項（上記6）と次の開発テーマ（下記8）を整理する
 7. **開発に入る前に、作業方針（変更する範囲・保存データへの影響・テスト計画）を利用者に提示し、承認を得る**
 
-## 8. 次回の開発テーマ：同じキャラの複数個体管理
+## 8. v36 で対応：同じキャラの複数個体（「まとめ」）
 
-**実機で確認した状況**：メイン端末にヤクモを3体所持。
+**実機の状況（きっかけ）**：メイン端末にヤクモを3体所持。「ヤクモ（MV・図鑑No.8930・戦型の実3つ）」と「ヤクモ大荒武装（No.6737）」2体が、別キャラ名として登録されていた。
 
-| 個体 | 現在の登録名 | 図鑑No. | わくわくの実 |
-|---|---|---|---|
-| 1 | ヤクモ（MV） | 8930 | 戦型系 3つ |
-| 2 | ヤクモ大荒武装 | 6737 | 撃種系 2つ |
-| 3 | ヤクモ大荒武装 | 6737 | 同族系 3つ |
+**採用した方式（表示上のまとめ。保存データの統合はしない）**
+- キャラ画面の「同じキャラをまとめる」で、利用者が相手のキャラを選び、確認画面（代表名・まとめた後の「所持N体」・含まれる個体）で「まとめる」を押したときだけ、`idLinks` に `{kind:'char', a:代表のキャラ, b:相手, basis:'USER_GROUP'}` を1件足す。既に「同じキャラとして対応付け」済み（USER_SELECTED）のペアは、その記録の basis を `USER_GROUP_LINKED` に切り替える（ID・日時はそのまま）
+- キャラ名・キャラID・進化形態・所持個体（個体ID・図鑑No.・個体の種族などの値・わくわくの実・貸出）・編成・適正は変更しない。自動ではまとめない（候補に名前・図鑑No.の近いキャラを出すだけ。所持個体のないキャラは対象外。「同じキャラではない」と記録したペアを含むまとめは不可）
+- 「まとめから外す」：そのキャラにつながるまとめの記録だけを外す（USER_GROUP は削除、USER_GROUP_LINKED は USER_SELECTED に戻す）
+- 代表名：まとめた側（a）。確認画面で選べる（初期値は、一方の名前がもう一方の先頭と同じなら短い方。例「ヤクモ」）
+- 表示：キャラ一覧は1枚（「ヤクモ　所持3体（貸出中◯）」）。各個体に個体番号・図鑑No.・撃種｜戦型｜種族・登録名（代表名と違うとき）・実・貸出／返却。編成のキャラ選択・端末カード・端末画面・検索も代表名＋個体ごとの図鑑No.
+- 個体番号：保存値は変えない。まとめたキャラで同じ端末の番号が重なるときだけ、画面は通し番号。新しい個体はまとめ全体で重ならない番号
+- まとめはキャラの対応付けでもあるため、適正の照合（`charGroupOf`）でも同じキャラとして扱う（例：「ヤクモ」の適正で大荒武装の個体も候補に出る。進化形態まで同じでない個体には v35 どおり「キャラ名で一致」と表示）
+- 保存形式：`idLinks` の basis に新しい値が増えただけ。旧データ・旧バックアップはそのまま読める。v35 以前の試作版で読んでも通常の対応付けとして保持される（一覧はまとまらない）
+- キャラ一覧の見出しは全キャラ共通で「所持N体・適正M」（個体のないキャラは「個体未登録」。適正図鑑キャラを所持と書かない）
 
-今は「ヤクモ」と「ヤクモ大荒武装」が**別キャラ名**として登録されている。
-
-**目標**：3体を「ヤクモ」としてまとめて表示しながら、各個体の図鑑No.・能力情報（撃種・戦型・種族など）・わくわくの実を個体ごとに独立して管理する設計を検討する。
-
-**条件**
-- 進化形態の手入力・選択を必須にしない
-- 既存の個体・キャラを自動で統合・削除・上書きしない（まとめる操作は利用者の確認を経て行う）
-- 表示上の「まとめ」と保存データの統合は分けて考える
-
-**具体的な作業手順（案）**
-1. 現状の確認：`master.characters`／`master.forms`／`units` で、同じキャラが別名で登録されている状態と、個体ごとの値（`units[].monsterNo`・`race`・`battleType`・`shotType`・`fruits`）の持ち方を確認する
-2. 既存の仕組みを確認：キャラの対応付け（`idLinks` kind=char、`charGroupOf`）、自動照合（`autoSameChar`：名前の完全一致・二つ名を除いた一致のみ）、区切りの前の名前の候補（`sepHead`／`candReason`）。「ヤクモ大荒武装」は自動照合の対象外である点に注意
-3. 設計案を複数用意して利用者に提示する（例：A＝既存の対応付けで「同じキャラ」とし、表示だけまとめる／B＝キャラ名を代表名に寄せる操作を利用者が選んで行う。個体の値は維持）。保存形式を変える場合は互換と移行方法を示す
-4. 架空データ（同じキャラ3体・別名2つ・図鑑No.違い・実の種類違い）で表示テストを先に作る
-5. 承認後に試作版HTMLを変更し、新しい `tests/trial-v36.test.cjs` を追加、390px・360px の画面確認、全体回帰（1ファイルずつ）
-6. commit・push・公開は利用者の承認を得てから
+**次回の開発テーマ（候補・未着手）**
+1. 実機確認：ヤクモ3体をまとめ、MV の図鑑No.8930 が表示されるか（未登録なら「No.未登録」と出る。個体の図鑑No.は今は画面から編集できず、スクショ読取の登録で入る）
+2. 個体の編集画面で図鑑No.・個体ごとの撃種／戦型／種族を直せるようにするか（要相談）
+3. 下記6の未解決事項
 
 ## 9. 関連する場所（試作版HTML内の関数）
 
@@ -141,4 +135,5 @@ NODE_PATH=<playwrightのnode_modules> node --test --test-concurrency=2 tests/*.t
 | v35 適正所持状況 | `devSuitState`、`legacyOwnFor`、`devSuitChips`、`devSuitHint`、`devSuitBadge`、`teamSuitText` |
 | 適正取り込み | `parseSuitImport`、`planSuitImport`、`applySuitImport`、一括 `parseSuitBundle`、更新 `onUpdateMessage`・`applyUpdate` |
 | スクショ読取連携 | `openReader`、`onReaderMessage`、`previewScreenshot` |
-| 関連テスト | `tests/trial-v26`（形態管理の廃止）、`v16`・`v19`・`v21`・`v22`（対応付け・候補）、`v27`〜`v29`・`v35`（編成画面）、`v31`・`v32`（同名・別能力の個体） |
+| v36 まとめ | `dispGroupInfo`（まとめの集合・代表名）、`dispNo`、`unitSort`、`unitMonsterNo`、`unitNoTag`、`unitRegName`、`renderChara`、`openGroup`・`renderGroup`・`renderGroupList`・`pickGroupTarget`・`saveGroup`・`ungroupChar`、`nextUnitNo` |
+| 関連テスト | `tests/trial-v26`（形態管理の廃止）、`v16`・`v19`・`v21`・`v22`（対応付け・候補）、`v27`〜`v29`・`v35`（編成画面）、`v31`・`v32`（同名・別能力の個体）、`v36`（同じキャラのまとめ） |

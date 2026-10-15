@@ -209,7 +209,7 @@ test('only choosing the candidate adds the unit to the catalog character (form s
   assert.deepEqual(d.units.filter(u=>u.formId===nf.id).map(u=>[u.device,u.no]),[['サブ1',1]]);
   assert.deepEqual(d.suits.map(x=>x.id+x.grade),BASE.suits.map(x=>x.id+x.grade));assert.deepEqual(d.picks,{});
   await chara();
-  assert.match(await head('cM'),/個体1・適正2 /);
+  assert.match(await head('cM'),/所持1体・適正2 /);
   // 候補を選ばない → 新しいキャラ（適正0・自動照合なし）
   await page.evaluate(()=>{db.ui.view='stage';render();openQuickReg()});
   await page.fill('#qrCharName','架空ミライ・別の個体AI');await page.selectOption('#qrDevice','メイン');await page.uncheck('#qrSuitOn');
